@@ -19,6 +19,10 @@ spec:
       containers:
         - name: hyperboard-api
           image: hyperboard-api
+          args:
+            - --postgresql-host=postgresql
+            - --postgresql-ssl-mode=disable
+            - --postgresql-password=postgres
           ports:
             - name: api
               containerPort: 8080

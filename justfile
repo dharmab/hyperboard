@@ -1,7 +1,5 @@
 default: start
 
-docker_build := "docker build -f build/Containerfile"
-
 install-dependencies:
     brew install go k3d tilt
 

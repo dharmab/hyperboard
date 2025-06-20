@@ -2,16 +2,22 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/dharmab/hyperboard/pkg/db"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 var (
-	port string
+	port               string
+	postgresqlHost     string
+	postgresqlUser     string
+	postgresqlPassword string
+	postgresqlDatabase string
+	postgresqlSSLMode  string
 )
 
 // server represents the base command when called without any subcommands
@@ -22,7 +28,12 @@ var server = &cobra.Command{
 }
 
 func init() {
-	server.PersistentFlags().StringVarP(&port, "port", "p", "8080", "Port to run the server on")
+	server.Flags().StringVar(&port, "port", "8080", "Port to bind for the API server")
+	server.Flags().StringVar(&postgresqlSSLMode, "postgresql-ssl-mode", "disable", "PostgreSQL SSL mode")
+	server.Flags().StringVar(&postgresqlHost, "postgresql-host", "localhost:5432", "PostgreSQL host")
+	server.Flags().StringVar(&postgresqlUser, "postgresql-user", "postgres", "PostgreSQL user")
+	server.Flags().StringVar(&postgresqlPassword, "postgresql-password", "", "PostgreSQL password")
+	server.Flags().StringVar(&postgresqlDatabase, "postgresql-database", "postgres", "PostgreSQL database name")
 }
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,23 +77,42 @@ func tagCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func startServer() {
-	// Register handlers
+	log.Info().Msg("Running database migrations...")
+	if err := migrateDatabase(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to run database migrations")
+	}
+
+	log.Info().Msg("Registering API routes...")
 	http.HandleFunc("/healthz", healthzHandler)
-	http.HandleFunc("/images/", imagesHandler)
 	http.HandleFunc("/images", imagesHandler)
-	http.HandleFunc("/tags/", tagsHandler)
 	http.HandleFunc("/tags", tagsHandler)
-	http.HandleFunc("/tagCategories/", tagCategoriesHandler)
 	http.HandleFunc("/tagCategories", tagCategoriesHandler)
 
-	// Start server
-	log.Printf("Starting API server on port %s\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Info().Msg("Starting API server...")
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start API server")
+	}
 }
 
 func main() {
+	log.Info().Msg("Running database migrations...")
 	if err := server.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func migrateDatabase() error {
+	url := fmt.Sprintf(
+		"postgresql://%s:%s@%s/%s?sslmode=%s",
+		postgresqlUser,
+		postgresqlPassword,
+		postgresqlHost,
+		postgresqlDatabase,
+		postgresqlSSLMode,
+	)
+	if err := db.Migrate(url); err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+	return nil
 }
