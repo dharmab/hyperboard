@@ -1,0 +1,10 @@
+{
+  "file_types": {
+    "Starlark": ["Tiltfile"]
+  },
+  "languages": {
+    "Starlark": {
+      "enable_language_server": false
+    }
+  }
+}

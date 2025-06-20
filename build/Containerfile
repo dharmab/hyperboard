@@ -1,0 +1,39 @@
+FROM --platform=${BUILDPLATFORM} golang:1.24 AS builder
+
+ARG BUILDPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY cmd/ cmd/
+COPY pkg/ pkg/
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-api ./cmd/hyperboard-api
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-web ./cmd/hyperboard-web
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboardctl ./cmd/hyperboardctl
+
+FROM gcr.io/distroless/static-debian12:debug AS hyperboard-api
+COPY --from=builder /bin/hyperboard-api /hyperboard-api
+ENTRYPOINT ["/hyperboard-api"]
+
+FROM gcr.io/distroless/static-debian12:debug AS hyperboard-web
+COPY --from=builder /bin/hyperboard-web /hyperboard-web
+ENTRYPOINT ["/hyperboard-web"]
+
+FROM scratch AS hyperboardctl
+COPY --from=builder /bin/hyperboardctl /hyperboardctl
+ENTRYPOINT ["/hyperboardctl"]
