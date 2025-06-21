@@ -31,3 +31,5 @@ stop:
     tilt down
     k3d cluster delete hyperboard
     k3d registry delete hyperboard
+
+run-ci: build-images lint
