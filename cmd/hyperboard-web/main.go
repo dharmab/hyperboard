@@ -25,11 +25,11 @@ func init() {
 }
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("hello  world"))
+	_, _ = w.Write([]byte("hello  world"))
 }
 
 func startServer() {

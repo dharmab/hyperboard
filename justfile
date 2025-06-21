@@ -8,6 +8,20 @@ build-images: (build-image "hyperboard-web") (build-image "hyperboard-api") (bui
 build-image target:
     docker build -f build/Containerfile --target {{target}} -t {{target}}:latest .
 
+lint: lint-go
+
+lint-go:
+    @echo "Running Go linter..."
+    go tool golangci-lint run
+    @echo "Checking Go code formatting..."
+    gofmt -s -d .
+
+format: format-go
+
+format-go:
+    @echo "Formatting Go code..."
+    gofmt -s -w .
+
 start:
     k3d registry create hyperboard
     k3d cluster create hyperboard --registry-use hyperboard --wait
