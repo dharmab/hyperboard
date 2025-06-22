@@ -1,0 +1,7 @@
+#yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/refs/tags/v2.4.1/configuration-schema.json
+package: types
+generate:
+  models: true
+output: gen.go
+output-options:
+  skip-prune: true

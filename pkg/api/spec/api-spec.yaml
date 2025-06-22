@@ -1,0 +1,454 @@
+openapi: 3.0.0
+info:
+  title: Hyperboard API
+  version: 0.1.0
+paths:
+  /metrics:
+    get:
+      operationId: getMetrics
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/MetricsResponse"
+  /healthz:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/HealthyResponse"
+  /readyz:
+    get:
+      operationId: getReady
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/HealthyResponse"
+        "503":
+          $ref: "#/components/responses/UnhealthyResponse"
+  /api/v1/tags:
+    get:
+      operationId: getTags
+      summary: List tags
+      parameters:
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          $ref: "#/components/responses/TagsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/tags/{tag}:
+    put:
+      operationId: putTag
+      summary: Create or replace a tag
+      parameters:
+        - $ref: "#/components/parameters/tag"
+      requestBody:
+        $ref: "#/components/requestBodies/TagRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/TagResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    get:
+      operationId: getTag
+      summary: Get a tag
+      parameters:
+        - $ref: "#/components/parameters/tag"
+      responses:
+        "200":
+          $ref: "#/components/responses/TagResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    delete:
+      operationId: deleteTag
+      summary: Delete a tag. The tag will be removed from any images and tag categories.
+      parameters:
+        - $ref: "#/components/parameters/tag"
+      responses:
+        "204":
+          $ref: "#/components/responses/DeletedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/tagCategories:
+    get:
+      operationId: getTagCategories
+      summary: List tag categories
+      parameters:
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          $ref: "#/components/responses/TagCategoriesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/tagCategories/{tagCategory}:
+    put:
+      operationId: putTagCategory
+      summary: Create or replace a tag category
+      parameters:
+        - $ref: "#/components/parameters/tagCategory"
+      requestBody:
+        $ref: "#/components/requestBodies/TagCategoryRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TagCategoryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    get:
+      operationId: getTagCategory
+      summary: Get a tag category
+      parameters:
+        - $ref: "#/components/parameters/tagCategory"
+      responses:
+        "200":
+          $ref: "#/components/responses/TagCategoryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    delete:
+      operationId: deleteTagCategory
+      summary: Delete a tag category. All tags with this category will have their category unset.
+      parameters:
+        - $ref: "#/components/parameters/tagCategory"
+      responses:
+        "204":
+          $ref: "#/components/responses/DeletedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/images:
+    get:
+      operationId: getImages
+      summary: Search for images.
+      parameters:
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/search"
+      responses:
+        "200":
+          $ref: "#/components/responses/ImagesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/images/{id}:
+    put:
+      operationId: putImage
+      summary: Replace an image's metadata.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        $ref: "#/components/requestBodies/ImageRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/ImageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    get:
+      operationId: getImage
+      summary: Get an image by ID.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/ImageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  delete:
+    operationId: deleteImage
+    summary: Delete an image.
+    parameters:
+      - $ref: "#/components/parameters/id"
+    responses:
+      "204":
+        $ref: "#/components/responses/DeletedResponse"
+      "400":
+        $ref: "#/components/responses/BadRequestResponse"
+      "401":
+        $ref: "#/components/responses/UnauthorizedResponse"
+      "403":
+        $ref: "#/components/responses/ForbiddenResponse"
+      "404":
+        $ref: "#/components/responses/NotFoundResponse"
+      "429":
+        $ref: "#/components/responses/TooManyRequestsResponse"
+      "500":
+        $ref: "#/components/responses/InternalServerErrorResponse"
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+    Cursor:
+      type: string
+    Limit:
+      type: integer
+      minimum: 1
+      maximum: 1024
+      default: 24
+    Search:
+      type: string
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: "types-spec.yaml#/components/schemas/ID"
+    tagCategory:
+      name: tagCategory
+      in: path
+      required: true
+      schema:
+        $ref: "types-spec.yaml#/components/schemas/TagCategoryName"
+    tag:
+      name: tag
+      in: path
+      required: true
+      schema:
+        $ref: "types-spec.yaml#/components/schemas/TagName"
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Cursor"
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Limit"
+    search:
+      name: search
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Search"
+  requestBodies:
+    TagRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/Tag"
+    TagCategoryRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/TagCategory"
+    ImageRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/Image"
+  responses:
+    MetricsResponse:
+      content:
+        text/plain:
+          schema:
+            type: string
+    HealthyResponse:
+      content:
+        text/plain:
+          schema:
+            type: string
+    UnhealthyResponse:
+      content:
+        text/plain:
+          schema:
+            type: string
+    DeletedResponse:
+      description: Resource deleted successfully
+    BadRequestResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnauthorizedResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ForbiddenResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFoundResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequestsResponse:
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerErrorResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TagResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/Tag"
+    TagsResponse:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  $ref: "types-spec.yaml#/components/schemas/Tag"
+              cursor:
+                $ref: "#/components/schemas/Cursor"
+    TagCategoryResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/TagCategory"
+    TagCategoriesResponse:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  $ref: "types-spec.yaml#/components/schemas/TagCategory"
+              cursor:
+                $ref: "#/components/schemas/Cursor"
+    ImageResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/Image"
+    ImagesResponse:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  $ref: "types-spec.yaml#/components/schemas/Image"
+              cursor:
+                $ref: "#/components/schemas/Cursor"

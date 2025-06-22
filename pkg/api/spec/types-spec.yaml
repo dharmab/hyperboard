@@ -1,0 +1,72 @@
+openapi: "3.0.0"
+info:
+  title: Hyperboard Types
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    ID:
+      type: string
+      format: uuid
+    TagName:
+      type: string
+    TagCategoryName:
+      type: string
+    URL:
+      type: string
+    Description:
+      type: string
+    Timestamp:
+      type: string
+      format: date-time
+    Tag:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        name:
+          $ref: "#/components/schemas/TagName"
+        description:
+          type: string
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+    TagCategory:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        name:
+          $ref: "#/components/schemas/TagCategoryName"
+        description:
+          $ref: "#/components/schemas/Description"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+    Image:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        mimeType:
+          type: string
+        contentRef:
+          $ref: "#/components/schemas/URL"
+        thumbnailRef:
+          $ref: "#/components/schemas/URL"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagName"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"

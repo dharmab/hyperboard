@@ -7,6 +7,11 @@ build-images: (build-image "hyperboard-web") (build-image "hyperboard-api") (bui
 
 build-image target:
     docker build -f build/Containerfile --target {{target}} -t {{target}}:latest .
+    
+generate: generate-go
+
+generate-go:
+    go generate ./...
 
 lint: lint-go
 
@@ -33,3 +38,6 @@ stop:
     k3d registry delete hyperboard
 
 run-ci: build-images lint
+
+clean:
+    find . -name 'gen.go' -delete

@@ -1,3 +1,9 @@
+local_resource(
+    "generate",
+    ['go', 'generate', './...'],
+    deps=['go.mod', 'go.sum', './pkg/api/spec']
+)
+
 def go_build(name, os, arch):
     local_resource(
         name + "-bin",
@@ -6,7 +12,8 @@ def go_build(name, os, arch):
             'GOOS': os,
             'GOARCH': arch,
         },
-        deps=['go.mod', 'go.sum', './cmd/{}'.format(name), './pkg'],
+        deps=['go.mod', 'go.sum', './cmd/{}'.format(name), './internal', './pkg'],
+        resource_deps=['generate']
     )
 
 load('ext://restart_process', 'docker_build_with_restart')
