@@ -1,10 +1,30 @@
 package api
 
+import (
+	"context"
 
-type Server struct{}
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/stephenafamo/bob"
+)
+
+type Server struct {
+	db bob.DB
+}
 
 var _ ServerInterface = &Server{}
 
-func NewServer() *Server {
-	return &Server{}
+func NewServer(ctx context.Context, dsn string) (*Server, error) {
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Server{
+		db: bob.NewDB(stdlib.OpenDBFromPool(pool)),
+	}, nil
+}
+
+func (s *Server) Close() error {
+	return s.db.Close()
 }

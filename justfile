@@ -7,7 +7,7 @@ build-images: (build-image "hyperboard-web") (build-image "hyperboard-api") (bui
 
 build-image target:
     docker build -f build/Containerfile --target {{target}} -t {{target}}:latest .
-    
+
 generate: generate-go
 
 generate-go:
@@ -41,3 +41,4 @@ run-ci: build-images lint
 
 clean:
     find . -name 'gen.go' -delete
+    rm -f internal/db/models/*.bob*.go

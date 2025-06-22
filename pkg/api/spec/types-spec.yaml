@@ -23,14 +23,11 @@ components:
     Tag:
       type: object
       required:
-        - id
         - name
         - description
         - createdAt
         - updatedAt
       properties:
-        id:
-          $ref: "#/components/schemas/ID"
         name:
           $ref: "#/components/schemas/TagName"
         description:
@@ -42,14 +39,11 @@ components:
     TagCategory:
       type: object
       required:
-        - id
         - name
         - description
         - createdAt
         - updatedAt
       properties:
-        id:
-          $ref: "#/components/schemas/ID"
         name:
           $ref: "#/components/schemas/TagCategoryName"
         description:
@@ -58,7 +52,7 @@ components:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:
           $ref: "#/components/schemas/Timestamp"
-    Image:
+    Post:
       type: object
       required:
         - id

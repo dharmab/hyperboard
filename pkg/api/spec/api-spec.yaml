@@ -89,7 +89,7 @@ paths:
           $ref: "#/components/responses/InternalServerErrorResponse"
     delete:
       operationId: deleteTag
-      summary: Delete a tag. The tag will be removed from any images and tag categories.
+      summary: Delete a tag. The tag will be removed from any posts and tag categories.
       parameters:
         - $ref: "#/components/parameters/tag"
       responses:
@@ -190,17 +190,17 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
-  /api/v1/images:
+  /api/v1/posts:
     get:
-      operationId: getImages
-      summary: Search for images.
+      operationId: getPosts
+      summary: Search for posts.
       parameters:
         - $ref: "#/components/parameters/cursor"
         - $ref: "#/components/parameters/limit"
         - $ref: "#/components/parameters/search"
       responses:
         "200":
-          $ref: "#/components/responses/ImagesResponse"
+          $ref: "#/components/responses/PostsResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -211,17 +211,17 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
-  /api/v1/images/{id}:
+  /api/v1/posts/{id}:
     put:
-      operationId: putImage
-      summary: Replace an image's metadata. This does not create a new image - use uploadImage to create a new image.
+      operationId: putPost
+      summary: Replace a post's metadata. This does not create a new post - use uploadPost to create a new post.
       parameters:
         - $ref: "#/components/parameters/id"
       requestBody:
-        $ref: "#/components/requestBodies/ImageRequest"
+        $ref: "#/components/requestBodies/PostRequest"
       responses:
         "200":
-          $ref: "#/components/responses/ImageResponse"
+          $ref: "#/components/responses/PostResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -235,13 +235,13 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
     get:
-      operationId: getImage
-      summary: Get an image's metadata by ID.
+      operationId: getPost
+      summary: Get a post's metadata by ID.
       parameters:
         - $ref: "#/components/parameters/id"
       responses:
         "200":
-          $ref: "#/components/responses/ImageResponse"
+          $ref: "#/components/responses/PostResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -255,8 +255,8 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
     delete:
-      operationId: deleteImage
-      summary: Delete an image's metadata and content.
+      operationId: deletePost
+      summary: Delete a post's metadata and content.
       parameters:
         - $ref: "#/components/parameters/id"
       responses:
@@ -278,9 +278,9 @@ components:
   schemas:
     Error:
       type: object
+      required:
+        - message
       properties:
-        name:
-          type: string
         message:
           type: string
     Cursor:
@@ -342,12 +342,12 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/TagCategory"
-    ImageRequest:
+    PostRequest:
       required: true
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/Image"
+            $ref: "types-spec.yaml#/components/schemas/Post"
   responses:
     MetricsResponse:
       content:
@@ -435,12 +435,12 @@ components:
                   $ref: "types-spec.yaml#/components/schemas/TagCategory"
               cursor:
                 $ref: "#/components/schemas/Cursor"
-    ImageResponse:
+    PostResponse:
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/Image"
-    ImagesResponse:
+            $ref: "types-spec.yaml#/components/schemas/Post"
+    PostsResponse:
       content:
         application/json:
           schema:
@@ -449,6 +449,6 @@ components:
               items:
                 type: array
                 items:
-                  $ref: "types-spec.yaml#/components/schemas/Image"
+                  $ref: "types-spec.yaml#/components/schemas/Post"
               cursor:
                 $ref: "#/components/schemas/Cursor"

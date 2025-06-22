@@ -15,8 +15,8 @@ type Description = string
 // ID defines model for ID.
 type ID = openapi_types.UUID
 
-// Image defines model for Image.
-type Image struct {
+// Post defines model for Post.
+type Post struct {
 	ContentRef   URL       `json:"contentRef"`
 	CreatedAt    Timestamp `json:"createdAt"`
 	ID           ID        `json:"id"`
@@ -30,7 +30,6 @@ type Image struct {
 type Tag struct {
 	CreatedAt   Timestamp `json:"createdAt"`
 	Description string    `json:"description"`
-	ID          ID        `json:"id"`
 	Name        TagName   `json:"name"`
 	UpdatedAt   Timestamp `json:"updatedAt"`
 }
@@ -39,7 +38,6 @@ type Tag struct {
 type TagCategory struct {
 	CreatedAt   Timestamp       `json:"createdAt"`
 	Description Description     `json:"description"`
-	ID          ID              `json:"id"`
 	Name        TagCategoryName `json:"name"`
 	UpdatedAt   Timestamp       `json:"updatedAt"`
 }

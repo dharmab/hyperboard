@@ -1,10 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
-	"github.com/dharmab/hyperboard/internal/db"
+	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/pkg/api"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ var (
 var cmd = &cobra.Command{
 	Use:   "hyperboard-api",
 	Short: "Hyperboard API server",
-	RunE:  func(cmd *cobra.Command, args []string) error { return run() },
+	RunE:  func(cmd *cobra.Command, args []string) error { return run(cmd.Context()) },
 }
 
 func init() {
@@ -41,21 +42,8 @@ func main() {
 	}
 }
 
-func run() error {
-	log.Info().Msg("Running database migrations...")
-	if err := migrateDatabase(); err != nil {
-		return fmt.Errorf("failed to run database migrations: %w", err)
-	}
-
-	log.Info().Msg("Starting API server...")
-	if err := serveAPI(); err != nil {
-		return fmt.Errorf("failed to serve API: %w", err)
-	}
-	return nil
-}
-
-func migrateDatabase() error {
-	url := fmt.Sprintf(
+func run(ctx context.Context) error {
+	dsn := fmt.Sprintf(
 		"postgresql://%s:%s@%s/%s?sslmode=%s",
 		postgresqlUser,
 		postgresqlPassword,
@@ -63,21 +51,39 @@ func migrateDatabase() error {
 		postgresqlDatabase,
 		postgresqlSSLMode,
 	)
-	if err := db.Migrate(url); err != nil {
+
+	log.Info().Msg("Running database migrations...")
+	if err := migrateDatabase(dsn); err != nil {
+		return fmt.Errorf("failed to run database migrations: %w", err)
+	}
+
+	log.Info().Msg("Starting API server...")
+	if err := serveAPI(ctx, dsn); err != nil {
+		return fmt.Errorf("failed to serve API: %w", err)
+	}
+	return nil
+}
+
+func migrateDatabase(dsn string) error {
+	if err := migrations.Migrate(dsn); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 	return nil
 }
 
-func serveAPI() error {
-	server := &http.Server{
+func serveAPI(ctx context.Context, dsn string) error {
+	apiServer, err := api.NewServer(ctx, dsn)
+	if err != nil {
+		return fmt.Errorf("failed to create API server: %w", err)
+	}
+	httpServer := &http.Server{
 		Handler: api.HandlerFromMux(
-			api.NewServer(),
+			apiServer,
 			http.NewServeMux(),
 		),
-		Addr:    ":" + port,
+		Addr: ":" + port,
 	}
-	if err := server.ListenAndServe(); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil {
 		return fmt.Errorf("failed to serve API: %w", err)
 	}
 	return nil

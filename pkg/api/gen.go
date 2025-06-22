@@ -18,8 +18,7 @@ type Cursor = string
 
 // Error defines model for Error.
 type Error struct {
-	Message *string `json:"message,omitempty"`
-	Name    *string `json:"name,omitempty"`
+	Message string `json:"message"`
 }
 
 // Limit defines model for Limit.
@@ -43,20 +42,20 @@ type BadRequestResponse = Error
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
 
-// ImageResponse defines model for ImageResponse.
-type ImageResponse = externalRef0.Image
-
-// ImagesResponse defines model for ImagesResponse.
-type ImagesResponse struct {
-	Cursor *Cursor               `json:"cursor,omitempty"`
-	Items  *[]externalRef0.Image `json:"items,omitempty"`
-}
-
 // InternalServerErrorResponse defines model for InternalServerErrorResponse.
 type InternalServerErrorResponse = Error
 
 // NotFoundResponse defines model for NotFoundResponse.
 type NotFoundResponse = Error
+
+// PostResponse defines model for PostResponse.
+type PostResponse = externalRef0.Post
+
+// PostsResponse defines model for PostsResponse.
+type PostsResponse struct {
+	Cursor *Cursor              `json:"cursor,omitempty"`
+	Items  *[]externalRef0.Post `json:"items,omitempty"`
+}
 
 // TagCategoriesResponse defines model for TagCategoriesResponse.
 type TagCategoriesResponse struct {
@@ -82,8 +81,8 @@ type TooManyRequestsResponse = Error
 // UnauthorizedResponse defines model for UnauthorizedResponse.
 type UnauthorizedResponse = Error
 
-// ImageRequest defines model for ImageRequest.
-type ImageRequest = externalRef0.Image
+// PostRequest defines model for PostRequest.
+type PostRequest = externalRef0.Post
 
 // TagCategoryRequest defines model for TagCategoryRequest.
 type TagCategoryRequest = externalRef0.TagCategory
@@ -91,8 +90,8 @@ type TagCategoryRequest = externalRef0.TagCategory
 // TagRequest defines model for TagRequest.
 type TagRequest = externalRef0.Tag
 
-// GetImagesParams defines parameters for GetImages.
-type GetImagesParams struct {
+// GetPostsParams defines parameters for GetPosts.
+type GetPostsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 	Search *Search `form:"search,omitempty" json:"search,omitempty"`
@@ -110,8 +109,8 @@ type GetTagsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// PutImageJSONRequestBody defines body for PutImage for application/json ContentType.
-type PutImageJSONRequestBody = externalRef0.Image
+// PutPostJSONRequestBody defines body for PutPost for application/json ContentType.
+type PutPostJSONRequestBody = externalRef0.Post
 
 // PutTagCategoryJSONRequestBody defines body for PutTagCategory for application/json ContentType.
 type PutTagCategoryJSONRequestBody = externalRef0.TagCategory
@@ -121,18 +120,18 @@ type PutTagJSONRequestBody = externalRef0.Tag
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Search for images.
-	// (GET /api/v1/images)
-	GetImages(w http.ResponseWriter, r *http.Request, params GetImagesParams)
-	// Delete an image's metadata and content.
-	// (DELETE /api/v1/images/{id})
-	DeleteImage(w http.ResponseWriter, r *http.Request, id Id)
-	// Get an image's metadata by ID.
-	// (GET /api/v1/images/{id})
-	GetImage(w http.ResponseWriter, r *http.Request, id Id)
-	// Replace an image's metadata. This does not create a new image - use uploadImage to create a new image.
-	// (PUT /api/v1/images/{id})
-	PutImage(w http.ResponseWriter, r *http.Request, id Id)
+	// Search for posts.
+	// (GET /api/v1/posts)
+	GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams)
+	// Delete a post's metadata and content.
+	// (DELETE /api/v1/posts/{id})
+	DeletePost(w http.ResponseWriter, r *http.Request, id Id)
+	// Get a post's metadata by ID.
+	// (GET /api/v1/posts/{id})
+	GetPost(w http.ResponseWriter, r *http.Request, id Id)
+	// Replace a post's metadata. This does not create a new post - use uploadPost to create a new post.
+	// (PUT /api/v1/posts/{id})
+	PutPost(w http.ResponseWriter, r *http.Request, id Id)
 	// List tag categories.
 	// (GET /api/v1/tagCategories)
 	GetTagCategories(w http.ResponseWriter, r *http.Request, params GetTagCategoriesParams)
@@ -148,7 +147,7 @@ type ServerInterface interface {
 	// List tags.
 	// (GET /api/v1/tags)
 	GetTags(w http.ResponseWriter, r *http.Request, params GetTagsParams)
-	// Delete a tag. The tag will be removed from any images and tag categories.
+	// Delete a tag. The tag will be removed from any posts and tag categories.
 	// (DELETE /api/v1/tags/{tag})
 	DeleteTag(w http.ResponseWriter, r *http.Request, tag Tag)
 	// Get a tag by name.
@@ -177,13 +176,13 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-// GetImages operation middleware
-func (siw *ServerInterfaceWrapper) GetImages(w http.ResponseWriter, r *http.Request) {
+// GetPosts operation middleware
+func (siw *ServerInterfaceWrapper) GetPosts(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetImagesParams
+	var params GetPostsParams
 
 	// ------------- Optional query parameter "cursor" -------------
 
@@ -210,7 +209,7 @@ func (siw *ServerInterfaceWrapper) GetImages(w http.ResponseWriter, r *http.Requ
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetImages(w, r, params)
+		siw.Handler.GetPosts(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -220,8 +219,8 @@ func (siw *ServerInterfaceWrapper) GetImages(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
-// DeleteImage operation middleware
-func (siw *ServerInterfaceWrapper) DeleteImage(w http.ResponseWriter, r *http.Request) {
+// DeletePost operation middleware
+func (siw *ServerInterfaceWrapper) DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -235,7 +234,7 @@ func (siw *ServerInterfaceWrapper) DeleteImage(w http.ResponseWriter, r *http.Re
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteImage(w, r, id)
+		siw.Handler.DeletePost(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -245,8 +244,8 @@ func (siw *ServerInterfaceWrapper) DeleteImage(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
-// GetImage operation middleware
-func (siw *ServerInterfaceWrapper) GetImage(w http.ResponseWriter, r *http.Request) {
+// GetPost operation middleware
+func (siw *ServerInterfaceWrapper) GetPost(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -260,7 +259,7 @@ func (siw *ServerInterfaceWrapper) GetImage(w http.ResponseWriter, r *http.Reque
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetImage(w, r, id)
+		siw.Handler.GetPost(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -270,8 +269,8 @@ func (siw *ServerInterfaceWrapper) GetImage(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
-// PutImage operation middleware
-func (siw *ServerInterfaceWrapper) PutImage(w http.ResponseWriter, r *http.Request) {
+// PutPost operation middleware
+func (siw *ServerInterfaceWrapper) PutPost(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -285,7 +284,7 @@ func (siw *ServerInterfaceWrapper) PutImage(w http.ResponseWriter, r *http.Reque
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PutImage(w, r, id)
+		siw.Handler.PutPost(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -677,10 +676,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	m.HandleFunc("GET "+options.BaseURL+"/api/v1/images", wrapper.GetImages)
-	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/images/{id}", wrapper.DeleteImage)
-	m.HandleFunc("GET "+options.BaseURL+"/api/v1/images/{id}", wrapper.GetImage)
-	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/images/{id}", wrapper.PutImage)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts", wrapper.GetPosts)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}", wrapper.DeletePost)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPost)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories", wrapper.GetTagCategories)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.DeleteTagCategory)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.GetTagCategory)

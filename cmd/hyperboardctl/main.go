@@ -10,7 +10,7 @@ import (
 var cli = &cobra.Command{
 	Use:   "hyperboardctl",
 	Short: "Hyperboard CLI",
-	Long:  "Command line interface for the Hyperboard image board",
+	Long:  "Command line interface for the Hyperboard media board",
 	Run: func(cmd *cobra.Command, args []string) {
 		// This is the default action when no subcommand is specified
 		fmt.Println("Hyperboard CLI - use --help for available commands")

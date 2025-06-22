@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS images (
+CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
     mime_type TEXT NOT NULL,
     content_url TEXT NOT NULL,
