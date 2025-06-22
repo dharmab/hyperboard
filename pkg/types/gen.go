@@ -17,31 +17,31 @@ type ID = openapi_types.UUID
 
 // Image defines model for Image.
 type Image struct {
-	ContentRef   *URL       `json:"contentRef,omitempty"`
-	CreatedAt    *Timestamp `json:"createdAt,omitempty"`
-	Id           *ID        `json:"id,omitempty"`
-	MimeType     *string    `json:"mimeType,omitempty"`
-	Tags         *[]TagName `json:"tags,omitempty"`
-	ThumbnailRef *URL       `json:"thumbnailRef,omitempty"`
-	UpdatedAt    *Timestamp `json:"updatedAt,omitempty"`
+	ContentRef   URL       `json:"contentRef"`
+	CreatedAt    Timestamp `json:"createdAt"`
+	ID           ID        `json:"id"`
+	MimeType     string    `json:"mimeType"`
+	Tags         []TagName `json:"tags"`
+	ThumbnailRef URL       `json:"thumbnailRef"`
+	UpdatedAt    Timestamp `json:"updatedAt"`
 }
 
 // Tag defines model for Tag.
 type Tag struct {
 	CreatedAt   Timestamp `json:"createdAt"`
 	Description string    `json:"description"`
-	Id          ID        `json:"id"`
+	ID          ID        `json:"id"`
 	Name        TagName   `json:"name"`
 	UpdatedAt   Timestamp `json:"updatedAt"`
 }
 
 // TagCategory defines model for TagCategory.
 type TagCategory struct {
-	CreatedAt   *Timestamp       `json:"createdAt,omitempty"`
-	Description *Description     `json:"description,omitempty"`
-	Id          *ID              `json:"id,omitempty"`
-	Name        *TagCategoryName `json:"name,omitempty"`
-	UpdatedAt   *Timestamp       `json:"updatedAt,omitempty"`
+	CreatedAt   Timestamp       `json:"createdAt"`
+	Description Description     `json:"description"`
+	ID          ID              `json:"id"`
+	Name        TagCategoryName `json:"name"`
+	UpdatedAt   Timestamp       `json:"updatedAt"`
 }
 
 // TagCategoryName defines model for TagCategoryName.

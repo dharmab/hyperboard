@@ -8,6 +8,7 @@ components:
     ID:
       type: string
       format: uuid
+      x-go-name: ID
     TagName:
       type: string
     TagCategoryName:
@@ -40,6 +41,12 @@ components:
           $ref: "#/components/schemas/Timestamp"
     TagCategory:
       type: object
+      required:
+        - id
+        - name
+        - description
+        - createdAt
+        - updatedAt
       properties:
         id:
           $ref: "#/components/schemas/ID"
@@ -53,6 +60,14 @@ components:
           $ref: "#/components/schemas/Timestamp"
     Image:
       type: object
+      required:
+        - id
+        - mimeType
+        - contentRef
+        - thumbnailRef
+        - tags
+        - createdAt
+        - updatedAt
       properties:
         id:
           $ref: "#/components/schemas/ID"

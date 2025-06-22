@@ -19,7 +19,7 @@ paths:
           $ref: "#/components/responses/HealthyResponse"
   /readyz:
     get:
-      operationId: getReady
+      operationId: getReadiness
       security: []
       responses:
         "200":
@@ -29,7 +29,7 @@ paths:
   /api/v1/tags:
     get:
       operationId: getTags
-      summary: List tags
+      summary: List tags.
       parameters:
         - $ref: "#/components/parameters/cursor"
         - $ref: "#/components/parameters/limit"
@@ -49,7 +49,7 @@ paths:
   /api/v1/tags/{tag}:
     put:
       operationId: putTag
-      summary: Create or replace a tag
+      summary: Create or replace a tag by name.
       parameters:
         - $ref: "#/components/parameters/tag"
       requestBody:
@@ -69,7 +69,7 @@ paths:
           $ref: "#/components/responses/InternalServerErrorResponse"
     get:
       operationId: getTag
-      summary: Get a tag
+      summary: Get a tag by name.
       parameters:
         - $ref: "#/components/parameters/tag"
       responses:
@@ -110,7 +110,7 @@ paths:
   /api/v1/tagCategories:
     get:
       operationId: getTagCategories
-      summary: List tag categories
+      summary: List tag categories.
       parameters:
         - $ref: "#/components/parameters/cursor"
         - $ref: "#/components/parameters/limit"
@@ -130,7 +130,7 @@ paths:
   /api/v1/tagCategories/{tagCategory}:
     put:
       operationId: putTagCategory
-      summary: Create or replace a tag category
+      summary: Create or replace a tag category by name.
       parameters:
         - $ref: "#/components/parameters/tagCategory"
       requestBody:
@@ -152,7 +152,7 @@ paths:
           $ref: "#/components/responses/InternalServerErrorResponse"
     get:
       operationId: getTagCategory
-      summary: Get a tag category
+      summary: Get a tag category by name.
       parameters:
         - $ref: "#/components/parameters/tagCategory"
       responses:
@@ -214,7 +214,7 @@ paths:
   /api/v1/images/{id}:
     put:
       operationId: putImage
-      summary: Replace an image's metadata.
+      summary: Replace an image's metadata. This does not create a new image - use uploadImage to create a new image.
       parameters:
         - $ref: "#/components/parameters/id"
       requestBody:
@@ -236,7 +236,7 @@ paths:
           $ref: "#/components/responses/InternalServerErrorResponse"
     get:
       operationId: getImage
-      summary: Get an image by ID.
+      summary: Get an image's metadata by ID.
       parameters:
         - $ref: "#/components/parameters/id"
       responses:
@@ -254,26 +254,26 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
-  delete:
-    operationId: deleteImage
-    summary: Delete an image.
-    parameters:
-      - $ref: "#/components/parameters/id"
-    responses:
-      "204":
-        $ref: "#/components/responses/DeletedResponse"
-      "400":
-        $ref: "#/components/responses/BadRequestResponse"
-      "401":
-        $ref: "#/components/responses/UnauthorizedResponse"
-      "403":
-        $ref: "#/components/responses/ForbiddenResponse"
-      "404":
-        $ref: "#/components/responses/NotFoundResponse"
-      "429":
-        $ref: "#/components/responses/TooManyRequestsResponse"
-      "500":
-        $ref: "#/components/responses/InternalServerErrorResponse"
+    delete:
+      operationId: deleteImage
+      summary: Delete an image's metadata and content.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "204":
+          $ref: "#/components/responses/DeletedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
 components:
   schemas:
     Error:
