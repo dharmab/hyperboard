@@ -78,7 +78,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	if params.Cursor != nil && *params.Cursor != "" {
-		decodedCursor, err := decodeCursor(*params.Cursor)
+		decodedCursor, err := deobfuscateCursor(*params.Cursor)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
@@ -86,11 +86,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		mods = append(mods, sm.Where(models.PostColumns.CreatedAt.LT(psql.Arg(decodedCursor))))
 	}
 
-	limit := MaxLimit
-	if params.Limit != nil && *params.Limit > 0 {
-		limit = *params.Limit
-	}
-	limit = min(limit, MaxLimit)
+	limit := parseLimit(params.Limit)
 	mods = append(mods, sm.Limit(int64(limit+1)))
 
 	posts, err := models.Posts.Query(mods...).All(ctx, s.db)
@@ -104,11 +100,10 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		return
 	}
 
-	var nextCursor *string
-	if len(posts) > limit {
-		lastItem := posts[limit-1]
-		encoded := encodeCursor(lastItem.CreatedAt.V.Format("2006-01-02T15:04:05.999999999Z07:00"))
-		nextCursor = &encoded
+	hasMore, nextCursor := paginate(len(posts), limit, func() string {
+		return posts[limit-1].CreatedAt.V.Format("2006-01-02T15:04:05.999999999Z07:00")
+	})
+	if hasMore {
 		posts = posts[:limit]
 	}
 

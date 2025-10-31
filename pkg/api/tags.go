@@ -45,7 +45,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 
 	// Cursor
 	if params.Cursor != nil && *params.Cursor != "" {
-		decodedName, err := decodeCursor(*params.Cursor)
+		decodedName, err := deobfuscateCursor(*params.Cursor)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
@@ -54,11 +54,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 	}
 
 	// Limit
-	limit := MaxLimit
-	if params.Limit != nil && *params.Limit > 0 {
-		limit = *params.Limit
-	}
-	limit = min(limit, MaxLimit)
+	limit := parseLimit(params.Limit)
 	mods = append(mods, sm.Limit(int64(limit+1)))
 
 	tags, err := models.Tags.Query(mods...).All(ctx, s.db)
@@ -74,11 +70,10 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 	}
 
 	// Check if there's content after the limit
-	var nextCursor *string
-	if len(tags) > limit {
-		lastItem := tags[limit-1]
-		encoded := encodeCursor(lastItem.Name)
-		nextCursor = &encoded
+	hasMore, nextCursor := paginate(len(tags), limit, func() string {
+		return tags[limit-1].Name
+	})
+	if hasMore {
 		tags = tags[:limit]
 	}
 

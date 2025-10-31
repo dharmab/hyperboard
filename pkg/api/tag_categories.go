@@ -34,7 +34,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 
 	// Cursor
 	if params.Cursor != nil && *params.Cursor != "" {
-		decodedName, err := decodeCursor(*params.Cursor)
+		decodedName, err := deobfuscateCursor(*params.Cursor)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
@@ -43,11 +43,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 	}
 
 	// Limit
-	limit := MaxLimit
-	if params.Limit != nil && *params.Limit > 0 {
-		limit = *params.Limit
-	}
-	limit = min(limit, MaxLimit)
+	limit := parseLimit(params.Limit)
 	mods = append(mods, sm.Limit(int64(limit+1)))
 
 	// Query
@@ -58,11 +54,10 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 	}
 
 	// Check if there's content after the limit
-	var nextCursor *string
-	if len(categories) > limit {
-		lastItem := categories[limit-1]
-		encoded := encodeCursor(lastItem.Name)
-		nextCursor = &encoded
+	hasMore, nextCursor := paginate(len(categories), limit, func() string {
+		return categories[limit-1].Name
+	})
+	if hasMore {
 		categories = categories[:limit]
 	}
 
