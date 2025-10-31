@@ -8,7 +8,9 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
+	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/dialect/psql/dm"
 	"github.com/stephenafamo/bob/dialect/psql/im"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
@@ -23,6 +25,57 @@ func tagCategoryFromModel(model *models.TagCategory) types.TagCategory {
 }
 
 func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params GetTagCategoriesParams) {
+	ctx := r.Context()
+
+	// Ordering
+	mods := []bob.Mod[*dialect.SelectQuery]{
+		sm.OrderBy(models.TagCategories.Name()).Asc(),
+	}
+
+	// Cursor
+	if params.Cursor != nil && *params.Cursor != "" {
+		decodedName, err := decodeCursor(*params.Cursor)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+			return
+		}
+		mods = append(mods, sm.Where(models.TagCategories.Name().GT(psql.Arg(decodedName))))
+	}
+
+	// Limit
+	limit := MaxLimit
+	if params.Limit != nil && *params.Limit > 0 {
+		limit = *params.Limit
+	}
+	limit = min(limit, MaxLimit)
+	mods = append(mods, sm.Limit(int64(limit+1)))
+
+	// Query
+	categories, err := models.TagCategories.Query(mods...).All(ctx, s.db)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag categories")
+		return
+	}
+
+	// Check if there's content after the limit
+	var nextCursor *string
+	if len(categories) > limit {
+		lastItem := categories[limit-1]
+		encoded := encodeCursor(lastItem.Name)
+		nextCursor = &encoded
+		categories = categories[:limit]
+	}
+
+	// Response
+	items := make([]types.TagCategory, 0, len(categories))
+	for _, category := range categories {
+		items = append(items, tagCategoryFromModel(category))
+	}
+	resp := TagCategoriesResponse{
+		Items:  &items,
+		Cursor: nextCursor,
+	}
+	respond(w, http.StatusOK, resp)
 }
 
 func (s *Server) GetTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {
