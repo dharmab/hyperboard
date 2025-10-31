@@ -26,6 +26,14 @@ spec:
           ports:
             - name: api
               containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: api
 ---
 apiVersion: v1
 kind: Service
