@@ -211,6 +211,25 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/upload:
+    post:
+      operationId: uploadPost
+      summary: Upload a new post's content.
+      requestBody:
+        $ref: "#/components/requestBodies/UploadPostRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/UploadPostResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/posts/{id}:
     put:
       operationId: putPost
@@ -342,6 +361,13 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/TagCategory"
+    UploadPostRequest:
+      required: true
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
     PostRequest:
       required: true
       content:
@@ -440,6 +466,11 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Post"
+    UploadPostResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/ID"
     PostsResponse:
       content:
         application/json:

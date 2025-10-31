@@ -10,6 +10,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 }
 
+func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
+}
+
 func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 }
 

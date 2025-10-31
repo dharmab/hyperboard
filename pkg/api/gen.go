@@ -81,6 +81,9 @@ type TooManyRequestsResponse = Error
 // UnauthorizedResponse defines model for UnauthorizedResponse.
 type UnauthorizedResponse = Error
 
+// UploadPostResponse defines model for UploadPostResponse.
+type UploadPostResponse = externalRef0.ID
+
 // PostRequest defines model for PostRequest.
 type PostRequest = externalRef0.Post
 
@@ -156,6 +159,9 @@ type ServerInterface interface {
 	// Create or replace a tag by name.
 	// (PUT /api/v1/tags/{tag})
 	PutTag(w http.ResponseWriter, r *http.Request, tag Tag)
+	// Upload a new post's content.
+	// (POST /api/v1/upload)
+	UploadPost(w http.ResponseWriter, r *http.Request)
 
 	// (GET /healthz)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -514,6 +520,20 @@ func (siw *ServerInterfaceWrapper) PutTag(w http.ResponseWriter, r *http.Request
 	handler.ServeHTTP(w, r)
 }
 
+// UploadPost operation middleware
+func (siw *ServerInterfaceWrapper) UploadPost(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadPost(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -688,6 +708,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.DeleteTag)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.GetTag)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.PutTag)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/upload", wrapper.UploadPost)
 	m.HandleFunc("GET "+options.BaseURL+"/healthz", wrapper.GetHealth)
 	m.HandleFunc("GET "+options.BaseURL+"/metrics", wrapper.GetMetrics)
 	m.HandleFunc("GET "+options.BaseURL+"/readyz", wrapper.GetReadiness)
