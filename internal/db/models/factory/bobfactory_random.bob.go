@@ -8,18 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/jaswdr/faker/v2"
 )
 
 var defaultFaker = faker.New()
-
-func random_int32(f *faker.Faker, limits ...string) int32 {
-	if f == nil {
-		f = &defaultFaker
-	}
-
-	return f.Int32()
-}
 
 func random_string(f *faker.Faker, limits ...string) string {
 	if f == nil {
@@ -46,4 +39,12 @@ func random_time_Time(f *faker.Faker, limits ...string) time.Time {
 	min := time.Now().Add(-year)
 	max := time.Now().Add(year)
 	return f.Time().TimeBetween(min, max)
+}
+
+func random_uuid_UUID(f *faker.Faker, limits ...string) uuid.UUID {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	return uuid.Must(uuid.NewV4())
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	models "github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
 )
@@ -33,8 +34,8 @@ func (mods PostsTagModSlice) Apply(ctx context.Context, n *PostsTagTemplate) {
 // PostsTagTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type PostsTagTemplate struct {
-	PostID func() int32
-	TagID  func() int32
+	PostID func() uuid.UUID
+	TagID  func() uuid.UUID
 
 	r postsTagR
 	f *Factory
@@ -137,11 +138,11 @@ func (o PostsTagTemplate) BuildMany(number int) models.PostsTagSlice {
 
 func ensureCreatablePostsTag(m *models.PostsTagSetter) {
 	if m.PostID == nil {
-		val := random_int32(nil)
+		val := random_uuid_UUID(nil)
 		m.PostID = &val
 	}
 	if m.TagID == nil {
-		val := random_int32(nil)
+		val := random_uuid_UUID(nil)
 		m.TagID = &val
 	}
 }
@@ -290,14 +291,14 @@ func (m postsTagMods) RandomizeAllColumns(f *faker.Faker) PostsTagMod {
 }
 
 // Set the model columns to this value
-func (m postsTagMods) PostID(val int32) PostsTagMod {
+func (m postsTagMods) PostID(val uuid.UUID) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
-		o.PostID = func() int32 { return val }
+		o.PostID = func() uuid.UUID { return val }
 	})
 }
 
 // Set the Column from the function
-func (m postsTagMods) PostIDFunc(f func() int32) PostsTagMod {
+func (m postsTagMods) PostIDFunc(f func() uuid.UUID) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
 		o.PostID = f
 	})
@@ -314,21 +315,21 @@ func (m postsTagMods) UnsetPostID() PostsTagMod {
 // if faker is nil, a default faker is used
 func (m postsTagMods) RandomPostID(f *faker.Faker) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
-		o.PostID = func() int32 {
-			return random_int32(f)
+		o.PostID = func() uuid.UUID {
+			return random_uuid_UUID(f)
 		}
 	})
 }
 
 // Set the model columns to this value
-func (m postsTagMods) TagID(val int32) PostsTagMod {
+func (m postsTagMods) TagID(val uuid.UUID) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
-		o.TagID = func() int32 { return val }
+		o.TagID = func() uuid.UUID { return val }
 	})
 }
 
 // Set the Column from the function
-func (m postsTagMods) TagIDFunc(f func() int32) PostsTagMod {
+func (m postsTagMods) TagIDFunc(f func() uuid.UUID) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
 		o.TagID = f
 	})
@@ -345,8 +346,8 @@ func (m postsTagMods) UnsetTagID() PostsTagMod {
 // if faker is nil, a default faker is used
 func (m postsTagMods) RandomTagID(f *faker.Faker) PostsTagMod {
 	return PostsTagModFunc(func(_ context.Context, o *PostsTagTemplate) {
-		o.TagID = func() int32 {
-			return random_int32(f)
+		o.TagID = func() uuid.UUID {
+			return random_uuid_UUID(f)
 		}
 	})
 }

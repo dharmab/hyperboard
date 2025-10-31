@@ -12,17 +12,6 @@ import (
 // Set the testDB to enable tests that use the database
 var testDB bob.Transactor
 
-func TestRandom_int32(t *testing.T) {
-	t.Parallel()
-
-	val1 := random_int32(nil)
-	val2 := random_int32(nil)
-
-	if val1 == val2 {
-		t.Fatalf("random_int32() returned the same value twice: %v", val1)
-	}
-}
-
 func TestRandom_string(t *testing.T) {
 	t.Parallel()
 
@@ -42,5 +31,16 @@ func TestRandom_time_Time(t *testing.T) {
 
 	if val1.Equal(val2) {
 		t.Fatalf("random_time_Time() returned the same value twice: %v", val1)
+	}
+}
+
+func TestRandom_uuid_UUID(t *testing.T) {
+	t.Parallel()
+
+	val1 := random_uuid_UUID(nil)
+	val2 := random_uuid_UUID(nil)
+
+	if val1 == val2 {
+		t.Fatalf("random_uuid_UUID() returned the same value twice: %v", val1)
 	}
 }

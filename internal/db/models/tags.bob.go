@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -26,10 +27,10 @@ import (
 
 // Tag is an object representing the database table.
 type Tag struct {
-	ID            int32               `db:"id,pk" `
+	ID            uuid.UUID           `db:"id,pk" `
 	Name          string              `db:"name" `
 	Description   string              `db:"description" `
-	TagCategoryID sql.Null[int32]     `db:"tag_category_id" `
+	TagCategoryID sql.Null[uuid.UUID] `db:"tag_category_id" `
 	CreatedAt     sql.Null[time.Time] `db:"created_at" `
 	UpdatedAt     sql.Null[time.Time] `db:"updated_at" `
 
@@ -94,10 +95,10 @@ func buildTagColumns(alias string) tagColumns {
 }
 
 type tagWhere[Q psql.Filterable] struct {
-	ID            psql.WhereMod[Q, int32]
+	ID            psql.WhereMod[Q, uuid.UUID]
 	Name          psql.WhereMod[Q, string]
 	Description   psql.WhereMod[Q, string]
-	TagCategoryID psql.WhereNullMod[Q, int32]
+	TagCategoryID psql.WhereNullMod[Q, uuid.UUID]
 	CreatedAt     psql.WhereNullMod[Q, time.Time]
 	UpdatedAt     psql.WhereNullMod[Q, time.Time]
 }
@@ -108,10 +109,10 @@ func (tagWhere[Q]) AliasedAs(alias string) tagWhere[Q] {
 
 func buildTagWhere[Q psql.Filterable](cols tagColumns) tagWhere[Q] {
 	return tagWhere[Q]{
-		ID:            psql.Where[Q, int32](cols.ID),
+		ID:            psql.Where[Q, uuid.UUID](cols.ID),
 		Name:          psql.Where[Q, string](cols.Name),
 		Description:   psql.Where[Q, string](cols.Description),
-		TagCategoryID: psql.WhereNull[Q, int32](cols.TagCategoryID),
+		TagCategoryID: psql.WhereNull[Q, uuid.UUID](cols.TagCategoryID),
 		CreatedAt:     psql.WhereNull[Q, time.Time](cols.CreatedAt),
 		UpdatedAt:     psql.WhereNull[Q, time.Time](cols.UpdatedAt),
 	}
@@ -143,10 +144,10 @@ type tagErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type TagSetter struct {
-	ID            *int32               `db:"id,pk" `
+	ID            *uuid.UUID           `db:"id,pk" `
 	Name          *string              `db:"name" `
 	Description   *string              `db:"description" `
-	TagCategoryID *sql.Null[int32]     `db:"tag_category_id" `
+	TagCategoryID *sql.Null[uuid.UUID] `db:"tag_category_id" `
 	CreatedAt     *sql.Null[time.Time] `db:"created_at" `
 	UpdatedAt     *sql.Null[time.Time] `db:"updated_at" `
 }
@@ -302,7 +303,7 @@ func (s TagSetter) Expressions(prefix ...string) []bob.Expression {
 
 // FindTag retrieves a single record by primary key
 // If cols is empty Find will return all columns.
-func FindTag(ctx context.Context, exec bob.Executor, IDPK int32, cols ...string) (*Tag, error) {
+func FindTag(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*Tag, error) {
 	if len(cols) == 0 {
 		return Tags.Query(
 			SelectWhere.Tags.ID.EQ(IDPK),
@@ -316,7 +317,7 @@ func FindTag(ctx context.Context, exec bob.Executor, IDPK int32, cols ...string)
 }
 
 // TagExists checks the presence of a single record by primary key
-func TagExists(ctx context.Context, exec bob.Executor, IDPK int32) (bool, error) {
+func TagExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return Tags.Query(
 		SelectWhere.Tags.ID.EQ(IDPK),
 	).Exists(ctx, exec)
@@ -585,12 +586,12 @@ func (o *Tag) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
 }
 
 func (os TagSlice) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
-	pkID := make(pgtypes.Array[int32], len(os))
+	pkID := make(pgtypes.Array[uuid.UUID], len(os))
 	for i, o := range os {
 		pkID[i] = o.ID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
 	))
 
 	return Posts.Query(append(mods,
@@ -609,12 +610,12 @@ func (o *Tag) TagCategory(mods ...bob.Mod[*dialect.SelectQuery]) TagCategoriesQu
 }
 
 func (os TagSlice) TagCategory(mods ...bob.Mod[*dialect.SelectQuery]) TagCategoriesQuery {
-	pkTagCategoryID := make(pgtypes.Array[sql.Null[int32]], len(os))
+	pkTagCategoryID := make(pgtypes.Array[sql.Null[uuid.UUID]], len(os))
 	for i, o := range os {
 		pkTagCategoryID[i] = o.TagCategoryID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkTagCategoryID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkTagCategoryID), "uuid[]")),
 	))
 
 	return TagCategories.Query(append(mods,
@@ -757,11 +758,11 @@ func (os TagSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods ...bob
 		sm.Columns(PostsTagColumns.TagID.As("related_tags.ID")),
 	)...)
 
-	IDSlice := []int32{}
+	IDSlice := []uuid.UUID{}
 
 	mapper := scan.Mod(scan.StructMapper[*Post](), func(ctx context.Context, cols []string) (scan.BeforeFunc, func(any, any) error) {
 		return func(row *scan.Row) (any, error) {
-				IDSlice = append(IDSlice, *new(int32))
+				IDSlice = append(IDSlice, *new(uuid.UUID))
 				row.ScheduleScan("related_tags.ID", &IDSlice[len(IDSlice)-1])
 
 				return nil, nil
@@ -909,8 +910,8 @@ func (tag0 *Tag) AttachPosts(ctx context.Context, exec bob.Executor, related ...
 
 func attachTagTagCategory0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, tagCategory1 *TagCategory) (*Tag, error) {
 	setter := &TagSetter{
-		TagCategoryID: func() *sql.Null[int32] {
-			v := sql.Null[int32]{V: tagCategory1.ID, Valid: true}
+		TagCategoryID: func() *sql.Null[uuid.UUID] {
+			v := sql.Null[uuid.UUID]{V: tagCategory1.ID, Valid: true}
 			return &v
 		}(),
 	}

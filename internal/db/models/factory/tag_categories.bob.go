@@ -10,6 +10,7 @@ import (
 	"time"
 
 	models "github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
 )
@@ -35,7 +36,7 @@ func (mods TagCategoryModSlice) Apply(ctx context.Context, n *TagCategoryTemplat
 // TagCategoryTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type TagCategoryTemplate struct {
-	ID        func() int32
+	ID        func() uuid.UUID
 	Name      func() string
 	CreatedAt func() sql.Null[time.Time]
 	UpdatedAt func() sql.Null[time.Time]
@@ -68,7 +69,7 @@ func (t TagCategoryTemplate) setModelRels(o *models.TagCategory) {
 		for _, r := range t.r.Tags {
 			related := r.o.BuildMany(r.number)
 			for _, rel := range related {
-				rel.TagCategoryID = sql.Null[int32]{V: o.ID, Valid: true} // h2
+				rel.TagCategoryID = sql.Null[uuid.UUID]{V: o.ID, Valid: true} // h2
 				rel.R.TagCategory = o
 			}
 			rel = append(rel, related...)
@@ -296,14 +297,14 @@ func (m tagCategoryMods) RandomizeAllColumns(f *faker.Faker) TagCategoryMod {
 }
 
 // Set the model columns to this value
-func (m tagCategoryMods) ID(val int32) TagCategoryMod {
+func (m tagCategoryMods) ID(val uuid.UUID) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.ID = func() int32 { return val }
+		o.ID = func() uuid.UUID { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagCategoryMods) IDFunc(f func() int32) TagCategoryMod {
+func (m tagCategoryMods) IDFunc(f func() uuid.UUID) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
 		o.ID = f
 	})
@@ -320,8 +321,8 @@ func (m tagCategoryMods) UnsetID() TagCategoryMod {
 // if faker is nil, a default faker is used
 func (m tagCategoryMods) RandomID(f *faker.Faker) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.ID = func() int32 {
-			return random_int32(f)
+		o.ID = func() uuid.UUID {
+			return random_uuid_UUID(f)
 		}
 	})
 }

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS posts_tags (
-    post_id INTEGER NOT NULL,
-    tag_id INTEGER NOT NULL,
+    post_id UUID NOT NULL,
+    tag_id UUID NOT NULL,
     PRIMARY KEY (post_id, tag_id),
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE ON UPDATE CASCADE

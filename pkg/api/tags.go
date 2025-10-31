@@ -8,6 +8,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -149,7 +150,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	// Resolve tag category ID if category name is provided
-	var tagCategoryID sql.Null[int32]
+	var tagCategoryID sql.Null[uuid.UUID]
 	if tag.Category != nil && *tag.Category != "" {
 		category, err := models.TagCategories.Query(
 			sm.Where(models.TagCategories.Name().EQ(psql.Arg(*tag.Category))),
@@ -162,7 +163,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag category")
 			return
 		}
-		tagCategoryID = sql.Null[int32]{V: category.ID, Valid: true}
+		tagCategoryID = sql.Null[uuid.UUID]{V: category.ID, Valid: true}
 	}
 
 	upsertedModel, err := models.Tags.Insert(

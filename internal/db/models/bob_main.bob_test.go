@@ -4,7 +4,11 @@
 package models_test
 
 import (
+	"database/sql"
+	"database/sql/driver"
+
 	models "github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 )
 
@@ -22,3 +26,9 @@ var _ bob.HookableType = &models.TagCategory{}
 
 // Make sure the type Tag runs hooks after queries
 var _ bob.HookableType = &models.Tag{}
+
+// Make sure the type uuid.UUID satisfies database/sql.Scanner
+var _ sql.Scanner = (*uuid.UUID)(nil)
+
+// Make sure the type uuid.UUID satisfies database/sql/driver.Valuer
+var _ driver.Valuer = *new(uuid.UUID)

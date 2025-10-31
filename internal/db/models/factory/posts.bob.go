@@ -10,6 +10,7 @@ import (
 	"time"
 
 	models "github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
 )
@@ -35,7 +36,7 @@ func (mods PostModSlice) Apply(ctx context.Context, n *PostTemplate) {
 // PostTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type PostTemplate struct {
-	ID           func() int32
+	ID           func() uuid.UUID
 	MimeType     func() string
 	ContentURL   func() string
 	ThumbnailURL func() string
@@ -321,14 +322,14 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 }
 
 // Set the model columns to this value
-func (m postMods) ID(val int32) PostMod {
+func (m postMods) ID(val uuid.UUID) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.ID = func() int32 { return val }
+		o.ID = func() uuid.UUID { return val }
 	})
 }
 
 // Set the Column from the function
-func (m postMods) IDFunc(f func() int32) PostMod {
+func (m postMods) IDFunc(f func() uuid.UUID) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.ID = f
 	})
@@ -345,8 +346,8 @@ func (m postMods) UnsetID() PostMod {
 // if faker is nil, a default faker is used
 func (m postMods) RandomID(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.ID = func() int32 {
-			return random_int32(f)
+		o.ID = func() uuid.UUID {
+			return random_uuid_UUID(f)
 		}
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -22,8 +23,8 @@ import (
 
 // PostsTag is an object representing the database table.
 type PostsTag struct {
-	PostID int32 `db:"post_id,pk" `
-	TagID  int32 `db:"tag_id,pk" `
+	PostID uuid.UUID `db:"post_id,pk" `
+	TagID  uuid.UUID `db:"tag_id,pk" `
 
 	R postsTagR `db:"-" `
 }
@@ -74,8 +75,8 @@ func buildPostsTagColumns(alias string) postsTagColumns {
 }
 
 type postsTagWhere[Q psql.Filterable] struct {
-	PostID psql.WhereMod[Q, int32]
-	TagID  psql.WhereMod[Q, int32]
+	PostID psql.WhereMod[Q, uuid.UUID]
+	TagID  psql.WhereMod[Q, uuid.UUID]
 }
 
 func (postsTagWhere[Q]) AliasedAs(alias string) postsTagWhere[Q] {
@@ -84,8 +85,8 @@ func (postsTagWhere[Q]) AliasedAs(alias string) postsTagWhere[Q] {
 
 func buildPostsTagWhere[Q psql.Filterable](cols postsTagColumns) postsTagWhere[Q] {
 	return postsTagWhere[Q]{
-		PostID: psql.Where[Q, int32](cols.PostID),
-		TagID:  psql.Where[Q, int32](cols.TagID),
+		PostID: psql.Where[Q, uuid.UUID](cols.PostID),
+		TagID:  psql.Where[Q, uuid.UUID](cols.TagID),
 	}
 }
 
@@ -106,8 +107,8 @@ type postsTagErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PostsTagSetter struct {
-	PostID *int32 `db:"post_id,pk" `
-	TagID  *int32 `db:"tag_id,pk" `
+	PostID *uuid.UUID `db:"post_id,pk" `
+	TagID  *uuid.UUID `db:"tag_id,pk" `
 }
 
 func (s PostsTagSetter) SetColumns() []string {
@@ -181,7 +182,7 @@ func (s PostsTagSetter) Expressions(prefix ...string) []bob.Expression {
 
 // FindPostsTag retrieves a single record by primary key
 // If cols is empty Find will return all columns.
-func FindPostsTag(ctx context.Context, exec bob.Executor, PostIDPK int32, TagIDPK int32, cols ...string) (*PostsTag, error) {
+func FindPostsTag(ctx context.Context, exec bob.Executor, PostIDPK uuid.UUID, TagIDPK uuid.UUID, cols ...string) (*PostsTag, error) {
 	if len(cols) == 0 {
 		return PostsTags.Query(
 			SelectWhere.PostsTags.PostID.EQ(PostIDPK),
@@ -197,7 +198,7 @@ func FindPostsTag(ctx context.Context, exec bob.Executor, PostIDPK int32, TagIDP
 }
 
 // PostsTagExists checks the presence of a single record by primary key
-func PostsTagExists(ctx context.Context, exec bob.Executor, PostIDPK int32, TagIDPK int32) (bool, error) {
+func PostsTagExists(ctx context.Context, exec bob.Executor, PostIDPK uuid.UUID, TagIDPK uuid.UUID) (bool, error) {
 	return PostsTags.Query(
 		SelectWhere.PostsTags.PostID.EQ(PostIDPK),
 		SelectWhere.PostsTags.TagID.EQ(TagIDPK),
@@ -464,12 +465,12 @@ func (o *PostsTag) Post(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
 }
 
 func (os PostsTagSlice) Post(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
-	pkPostID := make(pgtypes.Array[int32], len(os))
+	pkPostID := make(pgtypes.Array[uuid.UUID], len(os))
 	for i, o := range os {
 		pkPostID[i] = o.PostID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkPostID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkPostID), "uuid[]")),
 	))
 
 	return Posts.Query(append(mods,
@@ -485,12 +486,12 @@ func (o *PostsTag) Tag(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 }
 
 func (os PostsTagSlice) Tag(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkTagID := make(pgtypes.Array[int32], len(os))
+	pkTagID := make(pgtypes.Array[uuid.UUID], len(os))
 	for i, o := range os {
 		pkTagID[i] = o.TagID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkTagID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkTagID), "uuid[]")),
 	))
 
 	return Tags.Query(append(mods,

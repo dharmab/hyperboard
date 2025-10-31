@@ -7,6 +7,7 @@ toolchain go1.24.4
 require (
 	github.com/fergusstrange/embedded-postgres v1.26.0
 	github.com/goccy/go-json v0.10.5
+	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jaswdr/faker/v2 v2.5.0

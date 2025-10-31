@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS tags (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
-    tag_category_id INTEGER REFERENCES tag_categories(id) ON DELETE SET NULL,
+    tag_category_id UUID REFERENCES tag_categories(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

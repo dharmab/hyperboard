@@ -10,6 +10,7 @@ import (
 	"time"
 
 	models "github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
 )
@@ -35,10 +36,10 @@ func (mods TagModSlice) Apply(ctx context.Context, n *TagTemplate) {
 // TagTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type TagTemplate struct {
-	ID            func() int32
+	ID            func() uuid.UUID
 	Name          func() string
 	Description   func() string
-	TagCategoryID func() sql.Null[int32]
+	TagCategoryID func() sql.Null[uuid.UUID]
 	CreatedAt     func() sql.Null[time.Time]
 	UpdatedAt     func() sql.Null[time.Time]
 
@@ -84,7 +85,7 @@ func (t TagTemplate) setModelRels(o *models.Tag) {
 	if t.r.TagCategory != nil {
 		rel := t.r.TagCategory.o.Build()
 		rel.R.Tags = append(rel.R.Tags, o)
-		o.TagCategoryID = sql.Null[int32]{V: rel.ID, Valid: true} // h2
+		o.TagCategoryID = sql.Null[uuid.UUID]{V: rel.ID, Valid: true} // h2
 		o.R.TagCategory = rel
 	}
 }
@@ -343,14 +344,14 @@ func (m tagMods) RandomizeAllColumns(f *faker.Faker) TagMod {
 }
 
 // Set the model columns to this value
-func (m tagMods) ID(val int32) TagMod {
+func (m tagMods) ID(val uuid.UUID) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.ID = func() int32 { return val }
+		o.ID = func() uuid.UUID { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagMods) IDFunc(f func() int32) TagMod {
+func (m tagMods) IDFunc(f func() uuid.UUID) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
 		o.ID = f
 	})
@@ -367,8 +368,8 @@ func (m tagMods) UnsetID() TagMod {
 // if faker is nil, a default faker is used
 func (m tagMods) RandomID(f *faker.Faker) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.ID = func() int32 {
-			return random_int32(f)
+		o.ID = func() uuid.UUID {
+			return random_uuid_UUID(f)
 		}
 	})
 }
@@ -436,14 +437,14 @@ func (m tagMods) RandomDescription(f *faker.Faker) TagMod {
 }
 
 // Set the model columns to this value
-func (m tagMods) TagCategoryID(val sql.Null[int32]) TagMod {
+func (m tagMods) TagCategoryID(val sql.Null[uuid.UUID]) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.TagCategoryID = func() sql.Null[int32] { return val }
+		o.TagCategoryID = func() sql.Null[uuid.UUID] { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagMods) TagCategoryIDFunc(f func() sql.Null[int32]) TagMod {
+func (m tagMods) TagCategoryIDFunc(f func() sql.Null[uuid.UUID]) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
 		o.TagCategoryID = f
 	})
@@ -461,13 +462,13 @@ func (m tagMods) UnsetTagCategoryID() TagMod {
 // The generated value is sometimes null
 func (m tagMods) RandomTagCategoryID(f *faker.Faker) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.TagCategoryID = func() sql.Null[int32] {
+		o.TagCategoryID = func() sql.Null[uuid.UUID] {
 			if f == nil {
 				f = &defaultFaker
 			}
 
-			val := random_int32(f)
-			return sql.Null[int32]{V: val, Valid: f.Bool()}
+			val := random_uuid_UUID(f)
+			return sql.Null[uuid.UUID]{V: val, Valid: f.Bool()}
 		}
 	})
 }
@@ -477,13 +478,13 @@ func (m tagMods) RandomTagCategoryID(f *faker.Faker) TagMod {
 // The generated value is never null
 func (m tagMods) RandomTagCategoryIDNotNull(f *faker.Faker) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.TagCategoryID = func() sql.Null[int32] {
+		o.TagCategoryID = func() sql.Null[uuid.UUID] {
 			if f == nil {
 				f = &defaultFaker
 			}
 
-			val := random_int32(f)
-			return sql.Null[int32]{V: val, Valid: true}
+			val := random_uuid_UUID(f)
+			return sql.Null[uuid.UUID]{V: val, Valid: true}
 		}
 	})
 }

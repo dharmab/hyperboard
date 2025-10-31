@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -26,7 +27,7 @@ import (
 
 // Post is an object representing the database table.
 type Post struct {
-	ID           int32               `db:"id,pk" `
+	ID           uuid.UUID           `db:"id,pk" `
 	MimeType     string              `db:"mime_type" `
 	ContentURL   string              `db:"content_url" `
 	ThumbnailURL string              `db:"thumbnail_url" `
@@ -93,7 +94,7 @@ func buildPostColumns(alias string) postColumns {
 }
 
 type postWhere[Q psql.Filterable] struct {
-	ID           psql.WhereMod[Q, int32]
+	ID           psql.WhereMod[Q, uuid.UUID]
 	MimeType     psql.WhereMod[Q, string]
 	ContentURL   psql.WhereMod[Q, string]
 	ThumbnailURL psql.WhereMod[Q, string]
@@ -107,7 +108,7 @@ func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
 
 func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 	return postWhere[Q]{
-		ID:           psql.Where[Q, int32](cols.ID),
+		ID:           psql.Where[Q, uuid.UUID](cols.ID),
 		MimeType:     psql.Where[Q, string](cols.MimeType),
 		ContentURL:   psql.Where[Q, string](cols.ContentURL),
 		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
@@ -133,7 +134,7 @@ type postErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PostSetter struct {
-	ID           *int32               `db:"id,pk" `
+	ID           *uuid.UUID           `db:"id,pk" `
 	MimeType     *string              `db:"mime_type" `
 	ContentURL   *string              `db:"content_url" `
 	ThumbnailURL *string              `db:"thumbnail_url" `
@@ -292,7 +293,7 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 
 // FindPost retrieves a single record by primary key
 // If cols is empty Find will return all columns.
-func FindPost(ctx context.Context, exec bob.Executor, IDPK int32, cols ...string) (*Post, error) {
+func FindPost(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*Post, error) {
 	if len(cols) == 0 {
 		return Posts.Query(
 			SelectWhere.Posts.ID.EQ(IDPK),
@@ -306,7 +307,7 @@ func FindPost(ctx context.Context, exec bob.Executor, IDPK int32, cols ...string
 }
 
 // PostExists checks the presence of a single record by primary key
-func PostExists(ctx context.Context, exec bob.Executor, IDPK int32) (bool, error) {
+func PostExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return Posts.Query(
 		SelectWhere.Posts.ID.EQ(IDPK),
 	).Exists(ctx, exec)
@@ -560,12 +561,12 @@ func (o *Post) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 }
 
 func (os PostSlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkID := make(pgtypes.Array[int32], len(os))
+	pkID := make(pgtypes.Array[uuid.UUID], len(os))
 	for i, o := range os {
 		pkID[i] = o.ID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
 	))
 
 	return Tags.Query(append(mods,
@@ -669,11 +670,11 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 		sm.Columns(PostsTagColumns.PostID.As("related_posts.ID")),
 	)...)
 
-	IDSlice := []int32{}
+	IDSlice := []uuid.UUID{}
 
 	mapper := scan.Mod(scan.StructMapper[*Tag](), func(ctx context.Context, cols []string) (scan.BeforeFunc, func(any, any) error) {
 		return func(row *scan.Row) (any, error) {
-				IDSlice = append(IDSlice, *new(int32))
+				IDSlice = append(IDSlice, *new(uuid.UUID))
 				row.ScheduleScan("related_posts.ID", &IDSlice[len(IDSlice)-1])
 
 				return nil, nil

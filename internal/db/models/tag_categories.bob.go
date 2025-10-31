@@ -10,6 +10,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -24,7 +25,7 @@ import (
 
 // TagCategory is an object representing the database table.
 type TagCategory struct {
-	ID        int32               `db:"id,pk" `
+	ID        uuid.UUID           `db:"id,pk" `
 	Name      string              `db:"name" `
 	CreatedAt sql.Null[time.Time] `db:"created_at" `
 	UpdatedAt sql.Null[time.Time] `db:"updated_at" `
@@ -83,7 +84,7 @@ func buildTagCategoryColumns(alias string) tagCategoryColumns {
 }
 
 type tagCategoryWhere[Q psql.Filterable] struct {
-	ID        psql.WhereMod[Q, int32]
+	ID        psql.WhereMod[Q, uuid.UUID]
 	Name      psql.WhereMod[Q, string]
 	CreatedAt psql.WhereNullMod[Q, time.Time]
 	UpdatedAt psql.WhereNullMod[Q, time.Time]
@@ -95,7 +96,7 @@ func (tagCategoryWhere[Q]) AliasedAs(alias string) tagCategoryWhere[Q] {
 
 func buildTagCategoryWhere[Q psql.Filterable](cols tagCategoryColumns) tagCategoryWhere[Q] {
 	return tagCategoryWhere[Q]{
-		ID:        psql.Where[Q, int32](cols.ID),
+		ID:        psql.Where[Q, uuid.UUID](cols.ID),
 		Name:      psql.Where[Q, string](cols.Name),
 		CreatedAt: psql.WhereNull[Q, time.Time](cols.CreatedAt),
 		UpdatedAt: psql.WhereNull[Q, time.Time](cols.UpdatedAt),
@@ -128,7 +129,7 @@ type tagCategoryErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type TagCategorySetter struct {
-	ID        *int32               `db:"id,pk" `
+	ID        *uuid.UUID           `db:"id,pk" `
 	Name      *string              `db:"name" `
 	CreatedAt *sql.Null[time.Time] `db:"created_at" `
 	UpdatedAt *sql.Null[time.Time] `db:"updated_at" `
@@ -245,7 +246,7 @@ func (s TagCategorySetter) Expressions(prefix ...string) []bob.Expression {
 
 // FindTagCategory retrieves a single record by primary key
 // If cols is empty Find will return all columns.
-func FindTagCategory(ctx context.Context, exec bob.Executor, IDPK int32, cols ...string) (*TagCategory, error) {
+func FindTagCategory(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*TagCategory, error) {
 	if len(cols) == 0 {
 		return TagCategories.Query(
 			SelectWhere.TagCategories.ID.EQ(IDPK),
@@ -259,7 +260,7 @@ func FindTagCategory(ctx context.Context, exec bob.Executor, IDPK int32, cols ..
 }
 
 // TagCategoryExists checks the presence of a single record by primary key
-func TagCategoryExists(ctx context.Context, exec bob.Executor, IDPK int32) (bool, error) {
+func TagCategoryExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return TagCategories.Query(
 		SelectWhere.TagCategories.ID.EQ(IDPK),
 	).Exists(ctx, exec)
@@ -503,12 +504,12 @@ func (o *TagCategory) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 }
 
 func (os TagCategorySlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkID := make(pgtypes.Array[int32], len(os))
+	pkID := make(pgtypes.Array[uuid.UUID], len(os))
 	for i, o := range os {
 		pkID[i] = o.ID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
 	))
 
 	return Tags.Query(append(mods,
@@ -620,8 +621,8 @@ func (os TagCategorySlice) LoadTags(ctx context.Context, exec bob.Executor, mods
 
 func insertTagCategoryTags0(ctx context.Context, exec bob.Executor, tags1 []*TagSetter, tagCategory0 *TagCategory) (TagSlice, error) {
 	for i := range tags1 {
-		tags1[i].TagCategoryID = func() *sql.Null[int32] {
-			v := sql.Null[int32]{V: tagCategory0.ID, Valid: true}
+		tags1[i].TagCategoryID = func() *sql.Null[uuid.UUID] {
+			v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}
 			return &v
 		}()
 	}
@@ -636,8 +637,8 @@ func insertTagCategoryTags0(ctx context.Context, exec bob.Executor, tags1 []*Tag
 
 func attachTagCategoryTags0(ctx context.Context, exec bob.Executor, count int, tags1 TagSlice, tagCategory0 *TagCategory) (TagSlice, error) {
 	setter := &TagSetter{
-		TagCategoryID: func() *sql.Null[int32] {
-			v := sql.Null[int32]{V: tagCategory0.ID, Valid: true}
+		TagCategoryID: func() *sql.Null[uuid.UUID] {
+			v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}
 			return &v
 		}(),
 	}
