@@ -30,6 +30,8 @@ components:
       properties:
         name:
           $ref: "#/components/schemas/TagName"
+        category:
+          $ref: "#/components/schemas/TagCategoryName"
         description:
           type: string
         createdAt:

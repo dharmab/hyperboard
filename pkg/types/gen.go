@@ -28,10 +28,11 @@ type Post struct {
 
 // Tag defines model for Tag.
 type Tag struct {
-	CreatedAt   Timestamp `json:"createdAt"`
-	Description string    `json:"description"`
-	Name        TagName   `json:"name"`
-	UpdatedAt   Timestamp `json:"updatedAt"`
+	Category    *TagCategoryName `json:"category,omitempty"`
+	CreatedAt   Timestamp        `json:"createdAt"`
+	Description string           `json:"description"`
+	Name        TagName          `json:"name"`
+	UpdatedAt   Timestamp        `json:"updatedAt"`
 }
 
 // TagCategory defines model for TagCategory.
