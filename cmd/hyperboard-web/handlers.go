@@ -500,7 +500,34 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 	if resp.Items != nil {
 		cats = *resp.Items
 	}
-	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats})
+
+	// Count tags per category
+	tagCounts := map[string]int{}
+	cursor := ""
+	for {
+		q := url.Values{}
+		q.Set("limit", "1000")
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		var tagsResp tagsResponse
+		if err := app.api.getWithQuery(ctx, "/api/v1/tags", q, &tagsResp); err != nil {
+			break
+		}
+		if tagsResp.Items != nil {
+			for _, t := range *tagsResp.Items {
+				if t.Category != nil {
+					tagCounts[*t.Category]++
+				}
+			}
+		}
+		if tagsResp.Cursor == nil || *tagsResp.Cursor == "" {
+			break
+		}
+		cursor = *tagsResp.Cursor
+	}
+
+	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats, TagCounts: tagCounts})
 }
 
 func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {

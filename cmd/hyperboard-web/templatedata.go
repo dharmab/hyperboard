@@ -31,6 +31,7 @@ type TagEditData struct {
 
 type TagCategoriesData struct {
 	Categories []types.TagCategory
+	TagCounts  map[string]int
 }
 
 type TagCategoryEditData struct {
