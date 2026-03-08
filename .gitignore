@@ -1,8 +1,8 @@
 # Build output
 bin/
-hyperboard-api
-hyperboard-web
-hyperboardctl
+/hyperboard-api
+/hyperboard-web
+/hyperboardctl
 
 # Go
 vendor/
