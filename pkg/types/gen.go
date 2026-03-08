@@ -42,6 +42,7 @@ type Tag struct {
 	CreatedAt   Timestamp        `json:"createdAt"`
 	Description string           `json:"description"`
 	Name        TagName          `json:"name"`
+	PostCount   *int             `json:"postCount,omitempty"`
 	UpdatedAt   Timestamp        `json:"updatedAt"`
 }
 

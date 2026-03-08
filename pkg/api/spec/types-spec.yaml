@@ -34,6 +34,8 @@ components:
           $ref: "#/components/schemas/TagCategoryName"
         description:
           type: string
+        postCount:
+          type: integer
         createdAt:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:

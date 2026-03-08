@@ -23,6 +23,12 @@ func templateFuncs() template.FuncMap {
 			}
 			return *s
 		},
+		"deref_int": func(i *int) int {
+			if i == nil {
+				return 0
+			}
+			return *i
+		},
 		"catColor": func(colors map[string]string, cat *string) string {
 			if cat == nil || colors == nil {
 				return "var(--base03)"

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -68,6 +69,13 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		return
 	}
 
+	// Query post counts per tag
+	postCounts, err := s.getTagPostCounts(ctx)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post counts")
+		return
+	}
+
 	// Check if there's content after the limit
 	hasMore, nextCursor := paginate(len(tags), limit, func() string {
 		return tags[limit-1].Name
@@ -82,6 +90,12 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
 			return
+		}
+		if count, ok := postCounts[tag.ID]; ok {
+			tagResp.PostCount = &count
+		} else {
+			zero := 0
+			tagResp.PostCount = &zero
 		}
 		items = append(items, tagResp)
 	}
@@ -220,6 +234,25 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		}
 		respond(w, http.StatusCreated, tagResp)
 	}
+}
+
+func (s *Server) getTagPostCounts(ctx context.Context) (map[uuid.UUID]int, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT tag_id, COUNT(*) FROM posts_tags GROUP BY tag_id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[uuid.UUID]int)
+	for rows.Next() {
+		var tagID uuid.UUID
+		var count int
+		if err := rows.Scan(&tagID, &count); err != nil {
+			return nil, err
+		}
+		counts[tagID] = count
+	}
+	return counts, rows.Err()
 }
 
 func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {
