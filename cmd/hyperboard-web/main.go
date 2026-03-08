@@ -94,6 +94,7 @@ func run() error {
 	protected.HandleFunc("/tag-suggestions", app.handleTagSuggestions)
 	protected.HandleFunc("/upload", app.handleUpload)
 	protected.HandleFunc("/tags", app.handleTags)
+	protected.HandleFunc("POST /tags/{name}/convert-to-alias", app.handleTagConvertToAlias)
 	protected.HandleFunc("/tags/{name}", app.handleTagEdit)
 	protected.HandleFunc("/tag-categories", app.handleTagCategories)
 	protected.HandleFunc("/tag-categories/{name}", app.handleTagCategoryEdit)

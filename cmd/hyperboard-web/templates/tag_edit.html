@@ -23,6 +23,11 @@
       {{end}}
     </select>
   </div>
+  <div class="form-group">
+    <label>Aliases</label>
+    <input type="text" name="aliases" value="{{join_strings .Aliases ", "}}" placeholder="comma-separated aliases">
+    <span style="color:var(--base03);font-size:0.85rem">Typing an alias in search or tag add will resolve to this tag's canonical name.</span>
+  </div>
   <button type="submit" class="btn btn-primary">Save</button>
   {{if not .IsNew}}
   <button type="button" class="btn btn-danger"
@@ -31,4 +36,30 @@
     hx-push-url="/tags">Delete</button>
   {{end}}
 </form>
+{{if not .IsNew}}
+<hr style="border-color:var(--base02);margin:2rem 0">
+<h2>Convert to Alias</h2>
+<p style="color:var(--base04);margin-bottom:1rem">
+  Merge this tag into another tag. All posts will be re-tagged, and this tag's name and aliases will become aliases of the target.
+</p>
+<form method="POST" action="/tags/{{.CurrentName}}/convert-to-alias"
+  onsubmit="return confirm('Convert \x22{{.CurrentName}}\x22 into an alias? This cannot be undone.')">
+  <div class="form-group" style="max-width:400px">
+    <label>Target tag</label>
+    <input type="text" name="target" id="convert-target-input" required
+      list="convert-target-suggestions" placeholder="type to search…"
+      hx-get="/tag-suggestions?exclude={{.CurrentName}}"
+      hx-trigger="input changed delay:300ms"
+      hx-target="#convert-target-suggestions"
+      autocomplete="off">
+    <datalist id="convert-target-suggestions"></datalist>
+  </div>
+  <button type="submit" class="btn btn-danger">Convert to Alias</button>
+</form>
+<script>
+document.getElementById('convert-target-input').addEventListener('htmx:configRequest', function(e) {
+  e.detail.parameters.q = this.value;
+});
+</script>
+{{end}}
 {{end}}

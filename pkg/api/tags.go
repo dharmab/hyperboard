@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
@@ -33,6 +34,107 @@ func tagFromModel(model *models.Tag) (types.Tag, error) {
 	}
 
 	return tag, nil
+}
+
+// getTagAliases returns a map from tag ID to its list of aliases.
+func (s *Server) getTagAliases(ctx context.Context, tagIDs ...uuid.UUID) (map[uuid.UUID][]string, error) {
+	if len(tagIDs) == 0 {
+		return map[uuid.UUID][]string{}, nil
+	}
+
+	args := make([]any, len(tagIDs))
+	placeholders := ""
+	for i, id := range tagIDs {
+		if i > 0 {
+			placeholders += ", "
+		}
+		placeholders += "$" + itoa(i+1)
+		args[i] = id
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT tag_id, alias FROM tag_aliases WHERE tag_id IN ("+placeholders+") ORDER BY alias",
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]string)
+	for rows.Next() {
+		var tagID uuid.UUID
+		var alias string
+		if err := rows.Scan(&tagID, &alias); err != nil {
+			return nil, err
+		}
+		result[tagID] = append(result[tagID], alias)
+	}
+	return result, rows.Err()
+}
+
+// setTagAliases replaces all aliases for a tag with the given list.
+// Returns an error if any alias conflicts with an existing tag name.
+func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []string) error {
+	// Check that no alias conflicts with an existing tag name
+	for _, alias := range aliases {
+		if alias == "" {
+			continue
+		}
+		var count int
+		err := s.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM tags WHERE name = $1", alias,
+		).Scan(&count)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return fmt.Errorf("alias %q conflicts with an existing tag name", alias)
+		}
+	}
+
+	_, err := s.db.ExecContext(ctx, "DELETE FROM tag_aliases WHERE tag_id = $1", tagID)
+	if err != nil {
+		return err
+	}
+	for _, alias := range aliases {
+		if alias == "" {
+			continue
+		}
+		_, err := s.db.ExecContext(ctx,
+			"INSERT INTO tag_aliases (tag_id, alias) VALUES ($1, $2)",
+			tagID, alias,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolveAlias looks up an alias and returns the canonical tag name.
+// If the name is not an alias, it is returned as-is.
+func (s *Server) resolveAlias(ctx context.Context, name string) (string, error) {
+	var canonical string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT t.name FROM tags t JOIN tag_aliases ta ON t.id = ta.tag_id WHERE ta.alias = $1",
+		name,
+	).Scan(&canonical)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return name, nil
+		}
+		return "", err
+	}
+	return canonical, nil
+}
+
+func itoa(i int) string {
+	const digits = "0123456789"
+	if i < 10 {
+		return string(digits[i])
+	}
+	return itoa(i/10) + string(digits[i%10])
 }
 
 func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsParams) {
@@ -76,6 +178,17 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		return
 	}
 
+	// Query aliases for all tags
+	tagIDs := make([]uuid.UUID, len(tags))
+	for i, tag := range tags {
+		tagIDs[i] = tag.ID
+	}
+	aliasMap, err := s.getTagAliases(ctx, tagIDs...)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag aliases")
+		return
+	}
+
 	// Check if there's content after the limit
 	hasMore, nextCursor := paginate(len(tags), limit, func() string {
 		return tags[limit-1].Name
@@ -96,6 +209,9 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		} else {
 			zero := 0
 			tagResp.PostCount = &zero
+		}
+		if aliases, ok := aliasMap[tag.ID]; ok {
+			tagResp.Aliases = &aliases
 		}
 		items = append(items, tagResp)
 	}
@@ -136,6 +252,15 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
 		return
+	}
+
+	aliasMap, err := s.getTagAliases(ctx, model.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
+		return
+	}
+	if aliases, ok := aliasMap[model.ID]; ok {
+		tagResp.Aliases = &aliases
 	}
 
 	respond(w, http.StatusOK, tagResp)
@@ -197,22 +322,12 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		existing.Description = tag.Description
 		existing.TagCategoryID = tagCategoryID
 		resultModel = existing
-		if err := resultModel.LoadTagCategory(ctx, s.db); err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
-			return
-		}
-		tagResp, err := tagFromModel(resultModel)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-			return
-		}
-		respond(w, http.StatusOK, tagResp)
 	} else {
 		if tag.Name != name {
 			respondWithError(w, http.StatusBadRequest, "Tag name mismatch: got %q in body but %q in URL", tag.Name, name)
 			return
 		}
-		inserted, err := models.Tags.Insert(
+		resultModel, err = models.Tags.Insert(
 			&models.TagSetter{
 				Name:          &tag.Name,
 				Description:   &tag.Description,
@@ -225,17 +340,45 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create tag")
 			return
 		}
-		if err := inserted.LoadTagCategory(ctx, s.db); err != nil {
+	}
+
+	// Update aliases
+	var aliases []string
+	if tag.Aliases != nil {
+		aliases = *tag.Aliases
+	}
+	if err := s.setTagAliases(ctx, resultModel.ID, aliases); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update tag aliases")
+		return
+	}
+
+	if resultModel.TagCategoryID.Valid {
+		if err := resultModel.LoadTagCategory(ctx, s.db); err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
 			return
 		}
-		tagResp, err := tagFromModel(inserted)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-			return
-		}
-		respond(w, http.StatusCreated, tagResp)
 	}
+
+	tagResp, err := tagFromModel(resultModel)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
+		return
+	}
+
+	aliasMap, err := s.getTagAliases(ctx, resultModel.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
+		return
+	}
+	if a, ok := aliasMap[resultModel.ID]; ok {
+		tagResp.Aliases = &a
+	}
+
+	status := http.StatusOK
+	if existing == nil {
+		status = http.StatusCreated
+	}
+	respond(w, status, tagResp)
 }
 
 func (s *Server) getTagPostCounts(ctx context.Context) (map[uuid.UUID]int, error) {

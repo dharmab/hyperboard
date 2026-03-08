@@ -34,6 +34,10 @@ components:
           $ref: "#/components/schemas/TagCategoryName"
         description:
           type: string
+        aliases:
+          type: array
+          items:
+            type: string
         postCount:
           type: integer
         createdAt:

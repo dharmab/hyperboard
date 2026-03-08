@@ -92,12 +92,18 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	if params.Search != nil && *params.Search != "" {
 		searchParams := parseSearch(*params.Search)
 		for _, tagName := range searchParams.Tags {
+			// Resolve aliases to canonical tag names
+			resolved, err := s.resolveAlias(ctx, tagName)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
+				return
+			}
 			mods = append(mods, sm.Where(psql.Raw(
 				`EXISTS (
 					SELECT 1 FROM posts_tags pt
 					JOIN tags t ON pt.tag_id = t.id
 					WHERE pt.post_id = posts.id AND t.name = ?
-				)`, tagName,
+				)`, resolved,
 			)))
 		}
 	}
@@ -401,14 +407,20 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	for _, tagName := range post.Tags {
+		// Resolve aliases to canonical tag names
+		resolvedName, resolveErr := s.resolveAlias(ctx, tagName)
+		if resolveErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
+			return
+		}
 		tag, err := models.Tags.Query(
-			sm.Where(models.TagColumns.Name.EQ(psql.Arg(tagName))),
+			sm.Where(models.TagColumns.Name.EQ(psql.Arg(resolvedName))),
 		).One(ctx, s.db)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				tag, err = models.Tags.Insert(
 					&models.TagSetter{
-						Name:      &tagName,
+						Name:      &resolvedName,
 						CreatedAt: now(),
 						UpdatedAt: now(),
 					},

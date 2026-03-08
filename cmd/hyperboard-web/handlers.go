@@ -146,17 +146,20 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query().Get("q")
 	postID := r.URL.Query().Get("post")
+	exclude := r.URL.Query().Get("exclude")
 
 	// Load existing post tags to exclude from suggestions
-	var excludeTags map[string]bool
+	excludeTags := map[string]bool{}
 	if postID != "" {
 		var post types.Post
 		if err := app.api.get(ctx, "/api/v1/posts/"+postID, &post); err == nil {
-			excludeTags = make(map[string]bool, len(post.Tags))
 			for _, t := range post.Tags {
 				excludeTags[t] = true
 			}
 		}
+	}
+	if exclude != "" {
+		excludeTags[exclude] = true
 	}
 
 	var resp tagsResponse
@@ -340,8 +343,13 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 				editErr = fmt.Sprintf("Failed to load tag: %v", err)
 			}
 		}
+		var aliases []string
+		if tag.Aliases != nil {
+			aliases = *tag.Aliases
+		}
 		app.renderTemplate(w, r, "tag_edit", TagEditData{
 			Tag:         tag,
+			Aliases:     aliases,
 			Categories:  cats,
 			CurrentName: name,
 			IsNew:       isNew,
@@ -352,10 +360,20 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		newName := r.FormValue("name")
 		description := r.FormValue("description")
 		category := r.FormValue("category")
+		aliasesRaw := r.FormValue("aliases")
+
+		var aliases []string
+		for _, a := range strings.Split(aliasesRaw, ",") {
+			a = strings.TrimSpace(a)
+			if a != "" {
+				aliases = append(aliases, a)
+			}
+		}
 
 		tag := types.Tag{
 			Name:        newName,
 			Description: description,
+			Aliases:     &aliases,
 		}
 		if category != "" {
 			tag.Category = &category
@@ -369,10 +387,11 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			app.renderTemplate(w, r, "tag_edit", TagEditData{
 				Tag:         tag,
+				Aliases:     aliases,
 				Categories:  cats,
 				CurrentName: name,
 				IsNew:       isNew,
-				Error:       "Failed to save tag",
+				Error:       fmt.Sprintf("Failed to save tag: %v", err),
 			})
 			return
 		}
@@ -382,6 +401,95 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		_, _ = app.api.delete(ctx, "/api/v1/tags/"+name)
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
 	}
+}
+
+func (app *App) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	sourceName := r.PathValue("name")
+	targetName := r.FormValue("target")
+
+	if targetName == "" || sourceName == targetName {
+		http.Error(w, "Invalid target tag", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch the target tag (to get its current aliases)
+	var targetTag types.Tag
+	if err := app.api.get(ctx, "/api/v1/tags/"+targetName, &targetTag); err != nil {
+		http.Error(w, fmt.Sprintf("Target tag not found: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Fetch the source tag (to get its aliases)
+	var sourceTag types.Tag
+	if err := app.api.get(ctx, "/api/v1/tags/"+sourceName, &sourceTag); err != nil {
+		http.Error(w, fmt.Sprintf("Source tag not found: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Find all posts tagged with the source tag
+	var allPosts []types.Post
+	cursor := ""
+	for {
+		q := url.Values{}
+		q.Set("limit", "1000")
+		q.Set("search", sourceName)
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		var resp postsResponse
+		if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
+			break
+		}
+		if resp.Items != nil {
+			allPosts = append(allPosts, *resp.Items...)
+		}
+		if resp.Cursor == nil || *resp.Cursor == "" {
+			break
+		}
+		cursor = *resp.Cursor
+	}
+
+	// For each post, replace the source tag with the target tag
+	for _, post := range allPosts {
+		newTags := []types.TagName{}
+		hasTarget := false
+		for _, t := range post.Tags {
+			if t == sourceName {
+				continue
+			}
+			if t == targetName {
+				hasTarget = true
+			}
+			newTags = append(newTags, t)
+		}
+		if !hasTarget {
+			newTags = append(newTags, targetName)
+		}
+		post.Tags = newTags
+		_, _ = app.api.put(ctx, fmt.Sprintf("/api/v1/posts/%s", post.ID), post, nil)
+	}
+
+	// Build the new alias list for the target tag:
+	// target's existing aliases + source's name + source's aliases
+	var targetAliases []string
+	if targetTag.Aliases != nil {
+		targetAliases = append(targetAliases, *targetTag.Aliases...)
+	}
+	targetAliases = append(targetAliases, sourceName)
+	if sourceTag.Aliases != nil {
+		targetAliases = append(targetAliases, *sourceTag.Aliases...)
+	}
+
+	// Delete the source tag first (so its name is freed for use as an alias,
+	// and its aliases are removed by CASCADE)
+	_, _ = app.api.delete(ctx, "/api/v1/tags/"+sourceName)
+
+	// Update target tag with the merged aliases
+	targetTag.Aliases = &targetAliases
+	_, _ = app.api.put(ctx, "/api/v1/tags/"+targetName, targetTag, nil)
+
+	http.Redirect(w, r, "/tags/"+targetName, http.StatusSeeOther)
 }
 
 func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {

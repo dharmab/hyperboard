@@ -38,6 +38,7 @@ type Post struct {
 
 // Tag defines model for Tag.
 type Tag struct {
+	Aliases     *[]string        `json:"aliases,omitempty"`
 	Category    *TagCategoryName `json:"category,omitempty"`
 	CreatedAt   Timestamp        `json:"createdAt"`
 	Description string           `json:"description"`

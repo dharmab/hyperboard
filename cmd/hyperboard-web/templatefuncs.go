@@ -29,6 +29,15 @@ func templateFuncs() template.FuncMap {
 			}
 			return *i
 		},
+		"deref_strings": func(s *[]string) []string {
+			if s == nil {
+				return nil
+			}
+			return *s
+		},
+		"join_strings": func(s []string, sep string) string {
+			return strings.Join(s, sep)
+		},
 		"catColor": func(colors map[string]string, cat *string) string {
 			if cat == nil || colors == nil {
 				return "var(--base03)"
