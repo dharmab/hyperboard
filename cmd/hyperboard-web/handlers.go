@@ -171,41 +171,57 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": "No file provided"})
-		return
-	}
-	defer func() { _ = file.Close() }()
-
-	data, err := io.ReadAll(file)
-	if err != nil {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": "Failed to read file"})
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		app.renderTemplate(w, r, "upload", map[string]any{"Error": "No files provided"})
 		return
 	}
 
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	var lastPostID types.ID
+	var errors []string
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: failed to open", header.Filename))
+			continue
+		}
+
+		data, err := io.ReadAll(file)
+		_ = file.Close()
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: failed to read", header.Filename))
+			continue
+		}
+
+		contentType := header.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+
+		var post types.Post
+		statusCode, err := app.api.uploadFile(ctx, data, contentType, &post)
+		if err != nil || statusCode >= 400 {
+			errors = append(errors, fmt.Sprintf("%s: upload failed", header.Filename))
+			continue
+		}
+		lastPostID = post.ID
 	}
 
-	var post types.Post
-	statusCode, err := app.api.uploadFile(ctx, data, contentType, &post)
-	if err != nil || statusCode >= 400 {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": "Upload failed"})
+	if len(errors) == len(files) {
+		app.renderTemplate(w, r, "upload", map[string]any{"Error": strings.Join(errors, "; ")})
 		return
 	}
 
-	// Apply tags if provided
-	tagsStr := r.FormValue("tags")
-	noteStr := r.FormValue("note")
-	if tagsStr != "" || noteStr != "" {
-		post.Tags = strings.Fields(tagsStr)
-		post.Note = noteStr
-		_, _ = app.api.put(ctx, fmt.Sprintf("/api/v1/posts/%s", post.ID), post, nil)
+	if len(errors) > 0 {
+		app.renderTemplate(w, r, "upload", map[string]any{"Error": fmt.Sprintf("Some uploads failed: %s", strings.Join(errors, "; "))})
+		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/posts/%s", post.ID), http.StatusSeeOther)
+	if len(files) == 1 {
+		http.Redirect(w, r, fmt.Sprintf("/posts/%s", lastPostID), http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
 }
 
 func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
