@@ -13,12 +13,6 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Defines values for GetPostsParamsSort.
-const (
-	Random GetPostsParamsSort = "random"
-	Recent GetPostsParamsSort = "recent"
-)
-
 // Cursor defines model for Cursor.
 type Cursor = string
 
@@ -128,14 +122,10 @@ type PutNoteJSONBody struct {
 
 // GetPostsParams defines parameters for GetPosts.
 type GetPostsParams struct {
-	Cursor *Cursor             `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit  *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
-	Search *Search             `form:"search,omitempty" json:"search,omitempty"`
-	Sort   *GetPostsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Search *Search `form:"search,omitempty" json:"search,omitempty"`
 }
-
-// GetPostsParamsSort defines parameters for GetPosts.
-type GetPostsParamsSort string
 
 // GetTagCategoriesParams defines parameters for GetTagCategories.
 type GetTagCategoriesParams struct {
@@ -378,14 +368,6 @@ func (siw *ServerInterfaceWrapper) GetPosts(w http.ResponseWriter, r *http.Reque
 	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
 		return
 	}
 

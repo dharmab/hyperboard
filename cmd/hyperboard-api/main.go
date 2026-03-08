@@ -113,4 +113,3 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	}
 	return nil
 }
-

@@ -198,13 +198,6 @@ paths:
         - $ref: "#/components/parameters/cursor"
         - $ref: "#/components/parameters/limit"
         - $ref: "#/components/parameters/search"
-        - name: sort
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [recent, random]
-            default: recent
       responses:
         "200":
           $ref: "#/components/responses/PostsResponse"

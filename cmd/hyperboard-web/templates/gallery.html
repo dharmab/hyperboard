@@ -8,19 +8,37 @@
     list="search-suggestions"
     autocomplete="off">
   <datalist id="search-suggestions"></datalist>
-  <input type="hidden" name="sort" id="sort-input" value="{{.Sort}}">
   <button type="submit" class="btn btn-primary">Search</button>
-  <button type="button" class="btn {{if eq .Sort "recent"}}btn-primary{{end}}" onclick="setSort('recent')">Recent</button>
-  <button type="button" class="btn {{if eq .Sort "random"}}btn-primary{{end}}" onclick="setSort('random')">Shuffle</button>
+  <button type="button" class="btn" id="btn-shuffle" onclick="toggleShuffle()">Shuffle</button>
 </form>
 <div id="gallery-grid" class="gallery-grid">
   {{template "gallery-items" .}}
 </div>
 <script>
-function setSort(s) {
-  document.getElementById('sort-input').value = s;
+function toggleShuffle() {
+  var input = document.getElementById('gallery-search');
+  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== '' && s !== 'shuffle'; });
+  if (!hasShuffleTerm(input.value)) {
+    terms.push('shuffle');
+  }
+  input.value = terms.join(', ');
   htmx.trigger(document.querySelector('.gallery-controls'), 'submit');
 }
+
+function hasShuffleTerm(value) {
+  return value.split(',').map(function(s) { return s.trim(); }).indexOf('shuffle') >= 0;
+}
+
+function updateShuffleButton() {
+  var input = document.getElementById('gallery-search');
+  var btn = document.getElementById('btn-shuffle');
+  if (hasShuffleTerm(input.value)) {
+    btn.classList.add('btn-primary');
+  } else {
+    btn.classList.remove('btn-primary');
+  }
+}
+updateShuffleButton();
 
 (function() {
   var searchInput = document.getElementById('gallery-search');
@@ -28,6 +46,7 @@ function setSort(s) {
   var debounceTimer;
 
   searchInput.addEventListener('input', function() {
+    updateShuffleButton();
     clearTimeout(debounceTimer);
     var value = this.value;
     var lastCommaIdx = value.lastIndexOf(',');
@@ -69,7 +88,7 @@ function setSort(s) {
 </div>
 {{end}}
 {{if .NextCursor}}
-<div hx-get="/posts-partial?cursor={{.NextCursor}}&sort={{$.Sort}}&search={{$.Search}}"
+<div hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
      hx-trigger="revealed"
      hx-swap="afterend"
      hx-target="this">

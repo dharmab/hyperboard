@@ -43,6 +43,15 @@ func postFromModel(model *models.Post) (types.Post, error) {
 	return post, nil
 }
 
+var sortTerms = map[string]bool{
+	types.SortShuffle:    true,
+	types.SortCreatedAt:  true,
+	types.SortUpdatedAt:  true,
+	types.SortFileSize:   true,
+	types.SortResolution: true,
+	types.SortDuration:   true,
+}
+
 func parseSearch(search string) types.PostSearch {
 	postSearch := types.PostSearch{
 		Tags: []types.TagName{},
@@ -52,11 +61,16 @@ func parseSearch(search string) types.PostSearch {
 		return postSearch
 	}
 
-	// Split search string by commas and trim whitespace from each tag
-	for _, part := range strings.Split(search, ",") {
-		tag := strings.TrimSpace(part)
-		if tag != "" {
-			postSearch.Tags = append(postSearch.Tags, tag)
+	// Split search string by commas and trim whitespace from each term
+	for part := range strings.SplitSeq(search, ",") {
+		term := strings.TrimSpace(part)
+		if term == "" {
+			continue
+		}
+		if sortTerms[term] {
+			postSearch.Sort = term
+		} else {
+			postSearch.Tags = append(postSearch.Tags, term)
 		}
 	}
 
@@ -84,35 +98,33 @@ func decodeRandomCursor(s string, rc *randomCursor) error {
 func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams) {
 	ctx := r.Context()
 
-	sort := Recent
-	if params.Sort != nil {
-		sort = *params.Sort
-	}
-
 	mods := []bob.Mod[*dialect.SelectQuery]{}
 
-	if params.Search != nil && *params.Search != "" {
-		searchParams := parseSearch(*params.Search)
-		for _, tagName := range searchParams.Tags {
-			// Resolve aliases to canonical tag names
-			resolved, err := s.resolveAlias(ctx, tagName)
-			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
-				return
-			}
-			mods = append(mods, sm.Where(psql.Raw(
-				`EXISTS (
-					SELECT 1 FROM posts_tags pt
-					JOIN tags t ON pt.tag_id = t.id
-					WHERE pt.post_id = posts.id AND t.name = ?
-				)`, resolved,
-			)))
+	search := ""
+	if params.Search != nil {
+		search = *params.Search
+	}
+	searchParams := parseSearch(search)
+
+	for _, tagName := range searchParams.Tags {
+		// Resolve aliases to canonical tag names
+		resolved, err := s.resolveAlias(ctx, tagName)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
+			return
 		}
+		mods = append(mods, sm.Where(psql.Raw(
+			`EXISTS (
+				SELECT 1 FROM posts_tags pt
+				JOIN tags t ON pt.tag_id = t.id
+				WHERE pt.post_id = posts.id AND t.name = ?
+			)`, resolved,
+		)))
 	}
 
 	limit := parseLimit(params.Limit)
 
-	if sort == Random {
+	if searchParams.Sort == types.SortShuffle {
 		currentSeed := time.Now().Unix() / 21600
 		offset := 0
 

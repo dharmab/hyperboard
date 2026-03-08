@@ -5,7 +5,6 @@ import "github.com/dharmab/hyperboard/pkg/types"
 type GalleryData struct {
 	Posts      []types.Post
 	NextCursor string
-	Sort       string
 	Search     string
 }
 

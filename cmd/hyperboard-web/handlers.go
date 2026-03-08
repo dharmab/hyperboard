@@ -14,16 +14,11 @@ import (
 
 func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	sort := r.URL.Query().Get("sort")
-	if sort == "" {
-		sort = "recent"
-	}
 	search := r.URL.Query().Get("search")
 	cursor := r.URL.Query().Get("cursor")
 
 	q := url.Values{}
 	q.Set("limit", "24")
-	q.Set("sort", sort)
 	if search != "" {
 		q.Set("search", search)
 	}
@@ -33,7 +28,7 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 
 	var resp postsResponse
 	if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
-		log.Error().Err(err).Str("search", search).Str("sort", sort).Str("cursor", cursor).Msg("Failed to load posts")
+		log.Error().Err(err).Str("search", search).Str("cursor", cursor).Msg("Failed to load posts")
 		http.Error(w, "Failed to load posts", http.StatusInternalServerError)
 		return
 	}
@@ -51,7 +46,6 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 	data := GalleryData{
 		Posts:      posts,
 		NextCursor: nextCursor,
-		Sort:       sort,
 		Search:     search,
 	}
 
