@@ -73,9 +73,15 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Post not found", http.StatusNotFound)
 			return
 		}
+		var fileSize int64
+		if resp, err := app.api.head(ctx, "/media"+mediaPath(post.ContentUrl)); err == nil {
+			resp.Body.Close()
+			fileSize = resp.ContentLength
+		}
 		app.renderTemplate(w, r, "post", PostData{
-			Post:    post,
-			IsVideo: strings.HasPrefix(post.MimeType, "video/"),
+			Post:     post,
+			IsVideo:  strings.HasPrefix(post.MimeType, "video/"),
+			FileSize: fileSize,
 		})
 
 	case http.MethodDelete:
@@ -111,7 +117,7 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		tagName := r.FormValue("tag-input")
+		tagName := r.FormValue("q")
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
 			_, _ = app.api.put(ctx, "/api/v1/posts/"+id, post, nil)
@@ -139,6 +145,19 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query().Get("q")
+	postID := r.URL.Query().Get("post")
+
+	// Load existing post tags to exclude from suggestions
+	var excludeTags map[string]bool
+	if postID != "" {
+		var post types.Post
+		if err := app.api.get(ctx, "/api/v1/posts/"+postID, &post); err == nil {
+			excludeTags = make(map[string]bool, len(post.Tags))
+			for _, t := range post.Tags {
+				excludeTags[t] = true
+			}
+		}
+	}
 
 	var resp tagsResponse
 	query := url.Values{}
@@ -154,6 +173,9 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	if resp.Items != nil {
 		for _, tag := range *resp.Items {
+			if excludeTags[tag.Name] {
+				continue
+			}
 			_, _ = fmt.Fprintf(w, "<option value=%q>", tag.Name)
 		}
 	}
@@ -403,11 +425,15 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := app.api.put(ctx, "/api/v1/tagCategories/"+urlName, cat, nil)
 		if err != nil {
+			errMsg := "Failed to save category"
+			if err != nil {
+				errMsg = err.Error()
+			}
 			app.renderTemplate(w, r, "tag_category_edit", TagCategoryEditData{
 				Category:    cat,
 				CurrentName: name,
 				IsNew:       isNew,
-				Error:       "Failed to save category",
+				Error:       errMsg,
 			})
 			return
 		}

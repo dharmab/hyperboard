@@ -384,6 +384,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		MimeType:     &post.MimeType,
 		ContentURL:   &post.ContentUrl,
 		ThumbnailURL: &post.ThumbnailUrl,
+		Note:         &post.Note,
 		UpdatedAt:    now(),
 	})
 	if err != nil {
@@ -401,15 +402,25 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	for _, tagName := range post.Tags {
 		tag, err := models.Tags.Query(
-			sm.Where(models.Tags.Name().EQ(psql.Arg(tagName))),
+			sm.Where(models.TagColumns.Name.EQ(psql.Arg(tagName))),
 		).One(ctx, s.db)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				respondWithError(w, http.StatusBadRequest, "Tag %q not found", tagName)
+				tag, err = models.Tags.Insert(
+					&models.TagSetter{
+						Name:      &tagName,
+						CreatedAt: now(),
+						UpdatedAt: now(),
+					},
+				).One(ctx, s.db)
+				if err != nil {
+					respondWithError(w, http.StatusInternalServerError, "Failed to create tag %q", tagName)
+					return
+				}
+			} else {
+				respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
 				return
 			}
-			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
-			return
 		}
 
 		err = existingPost.AttachTags(ctx, s.db, tag)

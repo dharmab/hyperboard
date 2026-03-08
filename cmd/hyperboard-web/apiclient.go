@@ -48,6 +48,10 @@ func (c *APIClient) getRaw(ctx context.Context, path string) (*http.Response, er
 	return c.do(ctx, http.MethodGet, path, nil)
 }
 
+func (c *APIClient) head(ctx context.Context, path string) (*http.Response, error) {
+	return c.do(ctx, http.MethodHead, path, nil)
+}
+
 func (c *APIClient) get(ctx context.Context, path string, out any) error {
 	resp, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -82,6 +86,16 @@ func (c *APIClient) put(ctx context.Context, path string, body any, out any) (in
 		return 0, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		var apiErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(respBody, &apiErr) == nil && apiErr.Message != "" {
+			return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, apiErr.Message)
+		}
+		return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, string(respBody))
+	}
 	if out != nil {
 		return resp.StatusCode, json.NewDecoder(resp.Body).Decode(out)
 	}

@@ -30,7 +30,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 
 	// Ordering
 	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.TagCategories.Name()).Asc(),
+		sm.OrderBy(models.TagCategoryColumns.Name).Asc(),
 	}
 
 	// Cursor
@@ -40,7 +40,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(models.TagCategories.Name().GT(psql.Arg(decodedName))))
+		mods = append(mods, sm.Where(models.TagCategoryColumns.Name.GT(psql.Arg(decodedName))))
 	}
 
 	// Limit
@@ -77,7 +77,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 func (s *Server) GetTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {
 	ctx := r.Context()
 	model, err := models.TagCategories.Query(
-		sm.Where(models.TagCategories.Name().EQ(psql.Arg(name))),
+		sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -99,7 +99,7 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 	}
 
 	existing, err := models.TagCategories.Query(
-		sm.Where(models.TagCategories.Name().EQ(psql.Arg(name))),
+		sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag category")
@@ -147,7 +147,7 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 func (s *Server) DeleteTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {
 	ctx := r.Context()
 	_, err := models.TagCategories.Delete(
-		dm.Where(models.TagCategories.Name().EQ(psql.Arg(name))),
+		dm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(name))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

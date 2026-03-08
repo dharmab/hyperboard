@@ -39,7 +39,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 
 	// Ordering
 	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.Tags.Name()).Asc(),
+		sm.OrderBy(models.TagColumns.Name).Asc(),
 	}
 
 	// Cursor
@@ -49,7 +49,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(models.Tags.Name().GT(psql.Arg(decodedName))))
+		mods = append(mods, sm.Where(models.TagColumns.Name.GT(psql.Arg(decodedName))))
 	}
 
 	// Limit
@@ -100,7 +100,7 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 	model, err := models.Tags.Query(
-		sm.Where(models.Tags.Name().EQ(psql.Arg(name))),
+		sm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -143,7 +143,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	var tagCategoryID sql.Null[uuid.UUID]
 	if tag.Category != nil && *tag.Category != "" {
 		category, err := models.TagCategories.Query(
-			sm.Where(models.TagCategories.Name().EQ(psql.Arg(*tag.Category))),
+			sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(*tag.Category))),
 		).One(ctx, s.db)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -157,7 +157,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	existing, err := models.Tags.Query(
-		sm.Where(models.Tags.Name().EQ(psql.Arg(name))),
+		sm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
@@ -231,7 +231,7 @@ func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	_, err := models.Tags.Delete(
-		dm.Where(models.Tags.Name().EQ(psql.Arg(name))),
+		dm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

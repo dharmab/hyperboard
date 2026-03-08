@@ -10,8 +10,9 @@ type GalleryData struct {
 }
 
 type PostData struct {
-	Post    types.Post
-	IsVideo bool
+	Post     types.Post
+	IsVideo  bool
+	FileSize int64
 }
 
 type TagsData struct {

@@ -7,8 +7,9 @@ import (
 
 // StorageObject holds the data returned from a Download call.
 type StorageObject struct {
-	Body        io.ReadCloser
-	ContentType string
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
 }
 
 // Storage is the interface for object storage operations.

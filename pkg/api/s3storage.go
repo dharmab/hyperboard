@@ -113,7 +113,11 @@ func (s *S3Storage) Download(ctx context.Context, key string) (*StorageObject, e
 	if out.ContentType != nil {
 		ct = *out.ContentType
 	}
-	return &StorageObject{Body: out.Body, ContentType: ct}, nil
+	var cl int64
+	if out.ContentLength != nil {
+		cl = *out.ContentLength
+	}
+	return &StorageObject{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
 }
 
 // Delete removes an object at the given key.

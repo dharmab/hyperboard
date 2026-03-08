@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -57,5 +58,8 @@ func (s *Server) HandleMedia(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", obj.ContentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if obj.ContentLength > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", obj.ContentLength))
+	}
 	io.Copy(w, obj.Body)
 }
