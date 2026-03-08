@@ -172,6 +172,15 @@ button:hover,
   border-left: 3px solid var(--base03);
 }
 
+.badge-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.badge-link:hover {
+  text-decoration: underline;
+}
+
 .badge-remove {
   margin-left: 0.4rem;
   cursor: pointer;

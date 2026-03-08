@@ -24,7 +24,7 @@
         <a href="/tags/{{.Name}}">{{.Name}}</a>
       </td>
       <td data-value="{{deref .Category}}">
-        {{if .Category}}<span class="badge" style="border-left-color: {{catColor $.CategoryColors .Category}}">{{deref .Category}}</span>{{end}}
+        {{if .Category}}<span class="badge" style="border-left-color: {{catColor $.CategoryColors .Category}}"><a href="/tag-categories/{{deref .Category}}" class="badge-link">{{deref .Category}}</a></span>{{end}}
       </td>
       <td data-value="{{.Description}}">{{.Description}}</td>
       <td data-value="{{if .Aliases}}{{join_strings (deref_strings .Aliases) ", "}}{{end}}" style="color:var(--base03);font-size:0.9rem">

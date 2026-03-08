@@ -86,7 +86,7 @@ function setMediaMode(mode) {
   <div class="post-tags-list">
     {{range .Post.Tags}}
     <span class="badge">
-      {{.}}
+      <a href="/?search={{.}}" class="badge-link">{{.}}</a>
       <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerHTML">×</a>
     </span>
     {{end}}
