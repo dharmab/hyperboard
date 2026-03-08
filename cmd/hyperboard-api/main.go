@@ -8,6 +8,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/pkg/api"
+	"github.com/dharmab/hyperboard/pkg/httplog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -104,7 +105,7 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	mux.HandleFunc("/media/", apiServer.HandleMedia)
 	authMiddleware := api.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
-		Handler: requestLoggingMiddleware(authMiddleware(mux)),
+		Handler: httplog.RequestLoggingMiddleware(authMiddleware(mux)),
 		Addr:    ":" + cfg.Port,
 	}
 	if err := httpServer.ListenAndServe(); err != nil {
@@ -113,26 +114,3 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	return nil
 }
 
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func requestLoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(sw, r)
-		log.Info().
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Int("status", sw.status).
-			Str("content_type", r.Header.Get("Content-Type")).
-			Int64("content_length", r.ContentLength).
-			Msg("request")
-	})
-}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/dharmab/hyperboard/pkg/httplog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -104,7 +105,7 @@ func run() error {
 	mux.Handle("/", app.sessionMiddleware(protected))
 
 	log.Info().Str("port", cfg.Port).Msg("Starting web server")
-	return http.ListenAndServe(":"+cfg.Port, mux)
+	return http.ListenAndServe(":"+cfg.Port, httplog.RequestLoggingMiddleware(mux))
 }
 
 // parseTemplates parses each page template together with the base layout

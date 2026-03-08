@@ -3,25 +3,60 @@
 {{end}}
 
 {{define "content"}}
-<div class="gallery-controls">
-  <input type="text" name="search" placeholder="Search by tags…" value="{{.Search}}"
-    hx-get="/posts-partial"
-    hx-push-url="true"
-    hx-target="#gallery-grid"
-    hx-trigger="input changed delay:400ms"
-    hx-include="[name='sort']">
+<form class="gallery-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#gallery-grid" hx-trigger="submit">
+  <input type="text" name="search" id="gallery-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
+    list="search-suggestions"
+    autocomplete="off">
+  <datalist id="search-suggestions"></datalist>
   <input type="hidden" name="sort" id="sort-input" value="{{.Sort}}">
-  <button class="btn {{if eq .Sort "recent"}}btn-primary{{end}}" onclick="setSort('recent')">Recent</button>
-  <button class="btn {{if eq .Sort "random"}}btn-primary{{end}}" onclick="setSort('random')">Shuffle</button>
-</div>
+  <button type="submit" class="btn btn-primary">Search</button>
+  <button type="button" class="btn {{if eq .Sort "recent"}}btn-primary{{end}}" onclick="setSort('recent')">Recent</button>
+  <button type="button" class="btn {{if eq .Sort "random"}}btn-primary{{end}}" onclick="setSort('random')">Shuffle</button>
+</form>
 <div id="gallery-grid" class="gallery-grid">
   {{template "gallery-items" .}}
 </div>
 <script>
 function setSort(s) {
   document.getElementById('sort-input').value = s;
-  htmx.trigger(document.querySelector('[name=search]'), 'input');
+  htmx.trigger(document.querySelector('.gallery-controls'), 'submit');
 }
+
+(function() {
+  var searchInput = document.getElementById('gallery-search');
+  var datalist = document.getElementById('search-suggestions');
+  var debounceTimer;
+
+  searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    var value = this.value;
+    var lastCommaIdx = value.lastIndexOf(',');
+    var lastWord = (lastCommaIdx >= 0 ? value.substring(lastCommaIdx + 1) : value).trim();
+
+    if (!lastWord) {
+      datalist.innerHTML = '';
+      return;
+    }
+
+    debounceTimer = setTimeout(function() {
+      fetch('/tag-suggestions?q=' + encodeURIComponent(lastWord))
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+          if (lastCommaIdx >= 0) {
+            var prefix = value.substring(0, lastCommaIdx + 1) + ' ';
+            var temp = document.createElement('div');
+            temp.innerHTML = html;
+            temp.querySelectorAll('option').forEach(function(opt) {
+              opt.value = prefix + opt.value;
+            });
+            datalist.innerHTML = temp.innerHTML;
+          } else {
+            datalist.innerHTML = html;
+          }
+        });
+    }, 200);
+  });
+})();
 </script>
 {{end}}
 

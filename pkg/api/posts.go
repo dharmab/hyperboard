@@ -52,10 +52,12 @@ func parseSearch(search string) types.PostSearch {
 		return postSearch
 	}
 
-	// Split search string by whitespace
-	parts := strings.FieldsSeq(search)
-	for part := range parts {
-		postSearch.Tags = append(postSearch.Tags, part)
+	// Split search string by commas and trim whitespace from each tag
+	for _, part := range strings.Split(search, ",") {
+		tag := strings.TrimSpace(part)
+		if tag != "" {
+			postSearch.Tags = append(postSearch.Tags, tag)
+		}
 	}
 
 	return postSearch

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/rs/zerolog/log"
 )
 
 func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +33,7 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 
 	var resp postsResponse
 	if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
+		log.Error().Err(err).Str("search", search).Str("sort", sort).Str("cursor", cursor).Msg("Failed to load posts")
 		http.Error(w, "Failed to load posts", http.StatusInternalServerError)
 		return
 	}
