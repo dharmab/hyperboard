@@ -54,12 +54,12 @@ func (s *Server) HandleMedia(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Media not found", http.StatusNotFound)
 		return
 	}
-	defer obj.Body.Close()
+	defer func() { _ = obj.Body.Close() }()
 
 	w.Header().Set("Content-Type", obj.ContentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if obj.ContentLength > 0 {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", obj.ContentLength))
 	}
-	io.Copy(w, obj.Body)
+	_, _ = io.Copy(w, obj.Body)
 }

@@ -67,7 +67,7 @@ func initConfig() {
 		viper.SetConfigFile(configPath)
 		if err := viper.ReadInConfig(); err != nil {
 			// Config file is optional for hyperboardctl — env vars or flags can suffice
-			os.Stderr.WriteString("Warning: failed to read config file: " + err.Error() + "\n")
+			_, _ = os.Stderr.WriteString("Warning: failed to read config file: " + err.Error() + "\n")
 		}
 	}
 }

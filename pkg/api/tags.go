@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -43,23 +44,23 @@ func (s *Server) getTagAliases(ctx context.Context, tagIDs ...uuid.UUID) (map[uu
 	}
 
 	args := make([]any, len(tagIDs))
-	placeholders := ""
+	var placeholders strings.Builder
 	for i, id := range tagIDs {
 		if i > 0 {
-			placeholders += ", "
+			placeholders.WriteString(", ")
 		}
-		placeholders += "$" + itoa(i+1)
+		placeholders.WriteString("$" + itoa(i+1))
 		args[i] = id
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT tag_id, alias FROM tag_aliases WHERE tag_id IN ("+placeholders+") ORDER BY alias",
+		"SELECT tag_id, alias FROM tag_aliases WHERE tag_id IN ("+placeholders.String()+") ORDER BY alias",
 		args...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[uuid.UUID][]string)
 	for rows.Next() {
@@ -386,7 +387,7 @@ func (s *Server) getTagPostCounts(ctx context.Context) (map[uuid.UUID]int, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	counts := make(map[uuid.UUID]int)
 	for rows.Next() {

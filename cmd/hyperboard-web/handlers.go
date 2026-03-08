@@ -75,7 +75,7 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 		}
 		var fileSize int64
 		if resp, err := app.api.head(ctx, "/media"+mediaPath(post.ContentUrl)); err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			fileSize = resp.ContentLength
 		}
 		app.renderTemplate(w, r, "post", PostData{
@@ -363,7 +363,7 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		aliasesRaw := r.FormValue("aliases")
 
 		var aliases []string
-		for _, a := range strings.Split(aliasesRaw, ",") {
+		for a := range strings.SplitSeq(aliasesRaw, ",") {
 			a = strings.TrimSpace(a)
 			if a != "" {
 				aliases = append(aliases, a)
@@ -656,7 +656,7 @@ func (app *App) handleMedia(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to fetch media", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		http.Error(w, "Media not found", resp.StatusCode)
@@ -670,5 +670,5 @@ func (app *App) handleMedia(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", cl)
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	io.Copy(w, resp.Body)
+	_, _ = io.Copy(w, resp.Body)
 }

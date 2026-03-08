@@ -28,7 +28,7 @@ func bindConfig(cmd *cobra.Command) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
-	viper.BindPFlags(flags)
+	_ = viper.BindPFlags(flags)
 }
 
 func loadConfig() *Config {
@@ -36,7 +36,7 @@ func loadConfig() *Config {
 		Port:          viper.GetString("port"),
 		AdminPassword: viper.GetString("admin-password"),
 		SessionSecret: viper.GetString("session-secret"),
-		APIURL:   viper.GetString("api-url"),
-		LogLevel: viper.GetString("log-level"),
+		APIURL:        viper.GetString("api-url"),
+		LogLevel:      viper.GetString("log-level"),
 	}
 }

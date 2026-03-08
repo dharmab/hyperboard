@@ -23,7 +23,7 @@ func bindConfig(cmd *cobra.Command) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
-	viper.BindPFlags(flags)
+	_ = viper.BindPFlags(flags)
 }
 
 func loadConfig() (*Config, error) {

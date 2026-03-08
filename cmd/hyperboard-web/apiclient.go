@@ -135,7 +135,9 @@ func (c *APIClient) uploadFile(ctx context.Context, data []byte, contentType str
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		var apiErr struct{ Message string `json:"message"` }
+		var apiErr struct {
+			Message string `json:"message"`
+		}
 		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
 			return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, apiErr.Message)
 		}
