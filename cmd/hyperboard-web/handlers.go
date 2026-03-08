@@ -53,8 +53,8 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 		Search:     search,
 	}
 
-	// HTMX partial request (infinite scroll)
-	if r.Header.Get("HX-Request") == "true" && cursor != "" {
+	// HTMX partial request (search or infinite scroll)
+	if r.Header.Get("HX-Request") == "true" {
 		app.renderTemplate(w, r, "gallery-items", data)
 		return
 	}
