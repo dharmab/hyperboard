@@ -2,10 +2,14 @@ package api
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -21,10 +25,11 @@ func postFromModel(model *models.Post) (types.Post, error) {
 	post := types.Post{
 		ID:           types.ID(model.ID),
 		MimeType:     model.MimeType,
-		ContentRef:   model.ContentURL,
-		ThumbnailRef: model.ThumbnailURL,
-		CreatedAt:    model.CreatedAt.V,
-		UpdatedAt:    model.UpdatedAt.V,
+		ContentUrl:   model.ContentURL,
+		ThumbnailUrl: model.ThumbnailURL,
+		Note:         model.Note,
+		CreatedAt:    model.CreatedAt,
+		UpdatedAt:    model.UpdatedAt,
 	}
 
 	// Extract tag names from loaded tags
@@ -47,35 +52,111 @@ func parseSearch(search string) types.PostSearch {
 	}
 
 	// Split search string by whitespace
-	parts := strings.Fields(search)
-	for _, part := range parts {
+	parts := strings.FieldsSeq(search)
+	for part := range parts {
 		postSearch.Tags = append(postSearch.Tags, part)
 	}
 
 	return postSearch
 }
 
+type randomCursor struct {
+	Seed   int64 `json:"seed"`
+	Offset int   `json:"offset"`
+}
+
+func encodeRandomCursor(rc randomCursor) string {
+	data, _ := json.Marshal(rc)
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+func decodeRandomCursor(s string, rc *randomCursor) error {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, rc)
+}
+
 func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams) {
 	ctx := r.Context()
 
-	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.PostColumns.CreatedAt).Desc(),
+	sort := Recent
+	if params.Sort != nil {
+		sort = *params.Sort
 	}
+
+	mods := []bob.Mod[*dialect.SelectQuery]{}
 
 	if params.Search != nil && *params.Search != "" {
 		searchParams := parseSearch(*params.Search)
-		if len(searchParams.Tags) > 0 {
-			for _, tagName := range searchParams.Tags {
-				mods = append(mods, sm.Where(psql.Raw(
-					`EXISTS (
-						SELECT 1 FROM posts_tags pt
-						JOIN tags t ON pt.tag_id = t.id
-						WHERE pt.post_id = posts.id AND t.name = ?
-					)`, tagName,
-				)))
-			}
+		for _, tagName := range searchParams.Tags {
+			mods = append(mods, sm.Where(psql.Raw(
+				`EXISTS (
+					SELECT 1 FROM posts_tags pt
+					JOIN tags t ON pt.tag_id = t.id
+					WHERE pt.post_id = posts.id AND t.name = ?
+				)`, tagName,
+			)))
 		}
 	}
+
+	limit := parseLimit(params.Limit)
+
+	if sort == Random {
+		currentSeed := time.Now().Unix() / 21600
+		offset := 0
+
+		if params.Cursor != nil && *params.Cursor != "" {
+			var rc randomCursor
+			if err := decodeRandomCursor(*params.Cursor, &rc); err == nil {
+				if rc.Seed == currentSeed {
+					offset = rc.Offset
+				}
+				// if seed differs, use currentSeed with offset=0 (window rolled)
+			}
+		}
+
+		mods = append(mods,
+			sm.OrderBy(psql.Raw("md5(posts.id::text || $1::text)", currentSeed)),
+			sm.Limit(int64(limit+1)),
+			sm.Offset(int64(offset)),
+		)
+
+		posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve posts")
+			return
+		}
+
+		if err := posts.LoadTags(ctx, s.db); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
+			return
+		}
+
+		var nextCursor *string
+		if len(posts) > limit {
+			posts = posts[:limit]
+			rc := randomCursor{Seed: currentSeed, Offset: offset + limit}
+			encoded := encodeRandomCursor(rc)
+			nextCursor = &encoded
+		}
+
+		items := make([]types.Post, 0, len(posts))
+		for _, post := range posts {
+			postResp, err := postFromModel(post)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
+				return
+			}
+			items = append(items, postResp)
+		}
+		respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
+		return
+	}
+
+	// sort == Recent (default)
+	mods = append(mods, sm.OrderBy(models.PostColumns.CreatedAt).Desc())
 
 	if params.Cursor != nil && *params.Cursor != "" {
 		decodedCursor, err := deobfuscateCursor(*params.Cursor)
@@ -86,7 +167,6 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		mods = append(mods, sm.Where(models.PostColumns.CreatedAt.LT(psql.Arg(decodedCursor))))
 	}
 
-	limit := parseLimit(params.Limit)
 	mods = append(mods, sm.Limit(int64(limit+1)))
 
 	posts, err := models.Posts.Query(mods...).All(ctx, s.db)
@@ -101,7 +181,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	hasMore, nextCursor := paginate(len(posts), limit, func() string {
-		return posts[limit-1].CreatedAt.V.Format("2006-01-02T15:04:05.999999999Z07:00")
+		return posts[limit-1].CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")
 	})
 	if hasMore {
 		posts = posts[:limit]
@@ -116,12 +196,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		}
 		items = append(items, postResp)
 	}
-
-	resp := PostsResponse{
-		Items:  &items,
-		Cursor: nextCursor,
-	}
-	respond(w, http.StatusOK, resp)
+	respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
 }
 
 func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
@@ -156,7 +231,115 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 }
 
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
-	respondWithError(w, http.StatusNotImplemented, "Upload functionality not yet implemented")
+	ctx := r.Context()
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		return
+	}
+
+	mimeStr := r.Header.Get("Content-Type")
+	if mimeStr == "" {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
+		return
+	}
+	// Strip any parameters (e.g. "; charset=utf-8") to get a bare MIME type.
+	if idx := strings.Index(mimeStr, ";"); idx != -1 {
+		mimeStr = strings.TrimSpace(mimeStr[:idx])
+	}
+
+	var contentData []byte
+	var contentMIME string
+	var thumbnailData []byte
+
+	if strings.HasPrefix(mimeStr, "image/") {
+		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
+		if err != nil {
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+			return
+		}
+	} else if strings.HasPrefix(mimeStr, "video/") {
+		contentData = data
+		contentMIME = mimeStr
+		thumbnailData, err = processVideo(data)
+		if err != nil {
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video")
+			return
+		}
+	} else {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
+		return
+	}
+
+	postID, err := uuid.NewV4()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate post ID")
+		return
+	}
+
+	ext := mimeToExt(contentMIME)
+	contentKey := fmt.Sprintf("posts/%s/content.%s", postID, ext)
+	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
+
+	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
+		return
+	}
+
+	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		return
+	}
+
+	id := postID
+	model, err := models.Posts.Insert(
+		&models.PostSetter{
+			ID:           &id,
+			MimeType:     &contentMIME,
+			ContentURL:   &contentURL,
+			ThumbnailURL: &thumbnailURL,
+			CreatedAt:    now(),
+			UpdatedAt:    now(),
+		},
+	).One(ctx, s.db)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to store post")
+		return
+	}
+
+	model.R.Tags = nil
+	postResp, err := postFromModel(model)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
+		return
+	}
+
+	respond(w, http.StatusCreated, postResp)
+}
+
+// mimeToExt returns a file extension for a given MIME type.
+func mimeToExt(mime string) string {
+	switch mime {
+	case "image/webp":
+		return "webp"
+	case "image/jpeg":
+		return "jpg"
+	case "image/png":
+		return "png"
+	case "image/gif":
+		return "gif"
+	case "video/mp4":
+		return "mp4"
+	case "video/webm":
+		return "webm"
+	case "video/quicktime":
+		return "mov"
+	default:
+		return "bin"
+	}
 }
 
 func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
@@ -189,8 +372,8 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	err = existingPost.Update(ctx, s.db, &models.PostSetter{
 		MimeType:     &post.MimeType,
-		ContentURL:   &post.ContentRef,
-		ThumbnailURL: &post.ThumbnailRef,
+		ContentURL:   &post.ContentUrl,
+		ThumbnailURL: &post.ThumbnailUrl,
 		UpdatedAt:    now(),
 	})
 	if err != nil {
@@ -224,6 +407,175 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to attach tag")
 			return
 		}
+	}
+
+	if err := existingPost.LoadTags(ctx, s.db); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
+		return
+	}
+
+	postResp, err := postFromModel(existingPost)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
+		return
+	}
+
+	respond(w, http.StatusOK, postResp)
+}
+
+func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id) {
+	ctx := r.Context()
+
+	postID := uuid.UUID(id)
+
+	existingPost, err := models.Posts.Query(
+		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+	).One(ctx, s.db)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		return
+	}
+
+	mimeStr := r.Header.Get("Content-Type")
+	if mimeStr == "" {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
+		return
+	}
+	if idx := strings.Index(mimeStr, ";"); idx != -1 {
+		mimeStr = strings.TrimSpace(mimeStr[:idx])
+	}
+
+	var contentData []byte
+	var contentMIME string
+	var thumbnailData []byte
+
+	if strings.HasPrefix(mimeStr, "image/") {
+		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
+		if err != nil {
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+			return
+		}
+	} else if strings.HasPrefix(mimeStr, "video/") {
+		contentData = data
+		contentMIME = mimeStr
+		thumbnailData, err = processVideo(data)
+		if err != nil {
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video")
+			return
+		}
+	} else {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
+		return
+	}
+
+	ext := mimeToExt(contentMIME)
+	contentKey := fmt.Sprintf("posts/%s/content.%s", postID, ext)
+	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
+
+	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
+		return
+	}
+
+	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		return
+	}
+
+	err = existingPost.Update(ctx, s.db, &models.PostSetter{
+		MimeType:     &contentMIME,
+		ContentURL:   &contentURL,
+		ThumbnailURL: &thumbnailURL,
+		UpdatedAt:    now(),
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		return
+	}
+
+	if err := existingPost.LoadTags(ctx, s.db); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
+		return
+	}
+
+	postResp, err := postFromModel(existingPost)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
+		return
+	}
+
+	respond(w, http.StatusOK, postResp)
+}
+
+func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id) {
+	ctx := r.Context()
+
+	postID := uuid.UUID(id)
+
+	existingPost, err := models.Posts.Query(
+		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+	).One(ctx, s.db)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		return
+	}
+
+	mimeStr := r.Header.Get("Content-Type")
+	if mimeStr == "" {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
+		return
+	}
+	if idx := strings.Index(mimeStr, ";"); idx != -1 {
+		mimeStr = strings.TrimSpace(mimeStr[:idx])
+	}
+
+	if !strings.HasPrefix(mimeStr, "image/") {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Thumbnail must be an image, got: %s", mimeStr)
+		return
+	}
+
+	_, _, thumbnailData, err := processImage(data, mimeStr)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+		return
+	}
+
+	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
+	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		return
+	}
+
+	err = existingPost.Update(ctx, s.db, &models.PostSetter{
+		ThumbnailURL: &thumbnailURL,
+		UpdatedAt:    now(),
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		return
 	}
 
 	if err := existingPost.LoadTags(ctx, s.db); err != nil {

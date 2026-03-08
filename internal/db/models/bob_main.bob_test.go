@@ -15,6 +15,9 @@ import (
 // Set the testDB to enable tests that use the database
 var testDB bob.Transactor
 
+// Make sure the type Note runs hooks after queries
+var _ bob.HookableType = &models.Note{}
+
 // Make sure the type Post runs hooks after queries
 var _ bob.HookableType = &models.Post{}
 

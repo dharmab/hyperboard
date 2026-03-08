@@ -40,8 +40,8 @@ type TagTemplate struct {
 	Name          func() string
 	Description   func() string
 	TagCategoryID func() sql.Null[uuid.UUID]
-	CreatedAt     func() sql.Null[time.Time]
-	UpdatedAt     func() sql.Null[time.Time]
+	CreatedAt     func() time.Time
+	UpdatedAt     func() time.Time
 
 	r tagR
 	f *Factory
@@ -182,10 +182,6 @@ func ensureCreatableTag(m *models.TagSetter) {
 	if m.Name == nil {
 		val := random_string(nil)
 		m.Name = &val
-	}
-	if m.Description == nil {
-		val := random_string(nil)
-		m.Description = &val
 	}
 }
 
@@ -490,14 +486,14 @@ func (m tagMods) RandomTagCategoryIDNotNull(f *faker.Faker) TagMod {
 }
 
 // Set the model columns to this value
-func (m tagMods) CreatedAt(val sql.Null[time.Time]) TagMod {
+func (m tagMods) CreatedAt(val time.Time) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] { return val }
+		o.CreatedAt = func() time.Time { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagMods) CreatedAtFunc(f func() sql.Null[time.Time]) TagMod {
+func (m tagMods) CreatedAtFunc(f func() time.Time) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
 		o.CreatedAt = f
 	})
@@ -512,45 +508,23 @@ func (m tagMods) UnsetCreatedAt() TagMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m tagMods) RandomCreatedAt(f *faker.Faker) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m tagMods) RandomCreatedAtNotNull(f *faker.Faker) TagMod {
-	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.CreatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }
 
 // Set the model columns to this value
-func (m tagMods) UpdatedAt(val sql.Null[time.Time]) TagMod {
+func (m tagMods) UpdatedAt(val time.Time) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] { return val }
+		o.UpdatedAt = func() time.Time { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagMods) UpdatedAtFunc(f func() sql.Null[time.Time]) TagMod {
+func (m tagMods) UpdatedAtFunc(f func() time.Time) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
 		o.UpdatedAt = f
 	})
@@ -565,32 +539,10 @@ func (m tagMods) UnsetUpdatedAt() TagMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m tagMods) RandomUpdatedAt(f *faker.Faker) TagMod {
 	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m tagMods) RandomUpdatedAtNotNull(f *faker.Faker) TagMod {
-	return TagModFunc(func(_ context.Context, o *TagTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.UpdatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }

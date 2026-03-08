@@ -31,8 +31,8 @@ type Tag struct {
 	Name          string              `db:"name" `
 	Description   string              `db:"description" `
 	TagCategoryID sql.Null[uuid.UUID] `db:"tag_category_id" `
-	CreatedAt     sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt     sql.Null[time.Time] `db:"updated_at" `
+	CreatedAt     time.Time           `db:"created_at" `
+	UpdatedAt     time.Time           `db:"updated_at" `
 
 	R tagR `db:"-" `
 }
@@ -99,8 +99,8 @@ type tagWhere[Q psql.Filterable] struct {
 	Name          psql.WhereMod[Q, string]
 	Description   psql.WhereMod[Q, string]
 	TagCategoryID psql.WhereNullMod[Q, uuid.UUID]
-	CreatedAt     psql.WhereNullMod[Q, time.Time]
-	UpdatedAt     psql.WhereNullMod[Q, time.Time]
+	CreatedAt     psql.WhereMod[Q, time.Time]
+	UpdatedAt     psql.WhereMod[Q, time.Time]
 }
 
 func (tagWhere[Q]) AliasedAs(alias string) tagWhere[Q] {
@@ -113,8 +113,8 @@ func buildTagWhere[Q psql.Filterable](cols tagColumns) tagWhere[Q] {
 		Name:          psql.Where[Q, string](cols.Name),
 		Description:   psql.Where[Q, string](cols.Description),
 		TagCategoryID: psql.WhereNull[Q, uuid.UUID](cols.TagCategoryID),
-		CreatedAt:     psql.WhereNull[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:     psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		CreatedAt:     psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:     psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
 }
 
@@ -148,8 +148,8 @@ type TagSetter struct {
 	Name          *string              `db:"name" `
 	Description   *string              `db:"description" `
 	TagCategoryID *sql.Null[uuid.UUID] `db:"tag_category_id" `
-	CreatedAt     *sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt     *sql.Null[time.Time] `db:"updated_at" `
+	CreatedAt     *time.Time           `db:"created_at" `
+	UpdatedAt     *time.Time           `db:"updated_at" `
 }
 
 func (s TagSetter) SetColumns() []string {

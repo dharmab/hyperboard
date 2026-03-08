@@ -1,0 +1,30 @@
+{{define "note"}}
+{{template "base" .}}
+{{end}}
+
+{{define "content"}}
+<div class="flex items-center gap-2 mt-1">
+  <input type="text" id="note-title" name="title" value="{{.Note.Title}}" style="font-size:1.5rem;font-weight:bold;background:transparent;border:none;border-bottom:1px solid var(--base02);border-radius:0;width:auto;flex:1"
+    hx-put="/notes/{{.Note.ID}}/title"
+    hx-trigger="blur"
+    hx-include="this">
+  <button class="btn btn-danger"
+    hx-delete="/notes/{{.Note.ID}}"
+    hx-confirm="Delete this note?"
+    hx-push-url="/notes"
+    hx-target="body">Delete</button>
+</div>
+<div id="note-view" class="note-content mt-2">
+  {{.RenderedContent}}
+</div>
+<div id="note-edit" style="display:none" class="mt-2">
+  <textarea id="note-content" name="content" rows="20" style="width:100%">{{.Note.Content}}</textarea>
+  <button class="btn btn-primary mt-1"
+    hx-put="/notes/{{.Note.ID}}"
+    hx-include="#note-content,#note-title"
+    hx-target="#note-view"
+    hx-swap="outerHTML"
+    onclick="document.getElementById('note-edit').style.display='none';document.getElementById('note-view').style.display=''">Save</button>
+</div>
+<button class="btn mt-1" onclick="document.getElementById('note-edit').style.display='';document.getElementById('note-view').style.display='none'">Edit</button>
+{{end}}

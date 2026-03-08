@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM} golang:1.24 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS builder
 
 ARG BUILDPLATFORM
 ARG TARGETOS=linux
@@ -27,7 +27,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboardctl ./cmd/hyperboardctl
 
-FROM gcr.io/distroless/static-debian12:debug AS hyperboard-api
+FROM debian:13-slim AS hyperboard-api
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      webp \
+      ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /bin/hyperboard-api /hyperboard-api
 ENTRYPOINT ["/hyperboard-api"]
 

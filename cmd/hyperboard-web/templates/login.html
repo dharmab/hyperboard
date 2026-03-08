@@ -1,0 +1,22 @@
+{{define "login.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login — Hyperboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-container">
+  <h1>Hyperboard</h1>
+  {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
+  <form method="POST" action="/login">
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary">Login</button>
+  </form>
+</div>
+</body>
+</html>
+{{end}}

@@ -14,10 +14,14 @@ type contextKey string
 var (
 	// Table context
 
+	noteCtx        = newContextual[*models.Note]("note")
 	postCtx        = newContextual[*models.Post]("post")
 	postsTagCtx    = newContextual[*models.PostsTag]("postsTag")
 	tagCategoryCtx = newContextual[*models.TagCategory]("tagCategory")
 	tagCtx         = newContextual[*models.Tag]("tag")
+
+	// Relationship Contexts for notes
+	noteWithParentsCascadingCtx = newContextual[bool]("noteWithParentsCascading")
 
 	// Relationship Contexts for posts
 	postWithParentsCascadingCtx = newContextual[bool]("postWithParentsCascading")

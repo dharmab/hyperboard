@@ -13,6 +13,12 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for GetPostsParamsSort.
+const (
+	Random GetPostsParamsSort = "random"
+	Recent GetPostsParamsSort = "recent"
+)
+
 // Cursor defines model for Cursor.
 type Cursor = string
 
@@ -48,6 +54,15 @@ type InternalServerErrorResponse = Error
 // NotFoundResponse defines model for NotFoundResponse.
 type NotFoundResponse = Error
 
+// NoteResponse defines model for NoteResponse.
+type NoteResponse = externalRef0.Note
+
+// NotesResponse defines model for NotesResponse.
+type NotesResponse struct {
+	Cursor *Cursor              `json:"cursor,omitempty"`
+	Items  *[]externalRef0.Note `json:"items,omitempty"`
+}
+
 // PostResponse defines model for PostResponse.
 type PostResponse = externalRef0.Post
 
@@ -82,7 +97,13 @@ type TooManyRequestsResponse = Error
 type UnauthorizedResponse = Error
 
 // UploadPostResponse defines model for UploadPostResponse.
-type UploadPostResponse = externalRef0.ID
+type UploadPostResponse = externalRef0.Post
+
+// NoteRequest defines model for NoteRequest.
+type NoteRequest struct {
+	Content string `json:"content"`
+	Title   string `json:"title"`
+}
 
 // PostRequest defines model for PostRequest.
 type PostRequest = externalRef0.Post
@@ -93,12 +114,28 @@ type TagCategoryRequest = externalRef0.TagCategory
 // TagRequest defines model for TagRequest.
 type TagRequest = externalRef0.Tag
 
+// CreateNoteJSONBody defines parameters for CreateNote.
+type CreateNoteJSONBody struct {
+	Content string `json:"content"`
+	Title   string `json:"title"`
+}
+
+// PutNoteJSONBody defines parameters for PutNote.
+type PutNoteJSONBody struct {
+	Content string `json:"content"`
+	Title   string `json:"title"`
+}
+
 // GetPostsParams defines parameters for GetPosts.
 type GetPostsParams struct {
-	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
-	Search *Search `form:"search,omitempty" json:"search,omitempty"`
+	Cursor *Cursor             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
+	Search *Search             `form:"search,omitempty" json:"search,omitempty"`
+	Sort   *GetPostsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 }
+
+// GetPostsParamsSort defines parameters for GetPosts.
+type GetPostsParamsSort string
 
 // GetTagCategoriesParams defines parameters for GetTagCategories.
 type GetTagCategoriesParams struct {
@@ -112,6 +149,12 @@ type GetTagsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
+type CreateNoteJSONRequestBody CreateNoteJSONBody
+
+// PutNoteJSONRequestBody defines body for PutNote for application/json ContentType.
+type PutNoteJSONRequestBody PutNoteJSONBody
+
 // PutPostJSONRequestBody defines body for PutPost for application/json ContentType.
 type PutPostJSONRequestBody = externalRef0.Post
 
@@ -123,6 +166,21 @@ type PutTagJSONRequestBody = externalRef0.Tag
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List all notes.
+	// (GET /api/v1/notes)
+	GetNotes(w http.ResponseWriter, r *http.Request)
+	// Create a note.
+	// (POST /api/v1/notes)
+	CreateNote(w http.ResponseWriter, r *http.Request)
+	// Delete a note by ID.
+	// (DELETE /api/v1/notes/{id})
+	DeleteNote(w http.ResponseWriter, r *http.Request, id externalRef0.ID)
+	// Get a note by ID.
+	// (GET /api/v1/notes/{id})
+	GetNote(w http.ResponseWriter, r *http.Request, id externalRef0.ID)
+	// Update a note by ID.
+	// (PUT /api/v1/notes/{id})
+	PutNote(w http.ResponseWriter, r *http.Request, id externalRef0.ID)
 	// Search for posts.
 	// (GET /api/v1/posts)
 	GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams)
@@ -135,6 +193,12 @@ type ServerInterface interface {
 	// Replace a post's metadata. This does not create a new post - use uploadPost to create a new post.
 	// (PUT /api/v1/posts/{id})
 	PutPost(w http.ResponseWriter, r *http.Request, id Id)
+	// Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
+	// (PUT /api/v1/posts/{id}/content)
+	ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id)
+	// Replace a post's thumbnail image. The server processes the image into a WebP thumbnail.
+	// (PUT /api/v1/posts/{id}/thumbnail)
+	ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
 	// List tag categories.
 	// (GET /api/v1/tagCategories)
 	GetTagCategories(w http.ResponseWriter, r *http.Request, params GetTagCategoriesParams)
@@ -182,6 +246,109 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// GetNotes operation middleware
+func (siw *ServerInterfaceWrapper) GetNotes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNotes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateNote operation middleware
+func (siw *ServerInterfaceWrapper) CreateNote(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNote(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNote operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNote operation middleware
+func (siw *ServerInterfaceWrapper) GetNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutNote operation middleware
+func (siw *ServerInterfaceWrapper) PutNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetPosts operation middleware
 func (siw *ServerInterfaceWrapper) GetPosts(w http.ResponseWriter, r *http.Request) {
 
@@ -211,6 +378,14 @@ func (siw *ServerInterfaceWrapper) GetPosts(w http.ResponseWriter, r *http.Reque
 	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
 		return
 	}
 
@@ -291,6 +466,56 @@ func (siw *ServerInterfaceWrapper) PutPost(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutPost(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplacePostContent operation middleware
+func (siw *ServerInterfaceWrapper) ReplacePostContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplacePostContent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplacePostThumbnail operation middleware
+func (siw *ServerInterfaceWrapper) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplacePostThumbnail(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -696,10 +921,17 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/notes", wrapper.GetNotes)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/notes", wrapper.CreateNote)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/notes/{id}", wrapper.DeleteNote)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/notes/{id}", wrapper.GetNote)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/notes/{id}", wrapper.PutNote)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts", wrapper.GetPosts)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}", wrapper.DeletePost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.ReplacePostContent)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.ReplacePostThumbnail)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories", wrapper.GetTagCategories)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.DeleteTagCategory)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.GetTagCategory)

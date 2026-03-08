@@ -5,7 +5,6 @@ package factory
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
@@ -40,8 +39,9 @@ type PostTemplate struct {
 	MimeType     func() string
 	ContentURL   func() string
 	ThumbnailURL func() string
-	CreatedAt    func() sql.Null[time.Time]
-	UpdatedAt    func() sql.Null[time.Time]
+	Note         func() string
+	CreatedAt    func() time.Time
+	UpdatedAt    func() time.Time
 
 	r postR
 	f *Factory
@@ -100,6 +100,10 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 		val := o.ThumbnailURL()
 		m.ThumbnailURL = &val
 	}
+	if o.Note != nil {
+		val := o.Note()
+		m.Note = &val
+	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
 		m.CreatedAt = &val
@@ -141,6 +145,9 @@ func (o PostTemplate) Build() *models.Post {
 	}
 	if o.ThumbnailURL != nil {
 		m.ThumbnailURL = o.ThumbnailURL()
+	}
+	if o.Note != nil {
+		m.Note = o.Note()
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
@@ -316,6 +323,7 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 		PostMods.RandomMimeType(f),
 		PostMods.RandomContentURL(f),
 		PostMods.RandomThumbnailURL(f),
+		PostMods.RandomNote(f),
 		PostMods.RandomCreatedAt(f),
 		PostMods.RandomUpdatedAt(f),
 	}
@@ -446,14 +454,45 @@ func (m postMods) RandomThumbnailURL(f *faker.Faker) PostMod {
 }
 
 // Set the model columns to this value
-func (m postMods) CreatedAt(val sql.Null[time.Time]) PostMod {
+func (m postMods) Note(val string) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] { return val }
+		o.Note = func() string { return val }
 	})
 }
 
 // Set the Column from the function
-func (m postMods) CreatedAtFunc(f func() sql.Null[time.Time]) PostMod {
+func (m postMods) NoteFunc(f func() string) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Note = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetNote() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Note = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m postMods) RandomNote(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Note = func() string {
+			return random_string(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) CreatedAt(val time.Time) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.CreatedAt = func() time.Time { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) CreatedAtFunc(f func() time.Time) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.CreatedAt = f
 	})
@@ -468,45 +507,23 @@ func (m postMods) UnsetCreatedAt() PostMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m postMods) RandomCreatedAt(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m postMods) RandomCreatedAtNotNull(f *faker.Faker) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.CreatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }
 
 // Set the model columns to this value
-func (m postMods) UpdatedAt(val sql.Null[time.Time]) PostMod {
+func (m postMods) UpdatedAt(val time.Time) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] { return val }
+		o.UpdatedAt = func() time.Time { return val }
 	})
 }
 
 // Set the Column from the function
-func (m postMods) UpdatedAtFunc(f func() sql.Null[time.Time]) PostMod {
+func (m postMods) UpdatedAtFunc(f func() time.Time) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.UpdatedAt = f
 	})
@@ -521,32 +538,10 @@ func (m postMods) UnsetUpdatedAt() PostMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m postMods) RandomUpdatedAt(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m postMods) RandomUpdatedAtNotNull(f *faker.Faker) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.UpdatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }

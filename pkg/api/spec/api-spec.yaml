@@ -198,6 +198,13 @@ paths:
         - $ref: "#/components/parameters/cursor"
         - $ref: "#/components/parameters/limit"
         - $ref: "#/components/parameters/search"
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [recent, random]
+            default: recent
       responses:
         "200":
           $ref: "#/components/responses/PostsResponse"
@@ -293,6 +300,154 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/posts/{id}/content:
+    put:
+      operationId: replacePostContent
+      summary: Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        $ref: "#/components/requestBodies/UploadPostRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "415":
+          $ref: "#/components/responses/BadRequestResponse"
+        "422":
+          $ref: "#/components/responses/BadRequestResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/posts/{id}/thumbnail:
+    put:
+      operationId: replacePostThumbnail
+      summary: Replace a post's thumbnail image. The server processes the image into a WebP thumbnail.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        $ref: "#/components/requestBodies/UploadPostRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "415":
+          $ref: "#/components/responses/BadRequestResponse"
+        "422":
+          $ref: "#/components/responses/BadRequestResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/notes:
+    get:
+      operationId: getNotes
+      summary: List all notes.
+      responses:
+        "200":
+          $ref: "#/components/responses/NotesResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    post:
+      operationId: createNote
+      summary: Create a note.
+      requestBody:
+        $ref: "#/components/requestBodies/NoteRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/NoteResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/notes/{id}:
+    get:
+      operationId: getNote
+      summary: Get a note by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/ID"
+      responses:
+        "200":
+          $ref: "#/components/responses/NoteResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    put:
+      operationId: putNote
+      summary: Update a note by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/ID"
+      requestBody:
+        $ref: "#/components/requestBodies/NoteRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/NoteResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    delete:
+      operationId: deleteNote
+      summary: Delete a note by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/ID"
+      responses:
+        "204":
+          $ref: "#/components/responses/DeletedResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
 components:
   schemas:
     Error:
@@ -374,6 +529,20 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Post"
+    NoteRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - title
+              - content
+            properties:
+              title:
+                type: string
+              content:
+                type: string
   responses:
     MetricsResponse:
       content:
@@ -470,7 +639,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/ID"
+            $ref: "types-spec.yaml#/components/schemas/Post"
     PostsResponse:
       content:
         application/json:
@@ -481,5 +650,22 @@ components:
                 type: array
                 items:
                   $ref: "types-spec.yaml#/components/schemas/Post"
+              cursor:
+                $ref: "#/components/schemas/Cursor"
+    NoteResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "types-spec.yaml#/components/schemas/Note"
+    NotesResponse:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  $ref: "types-spec.yaml#/components/schemas/Note"
               cursor:
                 $ref: "#/components/schemas/Cursor"

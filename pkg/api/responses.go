@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/goccy/go-json"
+	"encoding/json"
 )
 
 func respond(w http.ResponseWriter, code int, body any) {

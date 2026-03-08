@@ -15,14 +15,24 @@ type Description = string
 // ID defines model for ID.
 type ID = openapi_types.UUID
 
+// Note defines model for Note.
+type Note struct {
+	Content   string    `json:"content"`
+	CreatedAt Timestamp `json:"createdAt"`
+	ID        ID        `json:"id"`
+	Title     string    `json:"title"`
+	UpdatedAt Timestamp `json:"updatedAt"`
+}
+
 // Post defines model for Post.
 type Post struct {
-	ContentRef   URL       `json:"contentRef"`
+	ContentUrl   URL       `json:"contentUrl"`
 	CreatedAt    Timestamp `json:"createdAt"`
 	ID           ID        `json:"id"`
 	MimeType     string    `json:"mimeType"`
+	Note         string    `json:"note"`
 	Tags         []TagName `json:"tags"`
-	ThumbnailRef URL       `json:"thumbnailRef"`
+	ThumbnailUrl URL       `json:"thumbnailUrl"`
 	UpdatedAt    Timestamp `json:"updatedAt"`
 }
 
@@ -37,6 +47,7 @@ type Tag struct {
 
 // TagCategory defines model for TagCategory.
 type TagCategory struct {
+	Color       string          `json:"color"`
 	CreatedAt   Timestamp       `json:"createdAt"`
 	Description Description     `json:"description"`
 	Name        TagCategoryName `json:"name"`

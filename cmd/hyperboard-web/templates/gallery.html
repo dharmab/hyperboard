@@ -1,0 +1,43 @@
+{{define "gallery"}}
+{{template "base" .}}
+{{end}}
+
+{{define "content"}}
+<div class="gallery-controls">
+  <input type="text" name="search" placeholder="Search by tags…" value="{{.Search}}"
+    hx-get="/posts-partial"
+    hx-push-url="true"
+    hx-target="#gallery-grid"
+    hx-trigger="input changed delay:400ms"
+    hx-include="[name='sort']">
+  <input type="hidden" name="sort" id="sort-input" value="{{.Sort}}">
+  <button class="btn {{if eq .Sort "recent"}}btn-primary{{end}}" onclick="setSort('recent')">Recent</button>
+  <button class="btn {{if eq .Sort "random"}}btn-primary{{end}}" onclick="setSort('random')">Shuffle</button>
+</div>
+<div id="gallery-grid" class="gallery-grid">
+  {{template "gallery-items" .}}
+</div>
+<script>
+function setSort(s) {
+  document.getElementById('sort-input').value = s;
+  htmx.trigger(document.querySelector('[name=search]'), 'input');
+}
+</script>
+{{end}}
+
+{{define "gallery-items"}}
+{{range .Posts}}
+<div class="gallery-item">
+  <a href="/posts/{{.ID}}">
+    <img src="{{.ThumbnailUrl}}" alt="Post {{.ID}}" loading="lazy">
+  </a>
+</div>
+{{end}}
+{{if .NextCursor}}
+<div hx-get="/posts-partial?cursor={{.NextCursor}}&sort={{$.Sort}}&search={{$.Search}}"
+     hx-trigger="revealed"
+     hx-swap="afterend"
+     hx-target="this">
+</div>
+{{end}}
+{{end}}

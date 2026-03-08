@@ -36,10 +36,12 @@ func (mods TagCategoryModSlice) Apply(ctx context.Context, n *TagCategoryTemplat
 // TagCategoryTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type TagCategoryTemplate struct {
-	ID        func() uuid.UUID
-	Name      func() string
-	CreatedAt func() sql.Null[time.Time]
-	UpdatedAt func() sql.Null[time.Time]
+	ID          func() uuid.UUID
+	Name        func() string
+	Description func() string
+	Color       func() string
+	CreatedAt   func() time.Time
+	UpdatedAt   func() time.Time
 
 	r tagCategoryR
 	f *Factory
@@ -91,6 +93,14 @@ func (o TagCategoryTemplate) BuildSetter() *models.TagCategorySetter {
 		val := o.Name()
 		m.Name = &val
 	}
+	if o.Description != nil {
+		val := o.Description()
+		m.Description = &val
+	}
+	if o.Color != nil {
+		val := o.Color()
+		m.Color = &val
+	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
 		m.CreatedAt = &val
@@ -126,6 +136,12 @@ func (o TagCategoryTemplate) Build() *models.TagCategory {
 	}
 	if o.Name != nil {
 		m.Name = o.Name()
+	}
+	if o.Description != nil {
+		m.Description = o.Description()
+	}
+	if o.Color != nil {
+		m.Color = o.Color()
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
@@ -291,6 +307,8 @@ func (m tagCategoryMods) RandomizeAllColumns(f *faker.Faker) TagCategoryMod {
 	return TagCategoryModSlice{
 		TagCategoryMods.RandomID(f),
 		TagCategoryMods.RandomName(f),
+		TagCategoryMods.RandomDescription(f),
+		TagCategoryMods.RandomColor(f),
 		TagCategoryMods.RandomCreatedAt(f),
 		TagCategoryMods.RandomUpdatedAt(f),
 	}
@@ -359,14 +377,76 @@ func (m tagCategoryMods) RandomName(f *faker.Faker) TagCategoryMod {
 }
 
 // Set the model columns to this value
-func (m tagCategoryMods) CreatedAt(val sql.Null[time.Time]) TagCategoryMod {
+func (m tagCategoryMods) Description(val string) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] { return val }
+		o.Description = func() string { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagCategoryMods) CreatedAtFunc(f func() sql.Null[time.Time]) TagCategoryMod {
+func (m tagCategoryMods) DescriptionFunc(f func() string) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Description = f
+	})
+}
+
+// Clear any values for the column
+func (m tagCategoryMods) UnsetDescription() TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Description = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m tagCategoryMods) RandomDescription(f *faker.Faker) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Description = func() string {
+			return random_string(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m tagCategoryMods) Color(val string) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Color = func() string { return val }
+	})
+}
+
+// Set the Column from the function
+func (m tagCategoryMods) ColorFunc(f func() string) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Color = f
+	})
+}
+
+// Clear any values for the column
+func (m tagCategoryMods) UnsetColor() TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Color = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m tagCategoryMods) RandomColor(f *faker.Faker) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.Color = func() string {
+			return random_string(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m tagCategoryMods) CreatedAt(val time.Time) TagCategoryMod {
+	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
+		o.CreatedAt = func() time.Time { return val }
+	})
+}
+
+// Set the Column from the function
+func (m tagCategoryMods) CreatedAtFunc(f func() time.Time) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
 		o.CreatedAt = f
 	})
@@ -381,45 +461,23 @@ func (m tagCategoryMods) UnsetCreatedAt() TagCategoryMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m tagCategoryMods) RandomCreatedAt(f *faker.Faker) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m tagCategoryMods) RandomCreatedAtNotNull(f *faker.Faker) TagCategoryMod {
-	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.CreatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.CreatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }
 
 // Set the model columns to this value
-func (m tagCategoryMods) UpdatedAt(val sql.Null[time.Time]) TagCategoryMod {
+func (m tagCategoryMods) UpdatedAt(val time.Time) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] { return val }
+		o.UpdatedAt = func() time.Time { return val }
 	})
 }
 
 // Set the Column from the function
-func (m tagCategoryMods) UpdatedAtFunc(f func() sql.Null[time.Time]) TagCategoryMod {
+func (m tagCategoryMods) UpdatedAtFunc(f func() time.Time) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
 		o.UpdatedAt = f
 	})
@@ -434,32 +492,10 @@ func (m tagCategoryMods) UnsetUpdatedAt() TagCategoryMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m tagCategoryMods) RandomUpdatedAt(f *faker.Faker) TagCategoryMod {
 	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m tagCategoryMods) RandomUpdatedAtNotNull(f *faker.Faker) TagCategoryMod {
-	return TagCategoryModFunc(func(_ context.Context, o *TagCategoryTemplate) {
-		o.UpdatedAt = func() sql.Null[time.Time] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_time_Time(f)
-			return sql.Null[time.Time]{V: val, Valid: true}
+		o.UpdatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }

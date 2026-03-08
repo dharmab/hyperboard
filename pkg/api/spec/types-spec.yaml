@@ -43,6 +43,7 @@ components:
       required:
         - name
         - description
+        - color
         - createdAt
         - updatedAt
       properties:
@@ -50,6 +51,8 @@ components:
           $ref: "#/components/schemas/TagCategoryName"
         description:
           $ref: "#/components/schemas/Description"
+        color:
+          type: string
         createdAt:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:
@@ -59,8 +62,9 @@ components:
       required:
         - id
         - mimeType
-        - contentRef
-        - thumbnailRef
+        - contentUrl
+        - thumbnailUrl
+        - note
         - tags
         - createdAt
         - updatedAt
@@ -69,14 +73,35 @@ components:
           $ref: "#/components/schemas/ID"
         mimeType:
           type: string
-        contentRef:
+        contentUrl:
           $ref: "#/components/schemas/URL"
-        thumbnailRef:
+        thumbnailUrl:
           $ref: "#/components/schemas/URL"
+        note:
+          type: string
         tags:
           type: array
           items:
             $ref: "#/components/schemas/TagName"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+    Note:
+      type: object
+      required:
+        - id
+        - title
+        - content
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        title:
+          type: string
+        content:
+          type: string
         createdAt:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:

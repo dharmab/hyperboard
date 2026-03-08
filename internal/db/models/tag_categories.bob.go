@@ -25,10 +25,12 @@ import (
 
 // TagCategory is an object representing the database table.
 type TagCategory struct {
-	ID        uuid.UUID           `db:"id,pk" `
-	Name      string              `db:"name" `
-	CreatedAt sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt sql.Null[time.Time] `db:"updated_at" `
+	ID          uuid.UUID `db:"id,pk" `
+	Name        string    `db:"name" `
+	Description string    `db:"description" `
+	Color       string    `db:"color" `
+	CreatedAt   time.Time `db:"created_at" `
+	UpdatedAt   time.Time `db:"updated_at" `
 
 	R tagCategoryR `db:"-" `
 }
@@ -49,20 +51,24 @@ type tagCategoryR struct {
 }
 
 type tagCategoryColumnNames struct {
-	ID        string
-	Name      string
-	CreatedAt string
-	UpdatedAt string
+	ID          string
+	Name        string
+	Description string
+	Color       string
+	CreatedAt   string
+	UpdatedAt   string
 }
 
 var TagCategoryColumns = buildTagCategoryColumns("tag_categories")
 
 type tagCategoryColumns struct {
-	tableAlias string
-	ID         psql.Expression
-	Name       psql.Expression
-	CreatedAt  psql.Expression
-	UpdatedAt  psql.Expression
+	tableAlias  string
+	ID          psql.Expression
+	Name        psql.Expression
+	Description psql.Expression
+	Color       psql.Expression
+	CreatedAt   psql.Expression
+	UpdatedAt   psql.Expression
 }
 
 func (c tagCategoryColumns) Alias() string {
@@ -75,19 +81,23 @@ func (tagCategoryColumns) AliasedAs(alias string) tagCategoryColumns {
 
 func buildTagCategoryColumns(alias string) tagCategoryColumns {
 	return tagCategoryColumns{
-		tableAlias: alias,
-		ID:         psql.Quote(alias, "id"),
-		Name:       psql.Quote(alias, "name"),
-		CreatedAt:  psql.Quote(alias, "created_at"),
-		UpdatedAt:  psql.Quote(alias, "updated_at"),
+		tableAlias:  alias,
+		ID:          psql.Quote(alias, "id"),
+		Name:        psql.Quote(alias, "name"),
+		Description: psql.Quote(alias, "description"),
+		Color:       psql.Quote(alias, "color"),
+		CreatedAt:   psql.Quote(alias, "created_at"),
+		UpdatedAt:   psql.Quote(alias, "updated_at"),
 	}
 }
 
 type tagCategoryWhere[Q psql.Filterable] struct {
-	ID        psql.WhereMod[Q, uuid.UUID]
-	Name      psql.WhereMod[Q, string]
-	CreatedAt psql.WhereNullMod[Q, time.Time]
-	UpdatedAt psql.WhereNullMod[Q, time.Time]
+	ID          psql.WhereMod[Q, uuid.UUID]
+	Name        psql.WhereMod[Q, string]
+	Description psql.WhereMod[Q, string]
+	Color       psql.WhereMod[Q, string]
+	CreatedAt   psql.WhereMod[Q, time.Time]
+	UpdatedAt   psql.WhereMod[Q, time.Time]
 }
 
 func (tagCategoryWhere[Q]) AliasedAs(alias string) tagCategoryWhere[Q] {
@@ -96,10 +106,12 @@ func (tagCategoryWhere[Q]) AliasedAs(alias string) tagCategoryWhere[Q] {
 
 func buildTagCategoryWhere[Q psql.Filterable](cols tagCategoryColumns) tagCategoryWhere[Q] {
 	return tagCategoryWhere[Q]{
-		ID:        psql.Where[Q, uuid.UUID](cols.ID),
-		Name:      psql.Where[Q, string](cols.Name),
-		CreatedAt: psql.WhereNull[Q, time.Time](cols.CreatedAt),
-		UpdatedAt: psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		ID:          psql.Where[Q, uuid.UUID](cols.ID),
+		Name:        psql.Where[Q, string](cols.Name),
+		Description: psql.Where[Q, string](cols.Description),
+		Color:       psql.Where[Q, string](cols.Color),
+		CreatedAt:   psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:   psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
 }
 
@@ -129,20 +141,30 @@ type tagCategoryErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type TagCategorySetter struct {
-	ID        *uuid.UUID           `db:"id,pk" `
-	Name      *string              `db:"name" `
-	CreatedAt *sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt *sql.Null[time.Time] `db:"updated_at" `
+	ID          *uuid.UUID `db:"id,pk" `
+	Name        *string    `db:"name" `
+	Description *string    `db:"description" `
+	Color       *string    `db:"color" `
+	CreatedAt   *time.Time `db:"created_at" `
+	UpdatedAt   *time.Time `db:"updated_at" `
 }
 
 func (s TagCategorySetter) SetColumns() []string {
-	vals := make([]string, 0, 4)
+	vals := make([]string, 0, 6)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
 
 	if s.Name != nil {
 		vals = append(vals, "name")
+	}
+
+	if s.Description != nil {
+		vals = append(vals, "description")
+	}
+
+	if s.Color != nil {
+		vals = append(vals, "color")
 	}
 
 	if s.CreatedAt != nil {
@@ -163,6 +185,12 @@ func (s TagCategorySetter) Overwrite(t *TagCategory) {
 	if s.Name != nil {
 		t.Name = *s.Name
 	}
+	if s.Description != nil {
+		t.Description = *s.Description
+	}
+	if s.Color != nil {
+		t.Color = *s.Color
+	}
 	if s.CreatedAt != nil {
 		t.CreatedAt = *s.CreatedAt
 	}
@@ -177,7 +205,7 @@ func (s *TagCategorySetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 4)
+		vals := make([]bob.Expression, 6)
 		if s.ID != nil {
 			vals[0] = psql.Arg(*s.ID)
 		} else {
@@ -190,16 +218,28 @@ func (s *TagCategorySetter) Apply(q *dialect.InsertQuery) {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[2] = psql.Arg(*s.CreatedAt)
+		if s.Description != nil {
+			vals[2] = psql.Arg(*s.Description)
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
-		if s.UpdatedAt != nil {
-			vals[3] = psql.Arg(*s.UpdatedAt)
+		if s.Color != nil {
+			vals[3] = psql.Arg(*s.Color)
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
+		}
+
+		if s.CreatedAt != nil {
+			vals[4] = psql.Arg(*s.CreatedAt)
+		} else {
+			vals[4] = psql.Raw("DEFAULT")
+		}
+
+		if s.UpdatedAt != nil {
+			vals[5] = psql.Arg(*s.UpdatedAt)
+		} else {
+			vals[5] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -211,7 +251,7 @@ func (s TagCategorySetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s TagCategorySetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 4)
+	exprs := make([]bob.Expression, 0, 6)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -224,6 +264,20 @@ func (s TagCategorySetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "name")...),
 			psql.Arg(s.Name),
+		}})
+	}
+
+	if s.Description != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "description")...),
+			psql.Arg(s.Description),
+		}})
+	}
+
+	if s.Color != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "color")...),
+			psql.Arg(s.Color),
 		}})
 	}
 

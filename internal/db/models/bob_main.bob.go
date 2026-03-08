@@ -19,11 +19,13 @@ import (
 )
 
 var TableNames = struct {
+	Notes         string
 	Posts         string
 	PostsTags     string
 	TagCategories string
 	Tags          string
 }{
+	Notes:         "notes",
 	Posts:         "posts",
 	PostsTags:     "posts_tags",
 	TagCategories: "tag_categories",
@@ -31,16 +33,25 @@ var TableNames = struct {
 }
 
 var ColumnNames = struct {
+	Notes         noteColumnNames
 	Posts         postColumnNames
 	PostsTags     postsTagColumnNames
 	TagCategories tagCategoryColumnNames
 	Tags          tagColumnNames
 }{
+	Notes: noteColumnNames{
+		ID:        "id",
+		Title:     "title",
+		Content:   "content",
+		CreatedAt: "created_at",
+		UpdatedAt: "updated_at",
+	},
 	Posts: postColumnNames{
 		ID:           "id",
 		MimeType:     "mime_type",
 		ContentURL:   "content_url",
 		ThumbnailURL: "thumbnail_url",
+		Note:         "note",
 		CreatedAt:    "created_at",
 		UpdatedAt:    "updated_at",
 	},
@@ -49,10 +60,12 @@ var ColumnNames = struct {
 		TagID:  "tag_id",
 	},
 	TagCategories: tagCategoryColumnNames{
-		ID:        "id",
-		Name:      "name",
-		CreatedAt: "created_at",
-		UpdatedAt: "updated_at",
+		ID:          "id",
+		Name:        "name",
+		Description: "description",
+		Color:       "color",
+		CreatedAt:   "created_at",
+		UpdatedAt:   "updated_at",
 	},
 	Tags: tagColumnNames{
 		ID:            "id",
@@ -72,17 +85,20 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
+	Notes         noteWhere[Q]
 	Posts         postWhere[Q]
 	PostsTags     postsTagWhere[Q]
 	TagCategories tagCategoryWhere[Q]
 	Tags          tagWhere[Q]
 } {
 	return struct {
+		Notes         noteWhere[Q]
 		Posts         postWhere[Q]
 		PostsTags     postsTagWhere[Q]
 		TagCategories tagCategoryWhere[Q]
 		Tags          tagWhere[Q]
 	}{
+		Notes:         buildNoteWhere[Q](NoteColumns),
 		Posts:         buildPostWhere[Q](PostColumns),
 		PostsTags:     buildPostsTagWhere[Q](PostsTagColumns),
 		TagCategories: buildTagCategoryWhere[Q](TagCategoryColumns),

@@ -1,0 +1,29 @@
+{{define "tag_category_edit"}}
+{{template "base" .}}
+{{end}}
+
+{{define "content"}}
+<h1>{{if .IsNew}}New Category{{else}}Edit Category{{end}}</h1>
+{{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
+<form method="POST" action="/tag-categories/{{.CurrentName}}">
+  <div class="form-group">
+    <label>Name</label>
+    <input type="text" name="name" value="{{.Category.Name}}" required>
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <input type="text" name="description" value="{{.Category.Description}}">
+  </div>
+  <div class="form-group">
+    <label>Color</label>
+    <input type="color" name="color" value="{{.Category.Color}}">
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+  {{if not .IsNew}}
+  <button type="button" class="btn btn-danger"
+    hx-delete="/tag-categories/{{.CurrentName}}"
+    hx-confirm="Delete category {{.CurrentName}}?"
+    hx-push-url="/tag-categories">Delete</button>
+  {{end}}
+</form>
+{{end}}

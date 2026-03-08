@@ -9,18 +9,11 @@ import (
 	"github.com/dharmab/hyperboard/pkg/api"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-var (
-	port               string
-	postgresqlHost     string
-	postgresqlUser     string
-	postgresqlPassword string
-	postgresqlDatabase string
-	postgresqlSSLMode  string
-)
+var configPath string
 
-// cmd represents the base command when called without any subcommands
 var cmd = &cobra.Command{
 	Use:   "hyperboard-api",
 	Short: "Hyperboard API server",
@@ -28,28 +21,36 @@ var cmd = &cobra.Command{
 }
 
 func init() {
-	cmd.Flags().StringVar(&port, "port", "8080", "Port to bind for the API server")
-	cmd.Flags().StringVar(&postgresqlSSLMode, "postgresql-ssl-mode", "disable", "PostgreSQL SSL mode")
-	cmd.Flags().StringVar(&postgresqlHost, "postgresql-host", "localhost:5432", "PostgreSQL host")
-	cmd.Flags().StringVar(&postgresqlUser, "postgresql-user", "postgres", "PostgreSQL user")
-	cmd.Flags().StringVar(&postgresqlPassword, "postgresql-password", "", "PostgreSQL password")
-	cmd.Flags().StringVar(&postgresqlDatabase, "postgresql-database", "postgres", "PostgreSQL database name")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file")
+	bindConfig(cmd)
 }
 
 func main() {
+	cobra.OnInitialize(initConfig)
 	if err := cmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to run server")
 	}
 }
 
+func initConfig() {
+	if configPath != "" {
+		viper.SetConfigFile(configPath)
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatal().Err(err).Str("config", configPath).Msg("Failed to read config file")
+		}
+	}
+}
+
 func run(ctx context.Context) error {
+	cfg := loadConfig()
+
 	dsn := fmt.Sprintf(
-		"postgresql://%s:%s@%s/%s?sslmode=%s",
-		postgresqlUser,
-		postgresqlPassword,
-		postgresqlHost,
-		postgresqlDatabase,
-		postgresqlSSLMode,
+		"postgres://%s:%s@%s/%s?sslmode=%s",
+		cfg.PostgreSQL.User,
+		cfg.PostgreSQL.Password,
+		cfg.PostgreSQL.Host,
+		cfg.PostgreSQL.Database,
+		cfg.PostgreSQL.SSLMode,
 	)
 
 	log.Info().Msg("Running database migrations...")
@@ -58,7 +59,7 @@ func run(ctx context.Context) error {
 	}
 
 	log.Info().Msg("Starting API server...")
-	if err := serveAPI(ctx, dsn); err != nil {
+	if err := serveAPI(ctx, cfg, dsn); err != nil {
 		return fmt.Errorf("failed to serve API: %w", err)
 	}
 	return nil
@@ -71,17 +72,17 @@ func migrateDatabase(dsn string) error {
 	return nil
 }
 
-func serveAPI(ctx context.Context, dsn string) error {
+func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	apiServer, err := api.NewServer(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}
+	mux := http.NewServeMux()
+	api.HandlerFromMux(apiServer, mux)
+	authMiddleware := api.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
-		Handler: api.HandlerFromMux(
-			apiServer,
-			http.NewServeMux(),
-		),
-		Addr: ":" + port,
+		Handler: authMiddleware(mux),
+		Addr:    ":" + cfg.Port,
 	}
 	if err := httpServer.ListenAndServe(); err != nil {
 		return fmt.Errorf("failed to serve API: %w", err)

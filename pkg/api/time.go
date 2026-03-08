@@ -1,11 +1,8 @@
 package api
 
-import (
-	"database/sql"
-	"time"
-)
+import "time"
 
-func now() *sql.Null[time.Time] {
+func now() *time.Time {
 	t := time.Now().UTC()
-	return &sql.Null[time.Time]{V: t, Valid: true}
+	return &t
 }

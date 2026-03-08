@@ -6,6 +6,7 @@ package factory
 import "context"
 
 type Factory struct {
+	baseNoteMods        NoteModSlice
 	basePostMods        PostModSlice
 	basePostsTagMods    PostsTagModSlice
 	baseTagCategoryMods TagCategoryModSlice
@@ -14,6 +15,18 @@ type Factory struct {
 
 func New() *Factory {
 	return &Factory{}
+}
+
+func (f *Factory) NewNote(ctx context.Context, mods ...NoteMod) *NoteTemplate {
+	o := &NoteTemplate{f: f}
+
+	if f != nil {
+		f.baseNoteMods.Apply(ctx, o)
+	}
+
+	NoteModSlice(mods).Apply(ctx, o)
+
+	return o
 }
 
 func (f *Factory) NewPost(ctx context.Context, mods ...PostMod) *PostTemplate {
@@ -62,6 +75,14 @@ func (f *Factory) NewTag(ctx context.Context, mods ...TagMod) *TagTemplate {
 	TagModSlice(mods).Apply(ctx, o)
 
 	return o
+}
+
+func (f *Factory) ClearBaseNoteMods() {
+	f.baseNoteMods = nil
+}
+
+func (f *Factory) AddBaseNoteMod(mods ...NoteMod) {
+	f.baseNoteMods = append(f.baseNoteMods, mods...)
 }
 
 func (f *Factory) ClearBasePostMods() {

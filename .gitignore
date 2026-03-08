@@ -1,1 +1,27 @@
+# Build output
 bin/
+hyperboard-api
+hyperboard-web
+hyperboardctl
+
+# Go
+vendor/
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Temporary files
+*.tmp

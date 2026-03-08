@@ -13,7 +13,6 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/im"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
@@ -21,8 +20,8 @@ func tagFromModel(model *models.Tag) (types.Tag, error) {
 	tag := types.Tag{
 		Name:        model.Name,
 		Description: model.Description,
-		CreatedAt:   model.CreatedAt.V,
-		UpdatedAt:   model.UpdatedAt.V,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
 	}
 
 	// Load the tag category if present
@@ -139,10 +138,6 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if tag.Name != name {
-		respondWithError(w, http.StatusBadRequest, "Tag name mismatch: got %q in body but %q in URL", tag.Name, name)
-		return
-	}
 
 	// Resolve tag category ID if category name is provided
 	var tagCategoryID sql.Null[uuid.UUID]
@@ -161,37 +156,70 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		tagCategoryID = sql.Null[uuid.UUID]{V: category.ID, Valid: true}
 	}
 
-	upsertedModel, err := models.Tags.Insert(
-		&models.TagSetter{
+	existing, err := models.Tags.Query(
+		sm.Where(models.Tags.Name().EQ(psql.Arg(name))),
+	).One(ctx, s.db)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
+		return
+	}
+
+	var resultModel *models.Tag
+	if existing != nil {
+		// Update (supports rename)
+		err = existing.Update(ctx, s.db, &models.TagSetter{
 			Name:          &tag.Name,
 			Description:   &tag.Description,
 			TagCategoryID: &tagCategoryID,
-			CreatedAt:     now(),
 			UpdatedAt:     now(),
-		},
-		im.OnConflict(models.TagColumns.Name).DoUpdate(
-			im.SetExcluded(models.TagColumns.Description.String()),
-			im.SetExcluded(models.TagColumns.TagCategoryID.String()),
-			im.SetExcluded(models.TagColumns.UpdatedAt.String()),
-		),
-	).One(ctx, s.db)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to store tag")
-		return
+		})
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to update tag")
+			return
+		}
+		existing.Name = tag.Name
+		existing.Description = tag.Description
+		existing.TagCategoryID = tagCategoryID
+		resultModel = existing
+		if err := resultModel.LoadTagCategory(ctx, s.db); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
+			return
+		}
+		tagResp, err := tagFromModel(resultModel)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
+			return
+		}
+		respond(w, http.StatusOK, tagResp)
+	} else {
+		if tag.Name != name {
+			respondWithError(w, http.StatusBadRequest, "Tag name mismatch: got %q in body but %q in URL", tag.Name, name)
+			return
+		}
+		inserted, err := models.Tags.Insert(
+			&models.TagSetter{
+				Name:          &tag.Name,
+				Description:   &tag.Description,
+				TagCategoryID: &tagCategoryID,
+				CreatedAt:     now(),
+				UpdatedAt:     now(),
+			},
+		).One(ctx, s.db)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create tag")
+			return
+		}
+		if err := inserted.LoadTagCategory(ctx, s.db); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
+			return
+		}
+		tagResp, err := tagFromModel(inserted)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
+			return
+		}
+		respond(w, http.StatusCreated, tagResp)
 	}
-
-	if err := upsertedModel.LoadTagCategory(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
-		return
-	}
-
-	tagResp, err := tagFromModel(upsertedModel)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-		return
-	}
-
-	respond(w, http.StatusCreated, tagResp)
 }
 
 func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {

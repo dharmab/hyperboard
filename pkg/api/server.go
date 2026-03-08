@@ -9,7 +9,8 @@ import (
 )
 
 type Server struct {
-	db bob.DB
+	db      bob.DB
+	storage Storage
 }
 
 var _ ServerInterface = &Server{}

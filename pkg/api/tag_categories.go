@@ -12,15 +12,16 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/im"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func tagCategoryFromModel(model *models.TagCategory) types.TagCategory {
 	return types.TagCategory{
-		Name:      model.Name,
-		CreatedAt: model.CreatedAt.V,
-		UpdatedAt: model.UpdatedAt.V,
+		Name:        model.Name,
+		Description: model.Description,
+		Color:       model.Color,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
 	}
 }
 
@@ -86,35 +87,61 @@ func (s *Server) GetTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag category %q", name)
 		return
 	}
-	respond(w, http.StatusOK, model)
+	respond(w, http.StatusOK, tagCategoryFromModel(model))
 }
 
 func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {
 	ctx := r.Context()
-	var tagCategory types.TagCategory
-	if err := json.NewDecoder(r.Body).Decode(&tagCategory); err != nil {
+	var req types.TagCategory
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if tagCategory.Name != name {
-		respondWithError(w, http.StatusBadRequest, "Tag category name mismatch: got %q in body but %q in URL", tagCategory.Name, name)
-		return
-	}
-	upsertedModel, err := models.TagCategories.Insert(
-		&models.TagCategorySetter{
-			Name:      &tagCategory.Name,
-			CreatedAt: now(),
-			UpdatedAt: now(),
-		},
-		im.OnConflict(models.TagCategoryColumns.Name).DoUpdate(
-			im.SetExcluded(models.TagCategoryColumns.CreatedAt.String()),
-		),
+
+	existing, err := models.TagCategories.Query(
+		sm.Where(models.TagCategories.Name().EQ(psql.Arg(name))),
 	).One(ctx, s.db)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to store tag category")
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag category")
 		return
 	}
-	respond(w, http.StatusOK, tagCategoryFromModel(upsertedModel))
+
+	if existing != nil {
+		// Update (supports rename)
+		err = existing.Update(ctx, s.db, &models.TagCategorySetter{
+			Name:        &req.Name,
+			Description: &req.Description,
+			Color:       &req.Color,
+			UpdatedAt:   now(),
+		})
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to update tag category")
+			return
+		}
+		existing.Name = req.Name
+		existing.Description = req.Description
+		existing.Color = req.Color
+		respond(w, http.StatusOK, tagCategoryFromModel(existing))
+	} else {
+		if req.Name != name {
+			respondWithError(w, http.StatusBadRequest, "Tag category name mismatch: got %q in body but %q in URL", req.Name, name)
+			return
+		}
+		inserted, err := models.TagCategories.Insert(
+			&models.TagCategorySetter{
+				Name:        &req.Name,
+				Description: &req.Description,
+				Color:       &req.Color,
+				CreatedAt:   now(),
+				UpdatedAt:   now(),
+			},
+		).One(ctx, s.db)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create tag category")
+			return
+		}
+		respond(w, http.StatusCreated, tagCategoryFromModel(inserted))
+	}
 }
 
 func (s *Server) DeleteTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {

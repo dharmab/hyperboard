@@ -5,7 +5,6 @@ package models
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"strconv"
@@ -27,12 +26,13 @@ import (
 
 // Post is an object representing the database table.
 type Post struct {
-	ID           uuid.UUID           `db:"id,pk" `
-	MimeType     string              `db:"mime_type" `
-	ContentURL   string              `db:"content_url" `
-	ThumbnailURL string              `db:"thumbnail_url" `
-	CreatedAt    sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt    sql.Null[time.Time] `db:"updated_at" `
+	ID           uuid.UUID `db:"id,pk" `
+	MimeType     string    `db:"mime_type" `
+	ContentURL   string    `db:"content_url" `
+	ThumbnailURL string    `db:"thumbnail_url" `
+	Note         string    `db:"note" `
+	CreatedAt    time.Time `db:"created_at" `
+	UpdatedAt    time.Time `db:"updated_at" `
 
 	R postR `db:"-" `
 }
@@ -57,6 +57,7 @@ type postColumnNames struct {
 	MimeType     string
 	ContentURL   string
 	ThumbnailURL string
+	Note         string
 	CreatedAt    string
 	UpdatedAt    string
 }
@@ -69,6 +70,7 @@ type postColumns struct {
 	MimeType     psql.Expression
 	ContentURL   psql.Expression
 	ThumbnailURL psql.Expression
+	Note         psql.Expression
 	CreatedAt    psql.Expression
 	UpdatedAt    psql.Expression
 }
@@ -88,6 +90,7 @@ func buildPostColumns(alias string) postColumns {
 		MimeType:     psql.Quote(alias, "mime_type"),
 		ContentURL:   psql.Quote(alias, "content_url"),
 		ThumbnailURL: psql.Quote(alias, "thumbnail_url"),
+		Note:         psql.Quote(alias, "note"),
 		CreatedAt:    psql.Quote(alias, "created_at"),
 		UpdatedAt:    psql.Quote(alias, "updated_at"),
 	}
@@ -98,8 +101,9 @@ type postWhere[Q psql.Filterable] struct {
 	MimeType     psql.WhereMod[Q, string]
 	ContentURL   psql.WhereMod[Q, string]
 	ThumbnailURL psql.WhereMod[Q, string]
-	CreatedAt    psql.WhereNullMod[Q, time.Time]
-	UpdatedAt    psql.WhereNullMod[Q, time.Time]
+	Note         psql.WhereMod[Q, string]
+	CreatedAt    psql.WhereMod[Q, time.Time]
+	UpdatedAt    psql.WhereMod[Q, time.Time]
 }
 
 func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
@@ -112,8 +116,9 @@ func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 		MimeType:     psql.Where[Q, string](cols.MimeType),
 		ContentURL:   psql.Where[Q, string](cols.ContentURL),
 		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
-		CreatedAt:    psql.WhereNull[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:    psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		Note:         psql.Where[Q, string](cols.Note),
+		CreatedAt:    psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:    psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
 }
 
@@ -134,16 +139,17 @@ type postErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PostSetter struct {
-	ID           *uuid.UUID           `db:"id,pk" `
-	MimeType     *string              `db:"mime_type" `
-	ContentURL   *string              `db:"content_url" `
-	ThumbnailURL *string              `db:"thumbnail_url" `
-	CreatedAt    *sql.Null[time.Time] `db:"created_at" `
-	UpdatedAt    *sql.Null[time.Time] `db:"updated_at" `
+	ID           *uuid.UUID `db:"id,pk" `
+	MimeType     *string    `db:"mime_type" `
+	ContentURL   *string    `db:"content_url" `
+	ThumbnailURL *string    `db:"thumbnail_url" `
+	Note         *string    `db:"note" `
+	CreatedAt    *time.Time `db:"created_at" `
+	UpdatedAt    *time.Time `db:"updated_at" `
 }
 
 func (s PostSetter) SetColumns() []string {
-	vals := make([]string, 0, 6)
+	vals := make([]string, 0, 7)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
@@ -158,6 +164,10 @@ func (s PostSetter) SetColumns() []string {
 
 	if s.ThumbnailURL != nil {
 		vals = append(vals, "thumbnail_url")
+	}
+
+	if s.Note != nil {
+		vals = append(vals, "note")
 	}
 
 	if s.CreatedAt != nil {
@@ -184,6 +194,9 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.ThumbnailURL != nil {
 		t.ThumbnailURL = *s.ThumbnailURL
 	}
+	if s.Note != nil {
+		t.Note = *s.Note
+	}
 	if s.CreatedAt != nil {
 		t.CreatedAt = *s.CreatedAt
 	}
@@ -198,7 +211,7 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 6)
+		vals := make([]bob.Expression, 7)
 		if s.ID != nil {
 			vals[0] = psql.Arg(*s.ID)
 		} else {
@@ -223,16 +236,22 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[4] = psql.Arg(*s.CreatedAt)
+		if s.Note != nil {
+			vals[4] = psql.Arg(*s.Note)
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.UpdatedAt != nil {
-			vals[5] = psql.Arg(*s.UpdatedAt)
+		if s.CreatedAt != nil {
+			vals[5] = psql.Arg(*s.CreatedAt)
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
+		}
+
+		if s.UpdatedAt != nil {
+			vals[6] = psql.Arg(*s.UpdatedAt)
+		} else {
+			vals[6] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -244,7 +263,7 @@ func (s PostSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 6)
+	exprs := make([]bob.Expression, 0, 7)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -271,6 +290,13 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "thumbnail_url")...),
 			psql.Arg(s.ThumbnailURL),
+		}})
+	}
+
+	if s.Note != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "note")...),
+			psql.Arg(s.Note),
 		}})
 	}
 

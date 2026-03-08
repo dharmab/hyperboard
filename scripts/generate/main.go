@@ -7,7 +7,6 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/rs/zerolog/log"
-	"github.com/stephenafamo/bob/gen"
 	bobgen "github.com/stephenafamo/bob/gen"
 	helpers "github.com/stephenafamo/bob/gen/bobgen-helpers"
 	"github.com/stephenafamo/bob/gen/bobgen-psql/driver"
@@ -48,7 +47,7 @@ func generate(ctx context.Context) error {
 			"../../internal/db/"+packageName,
 			packageName,
 			false,
-			&helpers.Templates{Models: []fs.FS{gen.PSQLModelTemplates}},
+			&helpers.Templates{Models: []fs.FS{bobgen.PSQLModelTemplates}},
 		),
 	}
 	driver := driver.New(driver.Config{
@@ -61,7 +60,7 @@ func generate(ctx context.Context) error {
 		},
 	})
 	log.Info().Msg("generating code...")
-	if err := gen.Run(ctx, &state, driver); err != nil {
+	if err := bobgen.Run(ctx, &state, driver); err != nil {
 		return err
 	}
 

@@ -1,0 +1,19 @@
+{{define "tags"}}
+{{template "base" .}}
+{{end}}
+
+{{define "content"}}
+<div class="flex items-center gap-2 mt-1">
+  <h1>Tags</h1>
+  <a href="/tags/_new" class="btn btn-primary">New Tag</a>
+</div>
+<ul class="tag-list mt-2">
+{{range .Tags}}
+<li>
+  {{if .Category}}<span class="badge" style="border-left-color: {{catColor $.CategoryColors .Category}}">{{.Category}}</span>{{end}}
+  <a href="/tags/{{.Name}}">{{.Name}}</a>
+  {{if .Description}}<span style="color:var(--base03)">— {{.Description}}</span>{{end}}
+</li>
+{{end}}
+</ul>
+{{end}}

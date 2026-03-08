@@ -1,0 +1,51 @@
+{{define "post"}}
+{{template "base" .}}
+{{end}}
+
+{{define "content"}}
+<div class="post-media">
+  {{if .IsVideo}}
+  <video controls src="{{.Post.ContentUrl}}"></video>
+  {{else}}
+  <img src="{{.Post.ContentUrl}}" alt="Post">
+  {{end}}
+</div>
+
+{{template "post-tags" .}}
+
+<div class="form-group mt-2">
+  <label>Note</label>
+  <textarea id="note" name="note" rows="4" style="width:100%"
+    hx-put="/posts/{{.Post.ID}}/note"
+    hx-trigger="blur, keyup[ctrlKey&&key=='Enter']"
+    hx-include="this">{{.Post.Note}}</textarea>
+</div>
+
+<div class="mt-2">
+  <button class="btn btn-danger"
+    hx-delete="/posts/{{.Post.ID}}"
+    hx-confirm="Delete this post?"
+    hx-push-url="/"
+    hx-target="body">Delete Post</button>
+</div>
+{{end}}
+
+{{define "post-tags"}}
+<div class="post-tags">
+  {{range .Post.Tags}}
+  <span class="badge">
+    {{.}}
+    <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerHTML">×</a>
+  </span>
+  {{end}}
+  <input type="text" id="tag-input" placeholder="Add tag…" list="tag-suggestions"
+    hx-get="/tag-suggestions"
+    hx-trigger="input changed delay:200ms"
+    hx-target="#tag-datalist"
+    hx-include="this"
+    name="q"
+    style="width:150px">
+  <datalist id="tag-datalist"></datalist>
+  <button class="btn" hx-post="/posts/{{.Post.ID}}/tags" hx-include="#tag-input" hx-target=".post-tags" hx-swap="outerHTML">Add</button>
+</div>
+{{end}}
