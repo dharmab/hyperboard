@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -44,24 +45,23 @@ func initConfig() {
 }
 
 type App struct {
-	cfg  *Config
-	api  *APIClient
-	tmpl *template.Template
+	cfg   *Config
+	api   *APIClient
+	tmpls map[string]*template.Template
 }
 
 func run() error {
 	cfg := loadConfig()
 
-	tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(embeddedFiles, "templates/*.html")
+	tmpls, err := parseTemplates()
 	if err != nil {
-		// No templates yet — use empty template set
-		tmpl = template.New("").Funcs(templateFuncs())
+		return fmt.Errorf("failed to parse templates: %w", err)
 	}
 
 	app := &App{
-		cfg:  cfg,
-		api:  newAPIClient(cfg.APIURL, cfg.AdminPassword),
-		tmpl: tmpl,
+		cfg:   cfg,
+		api:   newAPIClient(cfg.APIURL, cfg.AdminPassword),
+		tmpls: tmpls,
 	}
 
 	staticFS, _ := fs.Sub(embeddedFiles, "static")
@@ -96,9 +96,65 @@ func run() error {
 	return http.ListenAndServe(":"+cfg.Port, mux)
 }
 
+// parseTemplates parses each page template together with the base layout
+// so that each page gets its own "content" definition.
+func parseTemplates() (map[string]*template.Template, error) {
+	funcs := templateFuncs()
+	base := "templates/base.html"
+
+	// Page templates that use the base layout
+	pages := []string{
+		"templates/gallery.html",
+		"templates/post.html",
+		"templates/upload.html",
+		"templates/tags.html",
+		"templates/tag_edit.html",
+		"templates/tag_categories.html",
+		"templates/tag_category_edit.html",
+		"templates/notes.html",
+		"templates/note.html",
+	}
+
+	tmpls := make(map[string]*template.Template)
+
+	for _, page := range pages {
+		t, err := template.New("").Funcs(funcs).ParseFS(embeddedFiles, base, page)
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", page, err)
+		}
+		// Register all defined templates by name so renderTemplate can find them
+		for _, dt := range t.Templates() {
+			if dt.Name() != "" {
+				tmpls[dt.Name()] = t
+			}
+		}
+	}
+
+	// Standalone templates (no base layout)
+	standalone := []string{"templates/login.html"}
+	for _, s := range standalone {
+		t, err := template.New("").Funcs(funcs).ParseFS(embeddedFiles, s)
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", s, err)
+		}
+		for _, dt := range t.Templates() {
+			if dt.Name() != "" {
+				tmpls[dt.Name()] = t
+			}
+		}
+	}
+
+	return tmpls, nil
+}
+
 func (app *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.tmpl.ExecuteTemplate(w, name, data); err != nil {
+	t, ok := app.tmpls[name]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+	if err := t.ExecuteTemplate(w, name, data); err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }
