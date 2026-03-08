@@ -16,9 +16,13 @@ spec:
         app.kubernetes.io/name: hyperboard-web
         app.kubernetes.io/part-of: hyperboard
     spec:
+      enableServiceLinks: false
       containers:
         - name: hyperboard-web
           image: hyperboard-web
+          args:
+            - --admin-password=hyperboard
+            - --api-url=http://hyperboard-api
           ports:
             - name: http
               containerPort: 8080

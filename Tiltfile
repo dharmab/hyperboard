@@ -31,29 +31,36 @@ def container_build_with_restart(name):
 api='hyperboard-api'
 web='hyperboard-web'
 db='postgresql'
+s3='rustfs'
 cli='hyperboardctl'
 
 go_build(cli, 'darwin', 'arm64') # (re)build the CLI automatically
 for name in [api, web]:
     go_build(name, 'linux', 'amd64') # (re)build the API and web server binaries automatically
     container_build_with_restart(name) # (re)build the API and web server container images automatically
-for name in [api, web, db]:
-    k8s_yaml("deploy/tilt/{}.yaml".format(name)) # continuously deploy the API, web server, and database manifests
+for name in [api, web, db, s3]:
+    k8s_yaml("deploy/tilt/{}.yaml".format(name)) # continuously deploy the API, web server, database, and S3 store manifests
 
 # TCP ports that are bound on the host machine.
 # Change these if you have port conflicts.
 host_web_port=8080
 host_api_port=8081
 host_db_port=5432
+host_s3_port=9000
+host_s3_console_port=9001
 
 k8s_resource(
     workload=db,
     port_forwards="{}:5432".format(host_db_port), # Make the database accessible on the host machine (connect with psql/DataGrip/DBeaver)
 )
 k8s_resource(
+    workload=s3,
+    port_forwards=["{}:9000".format(host_s3_port), "{}:9001".format(host_s3_console_port)], # Make the S3 API and console accessible on the host machine
+)
+k8s_resource(
     workload=api,
     port_forwards="{}:8080".format(host_api_port), # Make the API accessible on the host machine (access with cli/curl)
-    resource_deps=[db], # Wait to start the API until the database is ready
+    resource_deps=[db, s3], # Wait to start the API until the database and S3 store are ready
 )
 k8s_resource(
     workload=web,

@@ -16,13 +16,17 @@ spec:
         app.kubernetes.io/name: hyperboard-api
         app.kubernetes.io/part-of: hyperboard
     spec:
+      enableServiceLinks: false
       containers:
         - name: hyperboard-api
           image: hyperboard-api
           args:
             - --postgresql-host=postgresql
+            - --postgresql-user=postgres
+            - --postgresql-database=postgres
             - --postgresql-ssl-mode=disable
             - --postgresql-password=postgres
+            - --admin-password=hyperboard
           ports:
             - name: api
               containerPort: 8080
