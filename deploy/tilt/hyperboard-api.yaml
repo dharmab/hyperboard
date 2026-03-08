@@ -27,6 +27,13 @@ spec:
             - --postgresql-ssl-mode=disable
             - --postgresql-password=postgres
             - --admin-password=hyperboard
+            - --storage-endpoint=http://rustfs:9000
+            - --storage-bucket=hyperboard
+            - --storage-access-key=rustfsadmin
+            - --storage-secret-key=rustfsadmin
+            - --storage-region=us-east-1
+            - --storage-use-path-style=true
+            - --log-level=debug
           ports:
             - name: api
               containerPort: 8080

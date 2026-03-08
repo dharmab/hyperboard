@@ -14,6 +14,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -235,7 +236,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		log.Error().Err(err).Msg("failed to read upload request body")
+		respondWithError(w, http.StatusInternalServerError, "Failed to read request body: %v", err)
 		return
 	}
 
@@ -249,6 +251,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		mimeStr = strings.TrimSpace(mimeStr[:idx])
 	}
 
+	log.Info().Str("mime", mimeStr).Int("size", len(data)).Msg("processing upload")
+
 	var contentData []byte
 	var contentMIME string
 	var thumbnailData []byte
@@ -256,7 +260,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(mimeStr, "image/") {
 		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 			return
 		}
 	} else if strings.HasPrefix(mimeStr, "video/") {
@@ -264,7 +269,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		contentMIME = mimeStr
 		thumbnailData, err = processVideo(data)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video")
+			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
 	} else {
@@ -274,7 +280,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 
 	postID, err := uuid.NewV4()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate post ID")
+		log.Error().Err(err).Msg("failed to generate post ID")
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate post ID: %v", err)
 		return
 	}
 
@@ -284,13 +291,15 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 
 	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
+		log.Error().Err(err).Str("key", contentKey).Msg("failed to upload content to storage")
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload content: %v", err)
 		return
 	}
 
 	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		log.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload thumbnail to storage")
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail: %v", err)
 		return
 	}
 
@@ -306,7 +315,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		},
 	).One(ctx, s.db)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to store post")
+		log.Error().Err(err).Msg("failed to insert post into database")
+		respondWithError(w, http.StatusInternalServerError, "Failed to store post: %v", err)
 		return
 	}
 
@@ -462,7 +472,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	if strings.HasPrefix(mimeStr, "image/") {
 		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 			return
 		}
 	} else if strings.HasPrefix(mimeStr, "video/") {
@@ -470,7 +480,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		contentMIME = mimeStr
 		thumbnailData, err = processVideo(data)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
 	} else {
@@ -558,7 +568,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 
 	_, _, thumbnailData, err := processImage(data, mimeStr)
 	if err != nil {
-		respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image")
+		respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 		return
 	}
 

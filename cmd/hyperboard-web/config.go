@@ -12,6 +12,7 @@ type Config struct {
 	AdminPassword string
 	SessionSecret string
 	APIURL        string
+	LogLevel      string
 }
 
 func bindConfig(cmd *cobra.Command) {
@@ -21,6 +22,7 @@ func bindConfig(cmd *cobra.Command) {
 	flags.String("admin-password", "", "Admin password")
 	flags.String("session-secret", "", "Session secret key")
 	flags.String("api-url", "", "Hyperboard API URL")
+	flags.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
 
 	viper.SetEnvPrefix("HYPERBOARD_WEB")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -34,6 +36,7 @@ func loadConfig() *Config {
 		Port:          viper.GetString("port"),
 		AdminPassword: viper.GetString("admin-password"),
 		SessionSecret: viper.GetString("session-secret"),
-		APIURL:        viper.GetString("api-url"),
+		APIURL:   viper.GetString("api-url"),
+		LogLevel: viper.GetString("log-level"),
 	}
 }

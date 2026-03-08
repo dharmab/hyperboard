@@ -5,11 +5,266 @@
 {{define "content"}}
 <h1>Upload</h1>
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
-<form method="POST" action="/upload" enctype="multipart/form-data">
+<form id="upload-form" method="POST" action="/upload" enctype="multipart/form-data">
   <div class="form-group">
-    <label>Files</label>
-    <input type="file" name="files" accept="image/*,video/*" multiple required>
+    <label>Browse files</label>
+    <input type="file" id="file-input" accept="image/*,video/*" multiple>
   </div>
+  <div id="paste-zone" tabindex="0">
+    <p>Or paste from clipboard (Ctrl+V / Cmd+V)</p>
+  </div>
+  <div id="preview-zone"></div>
   <button type="submit" class="btn btn-primary">Upload</button>
 </form>
+<style>
+  #paste-zone {
+    border: 2px dashed #666;
+    border-radius: 4px;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+  #paste-zone:focus {
+    border-color: #4a9eff;
+    outline: none;
+  }
+  #preview-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  #preview-zone:empty {
+    display: none;
+  }
+  .file-preview {
+    position: relative;
+    display: inline-block;
+  }
+  .file-preview img {
+    max-width: 150px;
+    max-height: 150px;
+    border-radius: 4px;
+  }
+  .file-preview .file-name {
+    max-width: 150px;
+    padding: 2rem 1rem;
+    border: 1px solid #666;
+    border-radius: 4px;
+    text-align: center;
+    word-break: break-all;
+    font-size: 0.85em;
+  }
+  .file-preview .remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #c00;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 20px;
+    padding: 0;
+  }
+  .file-preview .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .file-preview .progress-bar .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #4a9eff;
+    transition: width 0.2s;
+  }
+  .file-preview.upload-success .progress-fill { background: #2a2; }
+  .file-preview.upload-error .progress-fill { background: #c00; }
+  .file-preview .upload-status {
+    font-size: 0.75em;
+    text-align: center;
+    margin-top: 2px;
+    max-width: 150px;
+    word-break: break-word;
+  }
+</style>
+<script>
+(function() {
+  const form = document.getElementById('upload-form');
+  const fileInput = document.getElementById('file-input');
+  const previewZone = document.getElementById('preview-zone');
+
+  // Unified file list keyed by content hash
+  var fileMap = new Map(); // key -> { file, element }
+  var pendingHashes = new Set(); // track in-flight hash computations
+
+  function hashFile(file) {
+    return file.arrayBuffer().then(function(buf) {
+      return crypto.subtle.digest('SHA-256', buf);
+    }).then(function(hash) {
+      var arr = new Uint8Array(hash);
+      var hex = '';
+      for (var i = 0; i < arr.length; i++) {
+        hex += arr[i].toString(16).padStart(2, '0');
+      }
+      return hex;
+    });
+  }
+
+  function addFile(file) {
+    var placeholderKey = Symbol();
+    pendingHashes.add(placeholderKey);
+
+    hashFile(file).then(function(key) {
+      pendingHashes.delete(placeholderKey);
+      if (fileMap.has(key)) return;
+      renderPreview(file, key);
+    });
+  }
+
+  function renderPreview(file, key) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'file-preview';
+
+    if (file.type.startsWith('image/')) {
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      wrapper.appendChild(img);
+    } else {
+      var nameEl = document.createElement('div');
+      nameEl.className = 'file-name';
+      nameEl.textContent = file.name;
+      wrapper.appendChild(nameEl);
+    }
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'remove-btn';
+    btn.textContent = '\u00d7';
+    btn.addEventListener('click', function() {
+      fileMap.delete(key);
+      wrapper.remove();
+    });
+    wrapper.appendChild(btn);
+
+    previewZone.appendChild(wrapper);
+    fileMap.set(key, { file: file, element: wrapper });
+  }
+
+  // Handle file input changes — add selected files to the unified list
+  fileInput.addEventListener('change', function() {
+    for (var i = 0; i < fileInput.files.length; i++) {
+      addFile(fileInput.files[i]);
+    }
+    // Clear the input so the same file can be re-selected after removal
+    fileInput.value = '';
+  });
+
+  // Handle clipboard paste
+  document.addEventListener('paste', function(e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        var file = items[i].getAsFile();
+        if (file) addFile(file);
+      }
+    }
+  });
+
+  function uploadFile(entry) {
+    var wrapper = entry.element;
+
+    // Remove the remove button during upload
+    var removeBtn = wrapper.querySelector('.remove-btn');
+    if (removeBtn) removeBtn.remove();
+
+    // Add progress bar
+    var progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar';
+    var progressFill = document.createElement('div');
+    progressFill.className = 'progress-fill';
+    progressBar.appendChild(progressFill);
+    wrapper.appendChild(progressBar);
+
+    // Add status text
+    var statusEl = document.createElement('div');
+    statusEl.className = 'upload-status';
+    statusEl.textContent = 'Uploading\u2026';
+    wrapper.appendChild(statusEl);
+
+    return new Promise(function(resolve) {
+      var xhr = new XMLHttpRequest();
+      var formData = new FormData();
+      formData.append('files', entry.file, entry.file.name || 'pasted-image.png');
+
+      xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+          var pct = Math.round((e.loaded / e.total) * 100);
+          progressFill.style.width = pct + '%';
+        }
+      });
+
+      xhr.addEventListener('load', function() {
+        progressFill.style.width = '100%';
+        var resp;
+        try { resp = JSON.parse(xhr.responseText); } catch(e) { resp = {}; }
+
+        if (xhr.status >= 200 && xhr.status < 300 && resp.id) {
+          wrapper.classList.add('upload-success');
+          var link = document.createElement('a');
+          link.href = '/posts/' + resp.id;
+          link.textContent = 'View post';
+          statusEl.textContent = '';
+          statusEl.appendChild(link);
+        } else {
+          wrapper.classList.add('upload-error');
+          statusEl.textContent = resp.error || 'Upload failed';
+        }
+        resolve();
+      });
+
+      xhr.addEventListener('error', function() {
+        progressFill.style.width = '100%';
+        wrapper.classList.add('upload-error');
+        statusEl.textContent = 'Upload failed';
+        resolve();
+      });
+
+      xhr.open('POST', '/upload');
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.send(formData);
+    });
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (fileMap.size === 0) return;
+
+    // Disable inputs during upload
+    fileInput.disabled = true;
+    form.querySelector('button[type="submit"]').disabled = true;
+
+    var entries = [];
+    fileMap.forEach(function(entry) { entries.push(entry); });
+
+    // Upload files serially
+    var chain = Promise.resolve();
+    entries.forEach(function(entry) {
+      chain = chain.then(function() { return uploadFile(entry); });
+    });
+    chain.then(function() {
+      fileMap.clear();
+    });
+  });
+})();
+</script>
 {{end}}

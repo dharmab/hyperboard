@@ -6,7 +6,9 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"os"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -53,6 +55,13 @@ type App struct {
 func run() error {
 	cfg := loadConfig()
 
+	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		level = zerolog.InfoLevel
+	}
+	zerolog.SetGlobalLevel(level)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	tmpls, err := parseTemplates()
 	if err != nil {
 		return fmt.Errorf("failed to parse templates: %w", err)
@@ -76,6 +85,7 @@ func run() error {
 	// Protected routes
 	protected := http.NewServeMux()
 	protected.HandleFunc("/", app.handleGallery)
+	protected.HandleFunc("/media/", app.handleMedia)
 	protected.HandleFunc("/posts-partial", app.handleGallery)
 	protected.HandleFunc("/posts/{id}", app.handlePost)
 	protected.HandleFunc("/posts/{id}/note", app.handlePostNote)

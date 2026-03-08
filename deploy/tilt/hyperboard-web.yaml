@@ -23,6 +23,7 @@ spec:
           args:
             - --admin-password=hyperboard
             - --api-url=http://hyperboard-api
+            - --log-level=debug
           ports:
             - name: http
               containerPort: 8080

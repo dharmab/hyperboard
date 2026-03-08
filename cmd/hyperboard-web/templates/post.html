@@ -5,9 +5,9 @@
 {{define "content"}}
 <div class="post-media">
   {{if .IsVideo}}
-  <video controls src="{{.Post.ContentUrl}}"></video>
+  <video controls src="{{.Post.ContentUrl | mediaUrl}}"></video>
   {{else}}
-  <img src="{{.Post.ContentUrl}}" alt="Post">
+  <img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post">
   {{end}}
 </div>
 

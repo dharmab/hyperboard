@@ -29,7 +29,7 @@ function setSort(s) {
 {{range .Posts}}
 <div class="gallery-item">
   <a href="/posts/{{.ID}}">
-    <img src="{{.ThumbnailUrl}}" alt="Post {{.ID}}" loading="lazy">
+    <img src="{{.ThumbnailUrl | mediaUrl}}" alt="Post {{.ID}}" loading="lazy">
   </a>
 </div>
 {{end}}

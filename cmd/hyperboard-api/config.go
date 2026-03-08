@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port          string
 	AdminPassword string
+	LogLevel      string
 	PostgreSQL    PGConfig
 	Storage       S3Config
 }
@@ -36,6 +37,7 @@ func bindConfig(cmd *cobra.Command) {
 
 	flags.String("port", "8080", "Port to listen on")
 	flags.String("admin-password", "", "Admin password for basic auth")
+	flags.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
 
 	flags.String("postgresql-host", "localhost", "PostgreSQL host")
 	flags.String("postgresql-user", "hyperboard", "PostgreSQL user")
@@ -61,6 +63,7 @@ func loadConfig() *Config {
 	return &Config{
 		Port:          viper.GetString("port"),
 		AdminPassword: viper.GetString("admin-password"),
+		LogLevel:      viper.GetString("log-level"),
 		PostgreSQL: PGConfig{
 			Host:     viper.GetString("postgresql-host"),
 			User:     viper.GetString("postgresql-user"),

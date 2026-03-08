@@ -1,6 +1,10 @@
 package main
 
-import "html/template"
+import (
+	"html/template"
+	"net/url"
+	"strings"
+)
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -20,5 +24,13 @@ func templateFuncs() template.FuncMap {
 			return "var(--base03)"
 		},
 		"not": func(b bool) bool { return !b },
+		"mediaUrl": func(rawURL string) string {
+			u, err := url.Parse(rawURL)
+			if err != nil {
+				return rawURL
+			}
+			// Strip the scheme+host, keep the path: /bucket/key → /media/bucket/key
+			return "/media" + strings.TrimRight(u.Path, "/")
+		},
 	}
 }

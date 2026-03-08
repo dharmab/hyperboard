@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -160,6 +161,7 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	isXHR := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
 
 	if r.Method == http.MethodGet {
 		app.renderTemplate(w, r, "upload", nil)
@@ -167,13 +169,21 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": "Failed to parse form"})
+		if isXHR {
+			app.respondJSON(w, http.StatusBadRequest, map[string]any{"error": "Failed to parse form"})
+		} else {
+			app.renderTemplate(w, r, "upload", map[string]any{"Error": "Failed to parse form"})
+		}
 		return
 	}
 
 	files := r.MultipartForm.File["files"]
 	if len(files) == 0 {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": "No files provided"})
+		if isXHR {
+			app.respondJSON(w, http.StatusBadRequest, map[string]any{"error": "No files provided"})
+		} else {
+			app.renderTemplate(w, r, "upload", map[string]any{"Error": "No files provided"})
+		}
 		return
 	}
 
@@ -200,11 +210,29 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 		var post types.Post
 		statusCode, err := app.api.uploadFile(ctx, data, contentType, &post)
-		if err != nil || statusCode >= 400 {
-			errors = append(errors, fmt.Sprintf("%s: upload failed", header.Filename))
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", header.Filename, err))
+			continue
+		}
+		if statusCode >= 400 {
+			errors = append(errors, fmt.Sprintf("%s: HTTP %d", header.Filename, statusCode))
 			continue
 		}
 		lastPostID = post.ID
+	}
+
+	if isXHR {
+		if len(errors) == len(files) {
+			app.respondJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": strings.Join(errors, "; ")})
+		} else if len(errors) > 0 {
+			app.respondJSON(w, http.StatusOK, map[string]any{
+				"id":    lastPostID,
+				"error": strings.Join(errors, "; "),
+			})
+		} else {
+			app.respondJSON(w, http.StatusOK, map[string]any{"id": lastPostID})
+		}
+		return
 	}
 
 	if len(errors) == len(files) {
@@ -222,6 +250,12 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
+}
+
+func (app *App) respondJSON(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
@@ -442,4 +476,34 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 		_, _ = app.api.delete(ctx, "/api/v1/notes/"+id)
 		http.Redirect(w, r, "/notes", http.StatusSeeOther)
 	}
+}
+
+func (app *App) handleMedia(w http.ResponseWriter, r *http.Request) {
+	// /media/{key...} → proxy to API /media/{key...}
+	path := strings.TrimPrefix(r.URL.Path, "/media/")
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	resp, err := app.api.getRaw(r.Context(), "/media/"+path)
+	if err != nil {
+		http.Error(w, "Failed to fetch media", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Media not found", resp.StatusCode)
+		return
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+	if cl := resp.Header.Get("Content-Length"); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	io.Copy(w, resp.Body)
 }

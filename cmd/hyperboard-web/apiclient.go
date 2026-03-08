@@ -44,6 +44,10 @@ func (c *APIClient) do(ctx context.Context, method, path string, body any) (*htt
 	return c.http.Do(req)
 }
 
+func (c *APIClient) getRaw(ctx context.Context, path string) (*http.Response, error) {
+	return c.do(ctx, http.MethodGet, path, nil)
+}
+
 func (c *APIClient) get(ctx context.Context, path string, out any) error {
 	resp, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -105,6 +109,14 @@ func (c *APIClient) uploadFile(ctx context.Context, data []byte, contentType str
 		return 0, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		var apiErr struct{ Message string `json:"message"` }
+		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
+			return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, apiErr.Message)
+		}
+		return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, string(body))
+	}
 	if out != nil {
 		return resp.StatusCode, json.NewDecoder(resp.Body).Decode(out)
 	}

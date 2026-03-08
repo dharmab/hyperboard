@@ -2,19 +2,38 @@ package api
 
 import (
 	"net/http"
+	"strings"
 )
 
 // BasicAuthMiddleware returns a middleware that enforces HTTP Basic Auth.
 // Any username is accepted; the password must match adminPassword.
-// The paths in exemptPaths are allowed without authentication.
+// The paths in exemptPaths are allowed without authentication. Paths
+// ending in "/" are treated as prefixes (e.g. "/media/" exempts all
+// paths starting with "/media/").
 func BasicAuthMiddleware(adminPassword string, exemptPaths ...string) func(http.Handler) http.Handler {
-	exempt := make(map[string]bool, len(exemptPaths))
+	var exemptPrefixes []string
+	exemptExact := make(map[string]bool)
 	for _, p := range exemptPaths {
-		exempt[p] = true
+		if strings.HasSuffix(p, "/") {
+			exemptPrefixes = append(exemptPrefixes, p)
+		} else {
+			exemptExact[p] = true
+		}
+	}
+	isExempt := func(path string) bool {
+		if exemptExact[path] {
+			return true
+		}
+		for _, prefix := range exemptPrefixes {
+			if strings.HasPrefix(path, prefix) {
+				return true
+			}
+		}
+		return false
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if exempt[r.URL.Path] {
+			if isExempt(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
