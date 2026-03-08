@@ -58,6 +58,16 @@ func (c *APIClient) get(ctx context.Context, path string, out any) error {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		var apiErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
+			return fmt.Errorf("API %d: %s", resp.StatusCode, apiErr.Message)
+		}
+		return fmt.Errorf("API %d: %s", resp.StatusCode, string(body))
+	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 

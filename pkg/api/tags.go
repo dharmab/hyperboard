@@ -125,9 +125,11 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 
-	if err := model.LoadTagCategory(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
-		return
+	if model.TagCategoryID.Valid {
+		if err := model.LoadTagCategory(ctx, s.db); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
+			return
+		}
 	}
 
 	tagResp, err := tagFromModel(model)

@@ -334,14 +334,18 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		tag := types.Tag{}
+		var editErr string
 		if !isNew {
-			_ = app.api.get(ctx, "/api/v1/tags/"+name, &tag)
+			if err := app.api.get(ctx, "/api/v1/tags/"+name, &tag); err != nil {
+				editErr = fmt.Sprintf("Failed to load tag: %v", err)
+			}
 		}
 		app.renderTemplate(w, r, "tag_edit", TagEditData{
 			Tag:         tag,
 			Categories:  cats,
 			CurrentName: name,
 			IsNew:       isNew,
+			Error:       editErr,
 		})
 
 	case http.MethodPost:
