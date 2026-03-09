@@ -150,6 +150,11 @@ type GetTagsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ConvertTagToAliasJSONBody defines parameters for ConvertTagToAlias.
+type ConvertTagToAliasJSONBody struct {
+	Target string `json:"target"`
+}
+
 // UploadPostParams defines parameters for UploadPost.
 type UploadPostParams struct {
 	Force *Force `form:"force,omitempty" json:"force,omitempty"`
@@ -169,6 +174,9 @@ type PutTagCategoryJSONRequestBody = externalRef0.TagCategory
 
 // PutTagJSONRequestBody defines body for PutTag for application/json ContentType.
 type PutTagJSONRequestBody = externalRef0.Tag
+
+// ConvertTagToAliasJSONRequestBody defines body for ConvertTagToAlias for application/json ContentType.
+type ConvertTagToAliasJSONRequestBody ConvertTagToAliasJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -232,6 +240,9 @@ type ServerInterface interface {
 	// Create or replace a tag by name.
 	// (PUT /api/v1/tags/{tag})
 	PutTag(w http.ResponseWriter, r *http.Request, tag Tag)
+	// Convert a tag to an alias of another tag. Re-tags all posts and merges aliases atomically.
+	// (POST /api/v1/tags/{tag}/convert-to-alias)
+	ConvertTagToAlias(w http.ResponseWriter, r *http.Request, tag Tag)
 	// Upload a new post's content.
 	// (POST /api/v1/upload)
 	UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams)
@@ -782,6 +793,31 @@ func (siw *ServerInterfaceWrapper) PutTag(w http.ResponseWriter, r *http.Request
 	handler.ServeHTTP(w, r)
 }
 
+// ConvertTagToAlias operation middleware
+func (siw *ServerInterfaceWrapper) ConvertTagToAlias(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "tag" -------------
+	var tag Tag
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tag", r.PathValue("tag"), &tag, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConvertTagToAlias(w, r, tag)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UploadPost operation middleware
 func (siw *ServerInterfaceWrapper) UploadPost(w http.ResponseWriter, r *http.Request) {
 
@@ -991,6 +1027,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.DeleteTag)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.GetTag)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/tags/{tag}", wrapper.PutTag)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/tags/{tag}/convert-to-alias", wrapper.ConvertTagToAlias)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/upload", wrapper.UploadPost)
 	m.HandleFunc("GET "+options.BaseURL+"/healthz", wrapper.GetHealth)
 	m.HandleFunc("GET "+options.BaseURL+"/metrics", wrapper.GetMetrics)

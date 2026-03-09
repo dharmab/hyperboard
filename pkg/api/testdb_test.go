@@ -65,5 +65,16 @@ func freePort() (uint32, error) {
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
+	t.Cleanup(func() { cleanTestDB(t) })
 	return NewServer(testDB, newFakeStorage(), 5)
+}
+
+func cleanTestDB(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	for _, table := range []string{"posts_tags", "tag_aliases", "tags", "posts", "notes", "tag_categories"} {
+		if _, err := testDB.ExecContext(ctx, "DELETE FROM "+table); err != nil {
+			t.Logf("warning: failed to clean table %s: %v", table, err)
+		}
+	}
 }

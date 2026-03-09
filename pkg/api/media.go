@@ -85,6 +85,9 @@ func fitImage(img image.Image, maxW, maxH int) image.Image {
 	return dst
 }
 
+// maxWebPDimension is the maximum width/height allowed by the WebP specification.
+const maxWebPDimension = 16383
+
 // processImage converts an image to WebP (unless too large) and generates a thumbnail.
 // Returns (contentBytes, mimeType, thumbnailBytes, error).
 func processImage(data []byte, detectedMIME string) ([]byte, string, []byte, error) {
@@ -100,7 +103,7 @@ func processImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 	var content []byte
 	var mime string
 
-	if w > 16383 || h > 16383 {
+	if w > maxWebPDimension || h > maxWebPDimension {
 		// Too large to convert — store original.
 		content = data
 		mime = detectedMIME

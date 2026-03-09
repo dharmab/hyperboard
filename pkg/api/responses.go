@@ -1,36 +1,32 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"encoding/json"
+	"github.com/rs/zerolog/log"
 )
 
 func respond(w http.ResponseWriter, code int, body any) {
-	var b []byte
-	var err error
-	if body != nil {
-		b, err = json.Marshal(body)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to marshal response")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
+	if body == nil {
 		w.WriteHeader(code)
-		_, err = w.Write(b)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to write response")
-			return
-		}
-	} else {
-		respondWithError(w, http.StatusNotFound, "Not found")
+		return
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to marshal response")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if _, err = w.Write(b); err != nil {
+		log.Error().Err(err).Msg("failed to write response body")
 	}
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string, args ...any) {
 	e := Error{Message: fmt.Sprintf(message, args...)}
-	var b []byte
 	b, err := json.Marshal(e)
 	if err != nil {
 		http.Error(w, e.Message, code)
@@ -38,9 +34,7 @@ func respondWithError(w http.ResponseWriter, code int, message string, args ...a
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_, err = w.Write(b)
-	if err != nil {
-		http.Error(w, e.Message, code)
-		return
+	if _, err = w.Write(b); err != nil {
+		log.Error().Err(err).Msg("failed to write error response body")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 )
 
@@ -12,5 +13,6 @@ func renderMarkdown(src string) template.HTML {
 	if err := goldmark.Convert([]byte(src), &buf); err != nil {
 		return template.HTML(template.HTMLEscapeString(src))
 	}
-	return template.HTML(buf.String())
+	sanitized := bluemonday.UGCPolicy().SanitizeBytes(buf.Bytes())
+	return template.HTML(sanitized)
 }

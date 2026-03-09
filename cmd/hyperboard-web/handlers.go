@@ -473,88 +473,10 @@ func (app *App) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Fetch the target tag (to get its current aliases)
-	var targetTag types.Tag
-	if err := app.api.get(ctx, "/api/v1/tags/"+targetName, &targetTag); err != nil {
-		http.Error(w, fmt.Sprintf("Target tag not found: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Fetch the source tag (to get its aliases)
-	var sourceTag types.Tag
-	if err := app.api.get(ctx, "/api/v1/tags/"+sourceName, &sourceTag); err != nil {
-		http.Error(w, fmt.Sprintf("Source tag not found: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Find all posts tagged with the source tag
-	var allPosts []types.Post
-	cursor := ""
-	for {
-		q := url.Values{}
-		q.Set("limit", "1000")
-		q.Set("search", sourceName)
-		if cursor != "" {
-			q.Set("cursor", cursor)
-		}
-		var resp postsResponse
-		if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
-			break
-		}
-		if resp.Items != nil {
-			allPosts = append(allPosts, *resp.Items...)
-		}
-		if resp.Cursor == nil || *resp.Cursor == "" {
-			break
-		}
-		cursor = *resp.Cursor
-	}
-
-	// For each post, replace the source tag with the target tag
-	for _, post := range allPosts {
-		newTags := []types.TagName{}
-		hasTarget := false
-		for _, t := range post.Tags {
-			if t == sourceName {
-				continue
-			}
-			if t == targetName {
-				hasTarget = true
-			}
-			newTags = append(newTags, t)
-		}
-		if !hasTarget {
-			newTags = append(newTags, targetName)
-		}
-		post.Tags = newTags
-		if _, err := app.api.put(ctx, fmt.Sprintf("/api/v1/posts/%s", post.ID), post, nil); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to re-tag post %s: %v", post.ID, err), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Build the new alias list for the target tag:
-	// target's existing aliases + source's name + source's aliases
-	var targetAliases []string
-	if targetTag.Aliases != nil {
-		targetAliases = append(targetAliases, *targetTag.Aliases...)
-	}
-	targetAliases = append(targetAliases, sourceName)
-	if sourceTag.Aliases != nil {
-		targetAliases = append(targetAliases, *sourceTag.Aliases...)
-	}
-
-	// Delete the source tag first (so its name is freed for use as an alias,
-	// and its aliases are removed by CASCADE)
-	if _, err := app.api.delete(ctx, "/api/v1/tags/"+sourceName); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to delete source tag: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Update target tag with the merged aliases
-	targetTag.Aliases = &targetAliases
-	if _, err := app.api.put(ctx, "/api/v1/tags/"+targetName, targetTag, nil); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update target tag aliases: %v", err), http.StatusInternalServerError)
+	body := map[string]string{"target": targetName}
+	_, err := app.api.post(ctx, "/api/v1/tags/"+sourceName+"/convert-to-alias", body, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to convert tag to alias: %v", err), http.StatusInternalServerError)
 		return
 	}
 

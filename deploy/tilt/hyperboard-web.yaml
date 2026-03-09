@@ -37,7 +37,7 @@ metadata:
     app.kubernetes.io/part-of: hyperboard
 spec:
   selector:
-    app: hyperboard-web
+    app.kubernetes.io/name: hyperboard-web
   ports:
     - port: 80
       targetPort: http

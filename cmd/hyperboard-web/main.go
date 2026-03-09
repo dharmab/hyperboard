@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/dharmab/hyperboard/pkg/httplog"
 	"github.com/rs/zerolog"
@@ -49,7 +54,7 @@ func initConfig() {
 
 type App struct {
 	cfg   *Config
-	api   *APIClient
+	api   apiClient
 	tmpls map[string]*template.Template
 }
 
@@ -104,8 +109,36 @@ func run() error {
 
 	mux.Handle("/", app.sessionMiddleware(protected))
 
-	log.Info().Str("port", cfg.Port).Msg("Starting web server")
-	return http.ListenAndServe(":"+cfg.Port, httplog.RequestLoggingMiddleware(mux))
+	httpServer := &http.Server{
+		Handler: httplog.RequestLoggingMiddleware(mux),
+		Addr:    ":" + cfg.Port,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Info().Str("port", cfg.Port).Msg("Starting web server")
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("failed to serve: %w", err)
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		log.Info().Msg("Shutting down web server...")
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(timeoutCtx); err != nil {
+			return fmt.Errorf("failed to shut down web server: %w", err)
+		}
+		log.Info().Msg("Web server stopped")
+		return nil
+	}
 }
 
 // parseTemplates parses each page template together with the base layout
@@ -167,6 +200,7 @@ func (app *App) renderTemplate(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 	if err := t.ExecuteTemplate(w, name, data); err != nil {
+		log.Error().Err(err).Str("template", name).Msg("template execution failed")
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }

@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/pkg/api"
@@ -115,8 +119,29 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 		Handler: httplog.RequestLoggingMiddleware(authMiddleware(mux)),
 		Addr:    ":" + cfg.Port,
 	}
-	if err := httpServer.ListenAndServe(); err != nil {
-		return fmt.Errorf("failed to serve API: %w", err)
+
+	shutdownCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("failed to serve API: %w", err)
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-shutdownCtx.Done():
+		log.Info().Msg("Shutting down API server...")
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(timeoutCtx); err != nil {
+			return fmt.Errorf("failed to shut down API server: %w", err)
+		}
+		log.Info().Msg("API server stopped")
+		return nil
 	}
-	return nil
 }

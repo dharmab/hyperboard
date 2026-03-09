@@ -91,6 +91,25 @@ func parseSearch(search string) types.PostSearch {
 	return postSearch
 }
 
+type postCursor struct {
+	Timestamp string `json:"t"`
+	ID        string `json:"id"`
+}
+
+func encodePostCursor(pc postCursor) string {
+	data, _ := json.Marshal(pc)
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+func decodePostCursor(s string) (postCursor, error) {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return postCursor{}, err
+	}
+	var pc postCursor
+	return pc, json.Unmarshal(data, &pc)
+}
+
 type randomCursor struct {
 	Seed   int64 `json:"seed"`
 	Offset int   `json:"offset"`
@@ -237,19 +256,26 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	// Determine sort column (default: created_at, newest first)
+	sortColName := "created_at"
 	sortCol := models.PostColumns.CreatedAt
 	if searchParams.Sort == types.SortUpdatedAt {
+		sortColName = "updated_at"
 		sortCol = models.PostColumns.UpdatedAt
 	}
-	mods = append(mods, sm.OrderBy(sortCol).Desc())
+	mods = append(mods,
+		sm.OrderBy(sortCol).Desc(),
+		sm.OrderBy(models.PostColumns.ID).Desc(),
+	)
 
 	if params.Cursor != nil && *params.Cursor != "" {
-		decodedCursor, err := deobfuscateCursor(*params.Cursor)
+		pc, err := decodePostCursor(*params.Cursor)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(sortCol.LT(psql.Arg(decodedCursor))))
+		mods = append(mods, sm.Where(psql.Raw(
+			fmt.Sprintf("(%s, id) < (?, ?)", sortColName), pc.Timestamp, pc.ID,
+		)))
 	}
 
 	mods = append(mods, sm.Limit(int64(limit+1)))
@@ -265,15 +291,18 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		return
 	}
 
-	cursorTimeFn := func() string {
-		if searchParams.Sort == types.SortUpdatedAt {
-			return posts[limit-1].UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")
-		}
-		return posts[limit-1].CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")
-	}
-	hasMore, nextCursor := paginate(len(posts), limit, cursorTimeFn)
-	if hasMore {
+	var nextCursor *string
+	if len(posts) > limit {
 		posts = posts[:limit]
+		last := posts[limit-1]
+		var ts string
+		if searchParams.Sort == types.SortUpdatedAt {
+			ts = last.UpdatedAt.Format(time.RFC3339Nano)
+		} else {
+			ts = last.CreatedAt.Format(time.RFC3339Nano)
+		}
+		encoded := encodePostCursor(postCursor{Timestamp: ts, ID: last.ID.String()})
+		nextCursor = &encoded
 	}
 
 	items := make([]types.Post, 0, len(posts))
@@ -446,6 +475,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	id := postID
+	now := new(time.Now().UTC())
 	model, err := models.Posts.Insert(
 		&models.PostSetter{
 			ID:           &id,
@@ -455,8 +485,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 			HasAudio:     &hasAudioVal,
 			Sha256:       &hashHex,
 			Phash:        phashVal,
-			CreatedAt:    new(time.Now().UTC()),
-			UpdatedAt:    new(time.Now().UTC()),
+			CreatedAt:    now,
+			UpdatedAt:    now,
 		},
 	).One(ctx, s.db)
 	if err != nil {
@@ -525,12 +555,13 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	putNow := new(time.Now().UTC())
 	err = existingPost.Update(ctx, s.db, &models.PostSetter{
 		MimeType:     &post.MimeType,
 		ContentURL:   &post.ContentUrl,
 		ThumbnailURL: &post.ThumbnailUrl,
 		Note:         &post.Note,
-		UpdatedAt:    new(time.Now().UTC()),
+		UpdatedAt:    putNow,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
@@ -552,26 +583,21 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
 		}
+		// Upsert the tag to avoid TOCTOU race
+		_, err = s.db.ExecContext(ctx,
+			"INSERT INTO tags (name, created_at, updated_at) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
+			resolvedName, putNow, putNow,
+		)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to upsert tag %q", tagName)
+			return
+		}
 		tag, err := models.Tags.Query(
 			sm.Where(models.TagColumns.Name.EQ(psql.Arg(resolvedName))),
 		).One(ctx, s.db)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				tag, err = models.Tags.Insert(
-					&models.TagSetter{
-						Name:      &resolvedName,
-						CreatedAt: new(time.Now().UTC()),
-						UpdatedAt: new(time.Now().UTC()),
-					},
-				).One(ctx, s.db)
-				if err != nil {
-					respondWithError(w, http.StatusInternalServerError, "Failed to create tag %q", tagName)
-					return
-				}
-			} else {
-				respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
-				return
-			}
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag %q", tagName)
+			return
 		}
 
 		err = existingPost.AttachTags(ctx, s.db, tag)
@@ -697,7 +723,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		return
 	}
 
-	if err := existingPost.LoadTags(ctx, s.db); err != nil {
+	if err = existingPost.LoadTags(ctx, s.db); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
 		return
 	}

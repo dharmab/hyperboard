@@ -107,6 +107,38 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/tags/{tag}/convert-to-alias:
+    post:
+      operationId: convertTagToAlias
+      summary: Convert a tag to an alias of another tag. Re-tags all posts and merges aliases atomically.
+      parameters:
+        - $ref: "#/components/parameters/tag"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - target
+              properties:
+                target:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/TagResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/tagCategories:
     get:
       operationId: getTagCategories

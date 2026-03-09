@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func (s *Server) getTagAliases(ctx context.Context, tagIDs ...uuid.UUID) (map[uu
 		if i > 0 {
 			placeholders.WriteString(", ")
 		}
-		placeholders.WriteString("$" + itoa(i+1))
+		placeholders.WriteString("$" + strconv.Itoa(i+1))
 		args[i] = id
 	}
 
@@ -129,14 +130,6 @@ func (s *Server) resolveAlias(ctx context.Context, name string) (string, error) 
 		return "", err
 	}
 	return canonical, nil
-}
-
-func itoa(i int) string {
-	const digits = "0123456789"
-	if i < 10 {
-		return string(digits[i])
-	}
-	return itoa(i/10) + string(digits[i%10])
 }
 
 func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsParams) {
@@ -307,6 +300,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 
+	now := new(time.Now().UTC())
 	var resultModel *models.Tag
 	if existing != nil {
 		// Update (supports rename)
@@ -314,7 +308,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			Name:          &tag.Name,
 			Description:   &tag.Description,
 			TagCategoryID: &tagCategoryID,
-			UpdatedAt:     new(time.Now().UTC()),
+			UpdatedAt:     now,
 		})
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update tag")
@@ -334,8 +328,8 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 				Name:          &tag.Name,
 				Description:   &tag.Description,
 				TagCategoryID: &tagCategoryID,
-				CreatedAt:     new(time.Now().UTC()),
-				UpdatedAt:     new(time.Now().UTC()),
+				CreatedAt:     now,
+				UpdatedAt:     now,
 			},
 		).One(ctx, s.db)
 		if err != nil {
@@ -400,6 +394,151 @@ func (s *Server) getTagPostCounts(ctx context.Context) (map[uuid.UUID]int, error
 		counts[tagID] = count
 	}
 	return counts, rows.Err()
+}
+
+func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name Tag) {
+	ctx := r.Context()
+
+	var body ConvertTagToAliasJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if body.Target == "" || body.Target == name {
+		respondWithError(w, http.StatusBadRequest, "Invalid target tag")
+		return
+	}
+
+	tx, err := s.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to begin transaction")
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Look up source tag
+	var sourceID uuid.UUID
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", string(name)).Scan(&sourceID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "Source tag %q not found", name)
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to look up source tag")
+		return
+	}
+
+	// Look up target tag
+	var targetID uuid.UUID
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", body.Target).Scan(&targetID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "Target tag %q not found", body.Target)
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to look up target tag")
+		return
+	}
+
+	// Re-tag posts: move source associations to target where target doesn't already exist
+	_, err = tx.ExecContext(ctx,
+		`UPDATE posts_tags SET tag_id = $1
+		 WHERE tag_id = $2
+		   AND NOT EXISTS (SELECT 1 FROM posts_tags pt2 WHERE pt2.post_id = posts_tags.post_id AND pt2.tag_id = $1)`,
+		targetID, sourceID,
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to re-tag posts")
+		return
+	}
+
+	// Delete remaining source associations (posts that already had the target tag)
+	_, err = tx.ExecContext(ctx, "DELETE FROM posts_tags WHERE tag_id = $1", sourceID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to clean up source tag associations")
+		return
+	}
+
+	// Collect source aliases before deleting
+	aliasRows, err := tx.QueryContext(ctx, "SELECT alias_name FROM tag_aliases WHERE tag_id = $1", sourceID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to collect source aliases")
+		return
+	}
+	var sourceAliases []string
+	for aliasRows.Next() {
+		var alias string
+		if err := aliasRows.Scan(&alias); err != nil {
+			_ = aliasRows.Close()
+			respondWithError(w, http.StatusInternalServerError, "Failed to read source aliases")
+			return
+		}
+		sourceAliases = append(sourceAliases, alias)
+	}
+	_ = aliasRows.Close()
+	if err := aliasRows.Err(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to iterate source aliases")
+		return
+	}
+
+	// Delete source tag (cascades aliases)
+	_, err = tx.ExecContext(ctx, "DELETE FROM tags WHERE id = $1", sourceID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete source tag")
+		return
+	}
+
+	// Add source name + source aliases as aliases of target
+	allNewAliases := append([]string{string(name)}, sourceAliases...)
+	for _, alias := range allNewAliases {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO tag_aliases (tag_id, alias_name) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+			targetID, alias,
+		)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to add alias %q", alias)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
+		return
+	}
+
+	// Return the updated target tag
+	targetModel, err := models.Tags.Query(
+		sm.Where(models.TagColumns.ID.EQ(psql.Arg(targetID))),
+	).One(ctx, s.db)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated target tag")
+		return
+	}
+
+	if targetModel.TagCategoryID.Valid {
+		if err := targetModel.LoadTagCategory(ctx, s.db); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
+			return
+		}
+	}
+
+	tagResp, err := tagFromModel(targetModel)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
+		return
+	}
+
+	aliasMap, err := s.getTagAliases(ctx, targetModel.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
+		return
+	}
+	if a, ok := aliasMap[targetModel.ID]; ok {
+		tagResp.Aliases = &a
+	}
+
+	respond(w, http.StatusOK, tagResp)
 }
 
 func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {

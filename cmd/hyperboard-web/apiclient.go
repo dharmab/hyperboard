@@ -10,6 +10,17 @@ import (
 	"net/url"
 )
 
+type apiClient interface {
+	get(ctx context.Context, path string, out any) error
+	getWithQuery(ctx context.Context, path string, query url.Values, out any) error
+	getRaw(ctx context.Context, path string) (*http.Response, error)
+	head(ctx context.Context, path string) (*http.Response, error)
+	post(ctx context.Context, path string, body any, out any) (int, error)
+	put(ctx context.Context, path string, body any, out any) (int, error)
+	delete(ctx context.Context, path string) (int, error)
+	uploadFile(ctx context.Context, data []byte, contentType string, force bool, out any) (int, []byte, error)
+}
+
 type APIClient struct {
 	baseURL  string
 	password string
