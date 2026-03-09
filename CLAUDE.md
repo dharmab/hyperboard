@@ -30,6 +30,8 @@ Run `make generate` to regenerate:
 
 Generated files should not be edited by hand. If the database schema changes (new migration in `internal/db/migrations/data/`), re-run generation.
 
+If Tilt is running (`tilt get uiresources`), `go generate ./...` runs automatically when source files change. You can also manually trigger it with `tilt trigger generate`. The generate script uses a random available port for its embedded Postgres, so it can run alongside Tilt without conflicts.
+
 ## Building
 
 ```

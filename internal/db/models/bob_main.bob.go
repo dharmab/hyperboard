@@ -55,6 +55,7 @@ var ColumnNames = struct {
 		ContentURL:   "content_url",
 		ThumbnailURL: "thumbnail_url",
 		Note:         "note",
+		HasAudio:     "has_audio",
 		CreatedAt:    "created_at",
 		UpdatedAt:    "updated_at",
 	},

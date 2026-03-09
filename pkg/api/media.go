@@ -123,6 +123,34 @@ func processImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 	return content, mime, thumbBytes, nil
 }
 
+// probeHasAudio uses ffprobe to check if a video file contains an audio stream.
+func probeHasAudio(data []byte) (bool, error) {
+	tmpFile, err := os.CreateTemp("", "hyperboard-probe-*")
+	if err != nil {
+		return false, fmt.Errorf("create temp file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return false, fmt.Errorf("write temp file: %w", err)
+	}
+	_ = tmpFile.Close()
+
+	cmd := exec.Command("ffprobe",
+		"-v", "quiet",
+		"-select_streams", "a",
+		"-show_entries", "stream=codec_type",
+		"-of", "csv=p=0",
+		tmpFile.Name(),
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("ffprobe: %w", err)
+	}
+	return len(bytes.TrimSpace(out)) > 0, nil
+}
+
 // processVideo extracts a thumbnail from a video file using ffmpeg.
 // Returns WebP thumbnail bytes.
 func processVideo(data []byte) ([]byte, error) {

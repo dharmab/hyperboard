@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
+	"net"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	embedpg "github.com/fergusstrange/embedded-postgres"
@@ -21,9 +23,26 @@ func main() {
 	}
 }
 
+// freePort asks the OS for an available TCP port.
+func freePort() (uint32, error) {
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+	port := uint32(l.Addr().(*net.TCPAddr).Port)
+	_ = l.Close()
+	return port, nil
+}
+
 func generate(ctx context.Context) error {
-	postgres := embedpg.NewDatabase()
-	log.Info().Msg("starting embedded postgres database...")
+	port, err := freePort()
+	if err != nil {
+		return err
+	}
+
+	config := embedpg.DefaultConfig().Port(port)
+	postgres := embedpg.NewDatabase(config)
+	log.Info().Uint32("port", port).Msg("starting embedded postgres database...")
 	if err := postgres.Start(); err != nil {
 		return err
 	}
@@ -34,8 +53,8 @@ func generate(ctx context.Context) error {
 		}
 	}()
 
+	url := fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/postgres?sslmode=disable", port)
 	log.Info().Msg("running database migrations...")
-	url := "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
 	if err := migrations.Migrate(url); err != nil {
 		return err
 	}
@@ -50,7 +69,7 @@ func generate(ctx context.Context) error {
 			&helpers.Templates{Models: []fs.FS{bobgen.PSQLModelTemplates}},
 		),
 	}
-	driver := driver.New(driver.Config{
+	d := driver.New(driver.Config{
 		Config: helpers.Config{
 			Driver: "github.com/jackc/pgx/v5/stdlib",
 			Dsn:    url,
@@ -60,7 +79,7 @@ func generate(ctx context.Context) error {
 		},
 	})
 	log.Info().Msg("generating code...")
-	if err := bobgen.Run(ctx, &state, driver); err != nil {
+	if err := bobgen.Run(ctx, &state, d); err != nil {
 		return err
 	}
 

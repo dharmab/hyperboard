@@ -71,6 +71,7 @@ components:
         - contentUrl
         - thumbnailUrl
         - note
+        - hasAudio
         - tags
         - createdAt
         - updatedAt
@@ -85,6 +86,8 @@ components:
           $ref: "#/components/schemas/URL"
         note:
           type: string
+        hasAudio:
+          type: boolean
         tags:
           type: array
           items:

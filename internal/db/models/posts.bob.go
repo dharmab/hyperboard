@@ -31,6 +31,7 @@ type Post struct {
 	ContentURL   string    `db:"content_url" `
 	ThumbnailURL string    `db:"thumbnail_url" `
 	Note         string    `db:"note" `
+	HasAudio     bool      `db:"has_audio" `
 	CreatedAt    time.Time `db:"created_at" `
 	UpdatedAt    time.Time `db:"updated_at" `
 
@@ -58,6 +59,7 @@ type postColumnNames struct {
 	ContentURL   string
 	ThumbnailURL string
 	Note         string
+	HasAudio     string
 	CreatedAt    string
 	UpdatedAt    string
 }
@@ -71,6 +73,7 @@ type postColumns struct {
 	ContentURL   psql.Expression
 	ThumbnailURL psql.Expression
 	Note         psql.Expression
+	HasAudio     psql.Expression
 	CreatedAt    psql.Expression
 	UpdatedAt    psql.Expression
 }
@@ -91,6 +94,7 @@ func buildPostColumns(alias string) postColumns {
 		ContentURL:   psql.Quote(alias, "content_url"),
 		ThumbnailURL: psql.Quote(alias, "thumbnail_url"),
 		Note:         psql.Quote(alias, "note"),
+		HasAudio:     psql.Quote(alias, "has_audio"),
 		CreatedAt:    psql.Quote(alias, "created_at"),
 		UpdatedAt:    psql.Quote(alias, "updated_at"),
 	}
@@ -102,6 +106,7 @@ type postWhere[Q psql.Filterable] struct {
 	ContentURL   psql.WhereMod[Q, string]
 	ThumbnailURL psql.WhereMod[Q, string]
 	Note         psql.WhereMod[Q, string]
+	HasAudio     psql.WhereMod[Q, bool]
 	CreatedAt    psql.WhereMod[Q, time.Time]
 	UpdatedAt    psql.WhereMod[Q, time.Time]
 }
@@ -117,6 +122,7 @@ func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 		ContentURL:   psql.Where[Q, string](cols.ContentURL),
 		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
 		Note:         psql.Where[Q, string](cols.Note),
+		HasAudio:     psql.Where[Q, bool](cols.HasAudio),
 		CreatedAt:    psql.Where[Q, time.Time](cols.CreatedAt),
 		UpdatedAt:    psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
@@ -144,12 +150,13 @@ type PostSetter struct {
 	ContentURL   *string    `db:"content_url" `
 	ThumbnailURL *string    `db:"thumbnail_url" `
 	Note         *string    `db:"note" `
+	HasAudio     *bool      `db:"has_audio" `
 	CreatedAt    *time.Time `db:"created_at" `
 	UpdatedAt    *time.Time `db:"updated_at" `
 }
 
 func (s PostSetter) SetColumns() []string {
-	vals := make([]string, 0, 7)
+	vals := make([]string, 0, 8)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
@@ -168,6 +175,10 @@ func (s PostSetter) SetColumns() []string {
 
 	if s.Note != nil {
 		vals = append(vals, "note")
+	}
+
+	if s.HasAudio != nil {
+		vals = append(vals, "has_audio")
 	}
 
 	if s.CreatedAt != nil {
@@ -197,6 +208,9 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.Note != nil {
 		t.Note = *s.Note
 	}
+	if s.HasAudio != nil {
+		t.HasAudio = *s.HasAudio
+	}
 	if s.CreatedAt != nil {
 		t.CreatedAt = *s.CreatedAt
 	}
@@ -211,7 +225,7 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 7)
+		vals := make([]bob.Expression, 8)
 		if s.ID != nil {
 			vals[0] = psql.Arg(*s.ID)
 		} else {
@@ -242,16 +256,22 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[5] = psql.Arg(*s.CreatedAt)
+		if s.HasAudio != nil {
+			vals[5] = psql.Arg(*s.HasAudio)
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.UpdatedAt != nil {
-			vals[6] = psql.Arg(*s.UpdatedAt)
+		if s.CreatedAt != nil {
+			vals[6] = psql.Arg(*s.CreatedAt)
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
+		}
+
+		if s.UpdatedAt != nil {
+			vals[7] = psql.Arg(*s.UpdatedAt)
+		} else {
+			vals[7] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -263,7 +283,7 @@ func (s PostSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 7)
+	exprs := make([]bob.Expression, 0, 8)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -297,6 +317,13 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "note")...),
 			psql.Arg(s.Note),
+		}})
+	}
+
+	if s.HasAudio != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "has_audio")...),
+			psql.Arg(s.HasAudio),
 		}})
 	}
 

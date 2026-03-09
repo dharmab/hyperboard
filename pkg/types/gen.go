@@ -28,6 +28,7 @@ type Note struct {
 type Post struct {
 	ContentUrl   URL       `json:"contentUrl"`
 	CreatedAt    Timestamp `json:"createdAt"`
+	HasAudio     bool      `json:"hasAudio"`
 	ID           ID        `json:"id"`
 	MimeType     string    `json:"mimeType"`
 	Note         string    `json:"note"`

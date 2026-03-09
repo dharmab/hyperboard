@@ -31,6 +31,7 @@ CREATE TABLE posts (
     content_url   TEXT NOT NULL,
     thumbnail_url TEXT NOT NULL,
     note          TEXT NOT NULL DEFAULT '',
+    has_audio     BOOLEAN NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

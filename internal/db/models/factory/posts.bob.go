@@ -40,6 +40,7 @@ type PostTemplate struct {
 	ContentURL   func() string
 	ThumbnailURL func() string
 	Note         func() string
+	HasAudio     func() bool
 	CreatedAt    func() time.Time
 	UpdatedAt    func() time.Time
 
@@ -104,6 +105,10 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 		val := o.Note()
 		m.Note = &val
 	}
+	if o.HasAudio != nil {
+		val := o.HasAudio()
+		m.HasAudio = &val
+	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
 		m.CreatedAt = &val
@@ -148,6 +153,9 @@ func (o PostTemplate) Build() *models.Post {
 	}
 	if o.Note != nil {
 		m.Note = o.Note()
+	}
+	if o.HasAudio != nil {
+		m.HasAudio = o.HasAudio()
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
@@ -324,6 +332,7 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 		PostMods.RandomContentURL(f),
 		PostMods.RandomThumbnailURL(f),
 		PostMods.RandomNote(f),
+		PostMods.RandomHasAudio(f),
 		PostMods.RandomCreatedAt(f),
 		PostMods.RandomUpdatedAt(f),
 	}
@@ -480,6 +489,37 @@ func (m postMods) RandomNote(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.Note = func() string {
 			return random_string(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) HasAudio(val bool) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.HasAudio = func() bool { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) HasAudioFunc(f func() bool) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.HasAudio = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetHasAudio() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.HasAudio = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m postMods) RandomHasAudio(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.HasAudio = func() bool {
+			return random_bool(f)
 		}
 	})
 }

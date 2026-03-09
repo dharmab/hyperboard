@@ -29,6 +29,7 @@ func postFromModel(model *models.Post) (types.Post, error) {
 		ContentUrl:   model.ContentURL,
 		ThumbnailUrl: model.ThumbnailURL,
 		Note:         model.Note,
+		HasAudio:     model.HasAudio,
 		CreatedAt:    model.CreatedAt,
 		UpdatedAt:    model.UpdatedAt,
 	}
@@ -72,6 +73,12 @@ func parseSearch(search string) types.PostSearch {
 			postSearch.Tagged = types.TaggedFilterTrue
 		} else if term == "tagged:false" {
 			postSearch.Tagged = types.TaggedFilterFalse
+		} else if term == types.TagImage {
+			postSearch.TypeImage = true
+		} else if term == types.TagVideo {
+			postSearch.TypeVideo = true
+		} else if term == types.TagAudio {
+			postSearch.TypeAudio = true
 		} else {
 			postSearch.Tags = append(postSearch.Tags, term)
 		}
@@ -132,7 +139,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			`EXISTS (
 				SELECT 1 FROM posts_tags pt
 				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id AND t.name NOT LIKE 'type:%'
+				WHERE pt.post_id = posts.id
 			)`,
 		)))
 	case types.TaggedFilterFalse:
@@ -140,9 +147,20 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			`NOT EXISTS (
 				SELECT 1 FROM posts_tags pt
 				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id AND t.name NOT LIKE 'type:%'
+				WHERE pt.post_id = posts.id
 			)`,
 		)))
+	}
+
+	// Apply type: virtual tag filters
+	if searchParams.TypeImage {
+		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("image/%"))))
+	}
+	if searchParams.TypeVideo {
+		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("video/%"))))
+	}
+	if searchParams.TypeAudio {
+		mods = append(mods, sm.Where(models.PostColumns.HasAudio.EQ(psql.Arg(true))))
 	}
 
 	limit := parseLimit(params.Limit)
@@ -307,6 +325,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	var contentData []byte
 	var contentMIME string
 	var thumbnailData []byte
+	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
 		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
@@ -324,6 +343,11 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
+		hasAudio, probeErr := probeHasAudio(data)
+		if probeErr != nil {
+			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
+		}
+		hasAudioVal = hasAudio
 	} else {
 		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
 		return
@@ -361,6 +385,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 			MimeType:     &contentMIME,
 			ContentURL:   &contentURL,
 			ThumbnailURL: &thumbnailURL,
+			HasAudio:     &hasAudioVal,
 			CreatedAt:    now(),
 			UpdatedAt:    now(),
 		},
@@ -536,6 +561,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	var contentData []byte
 	var contentMIME string
 	var thumbnailData []byte
+	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
 		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
@@ -551,6 +577,11 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
+		hasAudio, probeErr := probeHasAudio(data)
+		if probeErr != nil {
+			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
+		}
+		hasAudioVal = hasAudio
 	} else {
 		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
 		return
@@ -576,6 +607,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		MimeType:     &contentMIME,
 		ContentURL:   &contentURL,
 		ThumbnailURL: &thumbnailURL,
+		HasAudio:     &hasAudioVal,
 		UpdatedAt:    now(),
 	})
 	if err != nil {
