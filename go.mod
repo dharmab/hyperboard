@@ -18,7 +18,7 @@ require (
 	github.com/jaswdr/faker/v2 v2.5.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/runtime v1.1.1
-	github.com/rs/zerolog v1.15.0
+	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stephenafamo/bob v0.38.0

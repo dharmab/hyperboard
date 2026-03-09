@@ -15,6 +15,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
+	"github.com/rs/zerolog"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -293,8 +294,10 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	// Resolve tag category ID if category name is provided
+	logger := zerolog.Ctx(ctx).With().Str("tag", name).Logger()
 	var tagCategoryID sql.Null[uuid.UUID]
 	if tag.Category != nil && *tag.Category != "" {
+		logger.Info().Str("category", *tag.Category).Msg("resolving tag category")
 		category, err := models.TagCategories.Query(
 			sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(*tag.Category))),
 		).One(ctx, s.db)
@@ -320,6 +323,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	now := new(time.Now().UTC())
 	var resultModel *models.Tag
 	if existing != nil {
+		logger.Info().Str("new_name", tag.Name).Msg("updating existing tag")
 		// Update (supports rename)
 		err = existing.Update(ctx, s.db, &models.TagSetter{
 			Name:          &tag.Name,
@@ -335,11 +339,13 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		existing.Description = tag.Description
 		existing.TagCategoryID = tagCategoryID
 		resultModel = existing
+		logger.Info().Msg("tag updated")
 	} else {
 		if tag.Name != name {
 			respondWithError(w, http.StatusBadRequest, "Tag name mismatch: got %q in body but %q in URL", tag.Name, name)
 			return
 		}
+		logger.Info().Msg("creating new tag")
 		resultModel, err = models.Tags.Insert(
 			&models.TagSetter{
 				Name:          &tag.Name,
@@ -353,6 +359,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create tag")
 			return
 		}
+		logger.Info().Msg("tag created")
 	}
 
 	// Update aliases
@@ -584,6 +591,8 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 		return
 	}
 
+	zerolog.Ctx(ctx).Info().Str("source", name).Str("target", body.Target).Msg("tag converted to alias")
+
 	tagResp := types.Tag{
 		Name:        tagName,
 		Description: tagDesc,
@@ -617,5 +626,6 @@ func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete tag %q", name)
 		return
 	}
+	zerolog.Ctx(ctx).Info().Str("tag", name).Msg("tag deleted")
 	w.WriteHeader(http.StatusNoContent)
 }

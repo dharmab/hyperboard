@@ -31,15 +31,18 @@ func RequestLoggingMiddleware(next http.Handler) http.Handler {
 			_, _ = rand.Read(b)
 			requestID = hex.EncodeToString(b)
 		}
-		ctx := context.WithValue(r.Context(), requestIDKey, requestID)
+
+		// Attach a request-scoped logger so all handlers get request_id in their logs.
+		logger := log.Logger.With().Str("request_id", requestID).Logger()
+		ctx := logger.WithContext(r.Context())
+		ctx = context.WithValue(ctx, requestIDKey, requestID)
 		r = r.WithContext(ctx)
 
 		w.Header().Set("X-Request-Id", requestID)
 
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
-		log.Info().
-			Str("request_id", requestID).
+		logger.Info().
 			Str("method", r.Method).
 			Str("path", r.URL.RequestURI()).
 			Int("status", sw.status).

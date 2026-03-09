@@ -339,7 +339,7 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		if resp.JSON201 != nil {
 			lastPostID = resp.JSON201.ID
-			log.Info().Str("id", resp.JSON201.ID.String()).Str("filename", header.Filename).Msg("uploaded post")
+			log.Info().Stringer("id", resp.JSON201.ID).Str("filename", header.Filename).Msg("uploaded post")
 		}
 	}
 

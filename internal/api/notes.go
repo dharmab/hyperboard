@@ -10,6 +10,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
+	"github.com/rs/zerolog"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dm"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
@@ -77,6 +78,7 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	zerolog.Ctx(ctx).Info().Stringer("note_id", id).Msg("note created")
 	respond(w, http.StatusCreated, noteFromModel(model))
 }
 
@@ -141,6 +143,7 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	zerolog.Ctx(ctx).Info().Stringer("note_id", noteID).Msg("note updated")
 	respond(w, http.StatusOK, noteFromModel(model))
 }
 
@@ -169,5 +172,6 @@ func (s *Server) DeleteNote(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	zerolog.Ctx(ctx).Info().Stringer("note_id", noteID).Msg("note deleted")
 	w.WriteHeader(http.StatusNoContent)
 }

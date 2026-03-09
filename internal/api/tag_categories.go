@@ -13,6 +13,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
+	"github.com/rs/zerolog"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -174,7 +175,9 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		return
 	}
 
+	logger := zerolog.Ctx(ctx).With().Str("category", name).Logger()
 	if existing != nil {
+		logger.Info().Str("new_name", req.Name).Msg("updating existing tag category")
 		// Update (supports rename)
 		err = existing.Update(ctx, s.db, &models.TagCategorySetter{
 			Name:        &req.Name,
@@ -193,12 +196,14 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated tag category")
 			return
 		}
+		logger.Info().Msg("tag category updated")
 		respond(w, http.StatusOK, tagCategoryFromModel(updated))
 	} else {
 		if req.Name != name {
 			respondWithError(w, http.StatusBadRequest, "Tag category name mismatch: got %q in body but %q in URL", req.Name, name)
 			return
 		}
+		logger.Info().Msg("creating new tag category")
 		now := new(time.Now().UTC())
 		inserted, err := models.TagCategories.Insert(
 			&models.TagCategorySetter{
@@ -213,6 +218,7 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 			respondWithError(w, http.StatusInternalServerError, "Failed to create tag category")
 			return
 		}
+		logger.Info().Msg("tag category created")
 		respond(w, http.StatusCreated, tagCategoryFromModel(inserted))
 	}
 }
@@ -230,5 +236,6 @@ func (s *Server) DeleteTagCategory(w http.ResponseWriter, r *http.Request, name 
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete tag category %q", name)
 		return
 	}
+	zerolog.Ctx(ctx).Info().Str("category", name).Msg("tag category deleted")
 	w.WriteHeader(http.StatusNoContent)
 }

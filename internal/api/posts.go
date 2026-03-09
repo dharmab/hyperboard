@@ -18,7 +18,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/media"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -134,6 +134,7 @@ func decodeRandomCursor(s string, rc *randomCursor) error {
 
 func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams) {
 	ctx := r.Context()
+	logger := *zerolog.Ctx(ctx)
 
 	mods := []bob.Mod[*dialect.SelectQuery]{}
 
@@ -142,6 +143,16 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		search = *params.Search
 	}
 	searchParams := parseSearch(search)
+	logger.Info().
+		Str("search", search).
+		Strs("tags", searchParams.Tags).
+		Strs("exclude_tags", searchParams.ExcludeTags).
+		Str("sort", searchParams.Sort).
+		Int("tagged", int(searchParams.Tagged)).
+		Bool("type_image", searchParams.TypeImage).
+		Bool("type_video", searchParams.TypeVideo).
+		Bool("type_audio", searchParams.TypeAudio).
+		Msg("parsed search params")
 
 	for _, tagName := range searchParams.Tags {
 		// Resolve aliases to canonical tag names
@@ -149,6 +160,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
+		}
+		if resolved != tagName {
+			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved tag alias")
 		}
 		mods = append(mods, sm.Where(psql.Raw(
 			`EXISTS (
@@ -165,6 +179,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
 		}
+		if resolved != tagName {
+			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved exclude tag alias")
+		}
 		mods = append(mods, sm.Where(psql.Raw(
 			`NOT EXISTS (
 				SELECT 1 FROM posts_tags pt
@@ -177,6 +194,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	// Apply tagged: filter
 	switch searchParams.Tagged {
 	case types.TaggedFilterTrue:
+		logger.Info().Msg("applying tagged:true filter")
 		mods = append(mods, sm.Where(psql.Raw(
 			`EXISTS (
 				SELECT 1 FROM posts_tags pt
@@ -185,6 +203,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			)`,
 		)))
 	case types.TaggedFilterFalse:
+		logger.Info().Msg("applying tagged:false filter")
 		mods = append(mods, sm.Where(psql.Raw(
 			`NOT EXISTS (
 				SELECT 1 FROM posts_tags pt
@@ -198,12 +217,15 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	// Apply type: virtual tag filters
 	if searchParams.TypeImage {
+		logger.Info().Msg("applying type:image filter")
 		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("image/%"))))
 	}
 	if searchParams.TypeVideo {
+		logger.Info().Msg("applying type:video filter")
 		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("video/%"))))
 	}
 	if searchParams.TypeAudio {
+		logger.Info().Msg("applying type:audio filter")
 		mods = append(mods, sm.Where(models.PostColumns.HasAudio.EQ(psql.Arg(true))))
 	}
 
@@ -218,6 +240,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			if err := decodeRandomCursor(*params.Cursor, &rc); err == nil {
 				if rc.Seed == currentSeed {
 					offset = rc.Offset
+					logger.Info().Int64("seed", currentSeed).Int("offset", offset).Msg("resuming random cursor")
+				} else {
+					logger.Info().Int64("old_seed", rc.Seed).Int64("new_seed", currentSeed).Msg("random window rolled, restarting from offset 0")
 				}
 				// if seed differs, use currentSeed with offset=0 (window rolled)
 			}
@@ -340,12 +365,13 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {
 	ctx := r.Context()
+	logger := *zerolog.Ctx(ctx)
 
 	force := params.Force != nil && *params.Force
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to read upload request body")
+		logger.Error().Err(err).Msg("failed to read upload request body")
 		respondWithError(w, http.StatusInternalServerError, "Failed to read request body: %v", err)
 		return
 	}
@@ -360,7 +386,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		mimeStr = strings.TrimSpace(mimeStr[:idx])
 	}
 
-	log.Info().Str("mime", mimeStr).Int("size", len(data)).Msg("processing upload")
+	logger.Info().Str("mime", mimeStr).Int("size", len(data)).Bool("force", force).Msg("processing upload")
 
 	var contentData []byte
 	var contentMIME string
@@ -368,22 +394,26 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
+		logger.Info().Str("mime", mimeStr).Msg("processing as image")
 		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
 		if err != nil {
-			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
+			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 			return
 		}
 	} else if strings.HasPrefix(mimeStr, "video/") {
+		logger.Info().Str("mime", mimeStr).Msg("processing as video")
 		contentData = data
 		contentMIME = mimeStr
 		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
 		if err != nil {
-			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
+			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
+		logger.Info().Bool("has_audio", hasAudioVal).Msg("video processed")
 	} else {
+		logger.Info().Str("mime", mimeStr).Msg("unsupported media type")
 		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
 		return
 	}
@@ -395,10 +425,11 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		sm.Where(models.PostColumns.Sha256.EQ(psql.Arg(hashHex))),
 	).One(ctx, s.db)
 	if err == nil {
+		logger.Info().Stringer("existing_id", existing.ID).Msg("duplicate post detected by sha256")
 		respondWithError(w, http.StatusConflict, "Duplicate of existing post %s", existing.ID)
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		log.Error().Err(err).Msg("failed to check for duplicate post")
+		logger.Error().Err(err).Msg("failed to check for duplicate post")
 		respondWithError(w, http.StatusInternalServerError, "Failed to check for duplicate")
 		return
 	}
@@ -407,16 +438,18 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	var phashVal *sql.Null[int64]
 	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
-		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
+		logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
 		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
 
 		// Check for visually similar posts (unless force is set).
 		if !force && s.similarityThreshold > 0 {
+			logger.Info().Int("threshold", s.similarityThreshold).Msg("checking for visually similar posts")
 			similar, err := s.findSimilarPosts(ctx, uuid.Nil, pHash, 5)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to check for similar posts")
+				logger.Error().Err(err).Msg("failed to check for similar posts")
 			} else if len(similar) > 0 {
+				logger.Info().Int("count", len(similar)).Msg("similar posts found, rejecting upload")
 				items := make([]types.Post, 0, len(similar))
 				for _, p := range similar {
 					items = append(items, postFromModel(p))
@@ -427,15 +460,19 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 				})
 				return
 			}
+			logger.Info().Msg("no similar posts found")
+		} else if force {
+			logger.Info().Msg("skipping similarity check (force=true)")
 		}
 	}
 
 	postID, err := uuid.NewV4()
 	if err != nil {
-		log.Error().Err(err).Msg("failed to generate post ID")
+		logger.Error().Err(err).Msg("failed to generate post ID")
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate post ID: %v", err)
 		return
 	}
+	logger = logger.With().Stringer("post_id", postID).Logger()
 
 	ext := mimeToExt(contentMIME)
 	contentKey := fmt.Sprintf("posts/%s/content.%s", postID, ext)
@@ -443,14 +480,14 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 
 	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
 	if err != nil {
-		log.Error().Err(err).Str("key", contentKey).Msg("failed to upload content to storage")
+		logger.Error().Err(err).Str("key", contentKey).Msg("failed to upload content to storage")
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload content: %v", err)
 		return
 	}
 
 	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
-		log.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload thumbnail to storage")
+		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload thumbnail to storage")
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail: %v", err)
 		return
 	}
@@ -471,11 +508,12 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		},
 	).One(ctx, s.db)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to insert post into database")
+		logger.Error().Err(err).Msg("failed to insert post into database")
 		respondWithError(w, http.StatusInternalServerError, "Failed to store post: %v", err)
 		return
 	}
 
+	logger.Info().Str("mime", contentMIME).Msg("post uploaded")
 	model.R.Tags = nil
 	respond(w, http.StatusCreated, postFromModel(model))
 }
@@ -560,12 +598,16 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	for _, tagName := range post.Tags {
 		// Resolve aliases to canonical tag names
 		resolvedName, resolveErr := s.resolveAlias(ctx, tagName)
 		if resolveErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
+		}
+		if resolvedName != tagName {
+			logger.Info().Str("alias", tagName).Str("canonical", resolvedName).Msg("resolved tag alias")
 		}
 		// Upsert the tag to avoid TOCTOU race
 		_, err = s.db.ExecContext(ctx,
@@ -584,6 +626,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 			return
 		}
 
+		logger.Info().Str("tag", resolvedName).Msg("attaching tag to post")
 		err = existingPost.AttachTags(ctx, s.db, tag)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to attach tag")
@@ -596,6 +639,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	logger.Info().Int("tag_count", len(post.Tags)).Msg("post updated")
 	respond(w, http.StatusOK, postFromModel(existingPost))
 }
 
@@ -658,9 +702,11 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	// Delete old content object if the extension changed (new key won't overwrite old one).
 	oldContentKey := storageKeyForContent(postID, existingPost.MimeType)
 	newContentKey := storageKeyForContent(postID, contentMIME)
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	if oldContentKey != newContentKey {
+		logger.Info().Str("old_key", oldContentKey).Str("new_key", newContentKey).Msg("mime type changed, deleting old content object")
 		if err := s.storage.Delete(ctx, oldContentKey); err != nil {
-			log.Warn().Err(err).Str("key", oldContentKey).Msg("failed to delete old content object")
+			logger.Error().Err(err).Str("key", oldContentKey).Msg("failed to delete old content object")
 		}
 	}
 
@@ -684,7 +730,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	var phashVal *sql.Null[int64]
 	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
-		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
+		logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
 		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
 	}
@@ -796,6 +842,20 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
+	contentKey := storageKeyForContent(postID, post.MimeType)
+	thumbnailKey := storageKeyForThumbnail(postID)
+	if err := s.storage.Delete(ctx, contentKey); err != nil {
+		logger.Error().Err(err).Str("key", contentKey).Msg("failed to delete content object")
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete post content from storage")
+		return
+	}
+	if err := s.storage.Delete(ctx, thumbnailKey); err != nil {
+		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object")
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete post thumbnail from storage")
+		return
+	}
+
 	_, err = models.Posts.Delete(
 		dm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
 	).Exec(ctx, s.db)
@@ -804,15 +864,6 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	// Clean up storage objects (best-effort).
-	contentKey := storageKeyForContent(postID, post.MimeType)
-	thumbnailKey := storageKeyForThumbnail(postID)
-	if err := s.storage.Delete(ctx, contentKey); err != nil {
-		log.Warn().Err(err).Str("key", contentKey).Msg("failed to delete content object after post deletion")
-	}
-	if err := s.storage.Delete(ctx, thumbnailKey); err != nil {
-		log.Warn().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object after post deletion")
-	}
-
+	logger.Info().Msg("post deleted")
 	w.WriteHeader(http.StatusNoContent)
 }
