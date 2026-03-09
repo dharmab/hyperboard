@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/url"
@@ -59,6 +60,13 @@ func templateFuncs() template.FuncMap {
 			default:
 				return fmt.Sprintf("%d B", bytes)
 			}
+		},
+		"toJSON": func(v any) string {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return "[]"
+			}
+			return string(b)
 		},
 		"mediaUrl": func(rawURL string) string {
 			u, err := url.Parse(rawURL)

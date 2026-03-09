@@ -12,6 +12,13 @@
   <button type="submit" class="btn btn-primary">Search</button>
   <button type="button" class="btn" id="btn-random" onclick="toggleRandom()">Random</button>
 </form>
+{{if .TagFilters}}
+<div class="tag-filters">
+  {{range .TagFilters}}
+  <button type="button" class="btn tag-filter-btn" data-tags='{{.Tags | toJSON}}' onclick="cycleTagFilter(this)">{{.Label}}</button>
+  {{end}}
+</div>
+{{end}}
 <div id="posts-grid" class="posts-grid">
   {{template "posts-items" .}}
 </div>
@@ -41,6 +48,54 @@ function updateRandomButton() {
 }
 updateRandomButton();
 
+function cycleTagFilter(btn) {
+  var tags = JSON.parse(btn.dataset.tags);
+  var input = document.getElementById('posts-search');
+  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== ''; });
+
+  var activeIndex = -1;
+  for (var i = 0; i < tags.length; i++) {
+    var idx = terms.indexOf(tags[i]);
+    if (idx >= 0) {
+      activeIndex = i;
+      terms.splice(idx, 1);
+      break;
+    }
+  }
+
+  if (activeIndex === -1) {
+    terms.push(tags[0]);
+  } else if (activeIndex < tags.length - 1) {
+    terms.push(tags[activeIndex + 1]);
+  }
+
+  input.value = terms.join(', ');
+  htmx.trigger(document.querySelector('.posts-controls'), 'submit');
+  updateTagFilterButtons();
+}
+
+function updateTagFilterButtons() {
+  var input = document.getElementById('posts-search');
+  var terms = input.value.split(',').map(function(s) { return s.trim(); });
+  var btns = document.querySelectorAll('.tag-filter-btn');
+  for (var i = 0; i < btns.length; i++) {
+    var btnTags = JSON.parse(btns[i].dataset.tags);
+    var active = false;
+    for (var j = 0; j < btnTags.length; j++) {
+      if (terms.indexOf(btnTags[j]) >= 0) {
+        active = true;
+        break;
+      }
+    }
+    if (active) {
+      btns[i].classList.add('btn-primary');
+    } else {
+      btns[i].classList.remove('btn-primary');
+    }
+  }
+}
+updateTagFilterButtons();
+
 (function() {
   var searchInput = document.getElementById('posts-search');
   var datalist = document.getElementById('search-suggestions');
@@ -48,6 +103,7 @@ updateRandomButton();
 
   searchInput.addEventListener('input', function() {
     updateRandomButton();
+    updateTagFilterButtons();
     clearTimeout(debounceTimer);
     var value = this.value;
     var lastCommaIdx = value.lastIndexOf(',');

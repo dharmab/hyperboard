@@ -24,6 +24,7 @@ spec:
             - --admin-password=hyperboard
             - --api-url=http://hyperboard-api
             - --log-level=debug
+            - --tag-filters=[{"label":"Rating","tags":["rating:safe","rating:questionable","rating:explicit"]},{"label":"No AI","tags":["-ai_generated"]}]
           ports:
             - name: http
               containerPort: 8080

@@ -47,6 +47,7 @@ func (app *App) handlePosts(w http.ResponseWriter, r *http.Request) {
 		Posts:      posts,
 		NextCursor: nextCursor,
 		Search:     search,
+		TagFilters: parseTagFilters(app.cfg.TagFilters),
 		Error:      loadErr,
 	}
 

@@ -261,6 +261,70 @@ func TestHandleNotes_GET(t *testing.T) {
 	}
 }
 
+func TestHandlePosts_WithTagFilters(t *testing.T) {
+	t.Parallel()
+	posts := []types.Post{}
+
+	mock := &mockAPIClient{
+		getWithQueryFn: func(ctx context.Context, path string, query url.Values, out any) error {
+			if strings.HasPrefix(path, "/api/v1/posts") {
+				resp := out.(*postsResponse)
+				resp.Items = &posts
+				return nil
+			}
+			return fmt.Errorf("unexpected path: %s", path)
+		},
+	}
+	app := newTestApp(mock)
+	app.cfg.TagFilters = `[{"label":"Rating","tags":["rating:safe","rating:explicit"]}]`
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	app.handlePosts(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "tag-filter-btn") {
+		t.Error("expected tag-filter-btn class in response body")
+	}
+	if !strings.Contains(body, "Rating") {
+		t.Error("expected button label 'Rating' in response body")
+	}
+	if !strings.Contains(body, "data-tags") {
+		t.Error("expected data-tags attribute in response body")
+	}
+}
+
+func TestHandlePosts_WithoutTagFilters(t *testing.T) {
+	t.Parallel()
+	posts := []types.Post{}
+
+	mock := &mockAPIClient{
+		getWithQueryFn: func(ctx context.Context, path string, query url.Values, out any) error {
+			if strings.HasPrefix(path, "/api/v1/posts") {
+				resp := out.(*postsResponse)
+				resp.Items = &posts
+				return nil
+			}
+			return fmt.Errorf("unexpected path: %s", path)
+		},
+	}
+	app := newTestApp(mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	app.handlePosts(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `class="tag-filters"`) {
+		t.Error("expected no tag-filters div when TagFilters config is empty")
+	}
+}
+
 func TestHandleNotes_POST(t *testing.T) {
 	t.Parallel()
 	createdID := types.ID(uuid.Must(uuid.NewV4()))

@@ -6,10 +6,16 @@ import (
 	"github.com/dharmab/hyperboard/internal/types"
 )
 
+type TagFilter struct {
+	Label string   `json:"label"`
+	Tags  []string `json:"tags"`
+}
+
 type PostsData struct {
 	Posts      []types.Post
 	NextCursor string
 	Search     string
+	TagFilters []TagFilter
 	Error      string
 }
 
