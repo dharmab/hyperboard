@@ -10,6 +10,7 @@ import (
 )
 
 func TestFitImage(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		srcW, srcH       int
@@ -50,6 +51,7 @@ func TestFitImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			img := image.NewRGBA(image.Rect(0, 0, tt.srcW, tt.srcH))
 			result := FitImage(img, tt.maxW, tt.maxH)
 			bounds := result.Bounds()
@@ -63,7 +65,7 @@ func TestFitImage(t *testing.T) {
 	}
 }
 
-func TestProcessImage(t *testing.T) {
+func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp binary
 	if _, err := exec.LookPath("cwebp"); err != nil {
 		t.Skip("cwebp not available")
 	}

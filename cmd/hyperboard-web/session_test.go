@@ -10,9 +10,11 @@ import (
 )
 
 func TestSignVerifySession(t *testing.T) {
+	t.Parallel()
 	secret := "test-secret-key"
 
 	t.Run("valid token", func(t *testing.T) {
+		t.Parallel()
 		token := signSession(secret)
 		if !verifySession(secret, token) {
 			t.Error("valid token should verify successfully")
@@ -20,6 +22,7 @@ func TestSignVerifySession(t *testing.T) {
 	})
 
 	t.Run("wrong secret rejects", func(t *testing.T) {
+		t.Parallel()
 		token := signSession(secret)
 		if verifySession("wrong-secret", token) {
 			t.Error("token signed with different secret should not verify")
@@ -27,6 +30,7 @@ func TestSignVerifySession(t *testing.T) {
 	})
 
 	t.Run("tampered token rejects", func(t *testing.T) {
+		t.Parallel()
 		token := signSession(secret)
 		tampered := token + "x"
 		if verifySession(secret, tampered) {
@@ -35,6 +39,7 @@ func TestSignVerifySession(t *testing.T) {
 	})
 
 	t.Run("malformed token rejects", func(t *testing.T) {
+		t.Parallel()
 		malformed := []string{
 			"",
 			"no-dot-separator",
@@ -49,6 +54,7 @@ func TestSignVerifySession(t *testing.T) {
 	})
 
 	t.Run("expired token rejects", func(t *testing.T) {
+		t.Parallel()
 		// Construct a token with an expired timestamp
 		expired := time.Now().Add(-(sessionExpiry + time.Hour))
 		ts := fmt.Sprintf("%d", expired.Unix())

@@ -94,6 +94,7 @@ func newTestApp(mock *mockAPIClient) *App {
 }
 
 func TestHandlePosts(t *testing.T) {
+	t.Parallel()
 	postID := types.ID(uuid.Must(uuid.NewV4()))
 	posts := []types.Post{{ID: postID, MimeType: "image/webp"}}
 
@@ -122,6 +123,7 @@ func TestHandlePosts(t *testing.T) {
 }
 
 func TestHandlePost_GET(t *testing.T) {
+	t.Parallel()
 	postID := types.ID(uuid.Must(uuid.NewV4()))
 	post := types.Post{
 		ID:           postID,
@@ -160,6 +162,7 @@ func TestHandlePost_GET(t *testing.T) {
 }
 
 func TestHandlePost_DELETE(t *testing.T) {
+	t.Parallel()
 	postID := types.ID(uuid.Must(uuid.NewV4()))
 
 	deleteCalled := false
@@ -185,6 +188,7 @@ func TestHandlePost_DELETE(t *testing.T) {
 }
 
 func TestHandleUpload_GET(t *testing.T) {
+	t.Parallel()
 	mock := &mockAPIClient{}
 	app := newTestApp(mock)
 
@@ -198,6 +202,7 @@ func TestHandleUpload_GET(t *testing.T) {
 }
 
 func TestHandleTags(t *testing.T) {
+	t.Parallel()
 	tags := []types.Tag{{Name: "test-tag"}}
 
 	mock := &mockAPIClient{
@@ -231,6 +236,7 @@ func TestHandleTags(t *testing.T) {
 }
 
 func TestHandleNotes_GET(t *testing.T) {
+	t.Parallel()
 	noteID := types.ID(uuid.Must(uuid.NewV4()))
 	notes := []types.Note{{ID: noteID, Title: "Test Note"}}
 
@@ -256,6 +262,7 @@ func TestHandleNotes_GET(t *testing.T) {
 }
 
 func TestHandleNotes_POST(t *testing.T) {
+	t.Parallel()
 	createdID := types.ID(uuid.Must(uuid.NewV4()))
 
 	mock := &mockAPIClient{

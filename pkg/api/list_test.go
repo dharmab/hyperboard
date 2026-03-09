@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestParseLimit(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		input  *int
@@ -17,6 +18,7 @@ func TestParseLimit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := parseLimit(tt.input); got != tt.expect {
 				t.Errorf("parseLimit() = %d, want %d", got, tt.expect)
 			}
@@ -25,6 +27,7 @@ func TestParseLimit(t *testing.T) {
 }
 
 func TestObfuscateCursorRoundTrip(t *testing.T) {
+	t.Parallel()
 	original := "test-cursor-value"
 	encoded := obfuscateCursor(original)
 	decoded, err := deobfuscateCursor(encoded)
@@ -37,6 +40,7 @@ func TestObfuscateCursorRoundTrip(t *testing.T) {
 }
 
 func TestDeobfuscateCursorInvalid(t *testing.T) {
+	t.Parallel()
 	_, err := deobfuscateCursor("not-valid-base64!!!")
 	if err == nil {
 		t.Error("expected error for invalid base64")
@@ -44,7 +48,9 @@ func TestDeobfuscateCursorInvalid(t *testing.T) {
 }
 
 func TestPaginate(t *testing.T) {
+	t.Parallel()
 	t.Run("more results available", func(t *testing.T) {
+		t.Parallel()
 		more, cursor := paginate(11, 10, func() string { return "page-value" })
 		if !more {
 			t.Error("expected more = true")
@@ -62,6 +68,7 @@ func TestPaginate(t *testing.T) {
 	})
 
 	t.Run("no more results", func(t *testing.T) {
+		t.Parallel()
 		more, cursor := paginate(10, 10, func() string { return "unused" })
 		if more {
 			t.Error("expected more = false")
@@ -72,6 +79,7 @@ func TestPaginate(t *testing.T) {
 	})
 
 	t.Run("fewer results than limit", func(t *testing.T) {
+		t.Parallel()
 		more, cursor := paginate(5, 10, func() string { return "unused" })
 		if more {
 			t.Error("expected more = false")

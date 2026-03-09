@@ -7,6 +7,7 @@ import (
 )
 
 func TestBasicAuthMiddleware(t *testing.T) {
+	t.Parallel()
 	const password = "secret123"
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -64,6 +65,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.setAuth {
 				req.SetBasicAuth(tt.user, tt.pass)

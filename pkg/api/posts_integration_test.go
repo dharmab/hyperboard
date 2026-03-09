@@ -79,6 +79,7 @@ func TestGetPost(t *testing.T) {
 }
 
 func TestPutPost(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
 	postID := types.ID(post.ID)
@@ -116,6 +117,7 @@ func TestPutPost(t *testing.T) {
 }
 
 func TestDeletePost(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
 	postID := types.ID(post.ID)

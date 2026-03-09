@@ -7,6 +7,7 @@ import (
 )
 
 func TestParseSearch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		input  string
@@ -141,6 +142,7 @@ func TestParseSearch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := parseSearch(tt.input)
 			if got.Sort != tt.expect.Sort {
 				t.Errorf("Sort = %q, want %q", got.Sort, tt.expect.Sort)
@@ -178,6 +180,7 @@ func TestParseSearch(t *testing.T) {
 }
 
 func TestMimeToExt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		mime string
 		ext  string
@@ -193,6 +196,7 @@ func TestMimeToExt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mime, func(t *testing.T) {
+			t.Parallel()
 			if got := mimeToExt(tt.mime); got != tt.ext {
 				t.Errorf("mimeToExt(%q) = %q, want %q", tt.mime, got, tt.ext)
 			}
@@ -201,6 +205,7 @@ func TestMimeToExt(t *testing.T) {
 }
 
 func TestEncodeDecodeRandomCursor(t *testing.T) {
+	t.Parallel()
 	original := randomCursor{Seed: 12345, Offset: 64}
 	encoded := encodeRandomCursor(original)
 	if encoded == "" {
@@ -220,8 +225,36 @@ func TestEncodeDecodeRandomCursor(t *testing.T) {
 }
 
 func TestDecodeRandomCursorInvalid(t *testing.T) {
+	t.Parallel()
 	var rc randomCursor
 	if err := decodeRandomCursor("not-valid-base64!!!", &rc); err == nil {
 		t.Error("expected error for invalid base64")
 	}
+}
+
+func FuzzParseSearch(f *testing.F) {
+	seeds := []string{
+		"",
+		"landscape",
+		"landscape,portrait",
+		" landscape , portrait ",
+		"sort:created",
+		"sort:updated",
+		"sort:random",
+		"sort:invalid",
+		"tagged:true",
+		"tagged:false",
+		"type:image",
+		"type:video",
+		"type:audio",
+		"-nsfw",
+		"landscape,-nsfw,sort:random,tagged:true,type:image",
+		"landscape,,portrait,",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, input string) {
+		parseSearch(input)
+	})
 }

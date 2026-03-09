@@ -1,4 +1,4 @@
-.PHONY: install-deps build-images generate lint format test start stop ci clean
+.PHONY: install-deps build-images generate lint format test coverage start stop ci clean
 
 install-deps:
 	brew install go k3d tilt
@@ -22,7 +22,10 @@ format:
 	gofmt -s -w .
 
 test:
-	go test ./...
+	go test -race ./...
+
+coverage:
+	go test -race -coverprofile=coverage.out ./... && go tool cover -func=coverage.out
 
 start:
 	k3d registry create hyperboard

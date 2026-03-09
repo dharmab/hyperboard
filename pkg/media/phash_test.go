@@ -7,7 +7,9 @@ import (
 )
 
 func TestDhash(t *testing.T) {
+	t.Parallel()
 	t.Run("identical images produce same hash", func(t *testing.T) {
+		t.Parallel()
 		img := syntheticImage(100, 100, color.White)
 		h1 := Dhash(img)
 		h2 := Dhash(img)
@@ -17,6 +19,7 @@ func TestDhash(t *testing.T) {
 	})
 
 	t.Run("different images produce different hashes", func(t *testing.T) {
+		t.Parallel()
 		img1 := checkerboardImage(100, 100, 10)
 		img2 := checkerboardImage(100, 100, 25)
 		h1 := Dhash(img1)
@@ -27,6 +30,7 @@ func TestDhash(t *testing.T) {
 	})
 
 	t.Run("patterned image produces non-zero hash", func(t *testing.T) {
+		t.Parallel()
 		img := checkerboardImage(100, 100, 10)
 		h := Dhash(img)
 		if h == 0 {

@@ -12,6 +12,7 @@ import (
 )
 
 func TestFetchAll(t *testing.T) {
+	t.Parallel()
 	postID := types.ID(uuid.Must(uuid.NewV4()))
 	now := time.Now().UTC()
 	posts := []types.Post{{
@@ -48,6 +49,7 @@ func TestFetchAll(t *testing.T) {
 }
 
 func TestDoRequest(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -71,7 +73,9 @@ func TestDoRequest(t *testing.T) {
 }
 
 func TestCheckStatus(t *testing.T) {
+	t.Parallel()
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
 		resp := &http.Response{StatusCode: 200, Body: http.NoBody}
 		if err := checkStatus(resp); err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -79,6 +83,7 @@ func TestCheckStatus(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
+		t.Parallel()
 		resp := &http.Response{StatusCode: 500, Body: http.NoBody}
 		if err := checkStatus(resp); err == nil {
 			t.Error("expected error for 500 status")
