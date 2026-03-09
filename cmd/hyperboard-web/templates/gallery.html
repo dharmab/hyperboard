@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "content"}}
+{{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <form class="gallery-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#gallery-grid" hx-trigger="submit">
   <input type="text" name="search" id="gallery-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
     list="search-suggestions"

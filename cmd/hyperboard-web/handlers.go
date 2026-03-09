@@ -27,10 +27,10 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp postsResponse
+	var loadErr string
 	if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
 		log.Error().Err(err).Str("search", search).Str("cursor", cursor).Msg("Failed to load posts")
-		http.Error(w, "Failed to load posts", http.StatusInternalServerError)
-		return
+		loadErr = fmt.Sprintf("Failed to load posts: %v", err)
 	}
 
 	posts := []types.Post{}
@@ -47,10 +47,15 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 		Posts:      posts,
 		NextCursor: nextCursor,
 		Search:     search,
+		Error:      loadErr,
 	}
 
 	// HTMX partial request (search or infinite scroll)
 	if r.Header.Get("HX-Request") == "true" {
+		if loadErr != "" {
+			http.Error(w, loadErr, http.StatusInternalServerError)
+			return
+		}
 		app.renderTemplate(w, r, "gallery-items", data)
 		return
 	}
@@ -66,7 +71,9 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		var post types.Post
 		if err := app.api.get(ctx, "/api/v1/posts/"+id, &post); err != nil {
-			http.Error(w, "Post not found", http.StatusNotFound)
+			app.renderTemplate(w, r, "post", PostData{
+				Error: fmt.Sprintf("Post not found: %v", err),
+			})
 			return
 		}
 		var fileSize int64
@@ -81,7 +88,10 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case http.MethodDelete:
-		_, _ = app.api.delete(ctx, "/api/v1/posts/"+id)
+		if _, err := app.api.delete(ctx, "/api/v1/posts/"+id); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to delete post: %v", err), http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
@@ -97,7 +107,10 @@ func (app *App) handlePostNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	post.Note = note
-	_, _ = app.api.put(ctx, "/api/v1/posts/"+id, post, nil)
+	if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -116,7 +129,10 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		tagName := r.FormValue("q")
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
-			_, _ = app.api.put(ctx, "/api/v1/posts/"+id, post, nil)
+			if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
+				http.Error(w, fmt.Sprintf("Failed to add tag: %v", err), http.StatusInternalServerError)
+				return
+			}
 		}
 	case http.MethodDelete:
 		tagToRemove := r.PathValue("tag")
@@ -127,7 +143,10 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		post.Tags = newTags
-		_, _ = app.api.put(ctx, "/api/v1/posts/"+id, post, nil)
+		if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to remove tag: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Re-fetch to get updated tags
@@ -283,6 +302,7 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Fetch all tags (paginate through all pages)
+	var errs []string
 	allTags := []types.Tag{}
 	cursor := ""
 	for {
@@ -293,6 +313,7 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 		}
 		var resp tagsResponse
 		if err := app.api.getWithQuery(ctx, "/api/v1/tags", q, &resp); err != nil {
+			errs = append(errs, fmt.Sprintf("Failed to load tags: %v", err))
 			break
 		}
 		if resp.Items != nil {
@@ -306,7 +327,9 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch categories for color map
 	var catResp tagCategoriesResponse
-	_ = app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp)
+	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp); err != nil {
+		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
+	}
 	colorMap := map[string]string{}
 	if catResp.Items != nil {
 		for _, c := range *catResp.Items {
@@ -314,7 +337,7 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	app.renderTemplate(w, r, "tags", TagsData{Tags: allTags, CategoryColors: colorMap})
+	app.renderTemplate(w, r, "tags", TagsData{Tags: allTags, CategoryColors: colorMap, Error: strings.Join(errs, "; ")})
 }
 
 func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +347,10 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch categories for dropdown
 	var catResp tagCategoriesResponse
-	_ = app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp)
+	var catErr string
+	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp); err != nil {
+		catErr = fmt.Sprintf("Failed to load categories: %v", err)
+	}
 	cats := []types.TagCategory{}
 	if catResp.Items != nil {
 		cats = *catResp.Items
@@ -333,10 +359,13 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		tag := types.Tag{}
-		var editErr string
+		var errs []string
+		if catErr != "" {
+			errs = append(errs, catErr)
+		}
 		if !isNew {
 			if err := app.api.get(ctx, "/api/v1/tags/"+name, &tag); err != nil {
-				editErr = fmt.Sprintf("Failed to load tag: %v", err)
+				errs = append(errs, fmt.Sprintf("Failed to load tag: %v", err))
 			}
 		}
 		var aliases []string
@@ -349,7 +378,7 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 			Categories:  cats,
 			CurrentName: name,
 			IsNew:       isNew,
-			Error:       editErr,
+			Error:       strings.Join(errs, "; "),
 		})
 
 	case http.MethodPost:
@@ -394,7 +423,10 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
 
 	case http.MethodDelete:
-		_, _ = app.api.delete(ctx, "/api/v1/tags/"+name)
+		if _, err := app.api.delete(ctx, "/api/v1/tags/"+name); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to delete tag: %v", err), http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
 	}
 }
@@ -463,7 +495,10 @@ func (app *App) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) 
 			newTags = append(newTags, targetName)
 		}
 		post.Tags = newTags
-		_, _ = app.api.put(ctx, fmt.Sprintf("/api/v1/posts/%s", post.ID), post, nil)
+		if _, err := app.api.put(ctx, fmt.Sprintf("/api/v1/posts/%s", post.ID), post, nil); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to re-tag post %s: %v", post.ID, err), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Build the new alias list for the target tag:
@@ -479,19 +514,29 @@ func (app *App) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) 
 
 	// Delete the source tag first (so its name is freed for use as an alias,
 	// and its aliases are removed by CASCADE)
-	_, _ = app.api.delete(ctx, "/api/v1/tags/"+sourceName)
+	if _, err := app.api.delete(ctx, "/api/v1/tags/"+sourceName); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete source tag: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	// Update target tag with the merged aliases
 	targetTag.Aliases = &targetAliases
-	_, _ = app.api.put(ctx, "/api/v1/tags/"+targetName, targetTag, nil)
+	if _, err := app.api.put(ctx, "/api/v1/tags/"+targetName, targetTag, nil); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update target tag aliases: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, "/tags/"+targetName, http.StatusSeeOther)
 }
 
 func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	var errs []string
+
 	var resp tagCategoriesResponse
-	_ = app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &resp)
+	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &resp); err != nil {
+		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
+	}
 	cats := []types.TagCategory{}
 	if resp.Items != nil {
 		cats = *resp.Items
@@ -508,6 +553,7 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 		}
 		var tagsResp tagsResponse
 		if err := app.api.getWithQuery(ctx, "/api/v1/tags", q, &tagsResp); err != nil {
+			errs = append(errs, fmt.Sprintf("Failed to load tags: %v", err))
 			break
 		}
 		if tagsResp.Items != nil {
@@ -523,7 +569,7 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 		cursor = *tagsResp.Cursor
 	}
 
-	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats, TagCounts: tagCounts})
+	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats, TagCounts: tagCounts, Error: strings.Join(errs, "; ")})
 }
 
 func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
@@ -534,13 +580,17 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		cat := types.TagCategory{Color: "#888888"}
+		var editErr string
 		if !isNew {
-			_ = app.api.get(ctx, "/api/v1/tagCategories/"+name, &cat)
+			if err := app.api.get(ctx, "/api/v1/tagCategories/"+name, &cat); err != nil {
+				editErr = fmt.Sprintf("Failed to load category: %v", err)
+			}
 		}
 		app.renderTemplate(w, r, "tag_category_edit", TagCategoryEditData{
 			Category:    cat,
 			CurrentName: name,
 			IsNew:       isNew,
+			Error:       editErr,
 		})
 
 	case http.MethodPost:
@@ -560,10 +610,7 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := app.api.put(ctx, "/api/v1/tagCategories/"+urlName, cat, nil)
 		if err != nil {
-			errMsg := "Failed to save category"
-			if err != nil {
-				errMsg = err.Error()
-			}
+			errMsg := fmt.Sprintf("Failed to save category: %v", err)
 			app.renderTemplate(w, r, "tag_category_edit", TagCategoryEditData{
 				Category:    cat,
 				CurrentName: name,
@@ -575,7 +622,10 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/tag-categories", http.StatusSeeOther)
 
 	case http.MethodDelete:
-		_, _ = app.api.delete(ctx, "/api/v1/tagCategories/"+name)
+		if _, err := app.api.delete(ctx, "/api/v1/tagCategories/"+name); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to delete category: %v", err), http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/tag-categories", http.StatusSeeOther)
 	}
 }
@@ -587,18 +637,30 @@ func (app *App) handleNotes(w http.ResponseWriter, r *http.Request) {
 		// Create new note
 		note := types.Note{Title: "New Note"}
 		var created types.Note
-		_, _ = app.api.post(ctx, "/api/v1/notes", note, &created)
+		if _, err := app.api.post(ctx, "/api/v1/notes", note, &created); err != nil {
+			var resp notesResponse
+			_ = app.api.get(ctx, "/api/v1/notes", &resp)
+			notes := []types.Note{}
+			if resp.Items != nil {
+				notes = *resp.Items
+			}
+			app.renderTemplate(w, r, "notes", NotesData{Notes: notes, Error: fmt.Sprintf("Failed to create note: %v", err)})
+			return
+		}
 		http.Redirect(w, r, fmt.Sprintf("/notes/%s", created.ID), http.StatusSeeOther)
 		return
 	}
 
 	var resp notesResponse
-	_ = app.api.get(ctx, "/api/v1/notes", &resp)
+	var loadErr string
+	if err := app.api.get(ctx, "/api/v1/notes", &resp); err != nil {
+		loadErr = fmt.Sprintf("Failed to load notes: %v", err)
+	}
 	notes := []types.Note{}
 	if resp.Items != nil {
 		notes = *resp.Items
 	}
-	app.renderTemplate(w, r, "notes", NotesData{Notes: notes})
+	app.renderTemplate(w, r, "notes", NotesData{Notes: notes, Error: loadErr})
 }
 
 func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
@@ -610,13 +672,16 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 		if id == "_new" {
 			note := types.Note{Title: "New Note"}
 			var created types.Note
-			_, _ = app.api.post(ctx, "/api/v1/notes", note, &created)
+			if _, err := app.api.post(ctx, "/api/v1/notes", note, &created); err != nil {
+				app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Failed to create note: %v", err)})
+				return
+			}
 			http.Redirect(w, r, fmt.Sprintf("/notes/%s", created.ID), http.StatusSeeOther)
 			return
 		}
 		var note types.Note
 		if err := app.api.get(ctx, "/api/v1/notes/"+id, &note); err != nil {
-			http.Error(w, "Note not found", http.StatusNotFound)
+			app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Note not found: %v", err)})
 			return
 		}
 		rendered := renderMarkdown(note.Content)
@@ -625,17 +690,26 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		var note types.Note
-		_ = app.api.get(ctx, "/api/v1/notes/"+id, &note)
+		if err := app.api.get(ctx, "/api/v1/notes/"+id, &note); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to load note: %v", err), http.StatusInternalServerError)
+			return
+		}
 		note.Title = r.FormValue("title")
 		note.Content = r.FormValue("content")
-		_, _ = app.api.put(ctx, "/api/v1/notes/"+id, note, nil)
+		if _, err := app.api.put(ctx, "/api/v1/notes/"+id, note, nil); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+			return
+		}
 		// Return rendered markdown for HTMX swap
 		rendered := renderMarkdown(note.Content)
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = fmt.Fprintf(w, `<div id="note-view" class="note-content mt-2">%s</div>`, string(rendered))
 
 	case http.MethodDelete:
-		_, _ = app.api.delete(ctx, "/api/v1/notes/"+id)
+		if _, err := app.api.delete(ctx, "/api/v1/notes/"+id); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to delete note: %v", err), http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/notes", http.StatusSeeOther)
 	}
 }

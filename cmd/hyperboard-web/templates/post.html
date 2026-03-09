@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "content"}}
+{{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls">
   <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · {{.FileSize | formatSize}}{{end}}</span>
   <span id="media-mode-fit" class="media-mode-option media-mode-option--active" onclick="setMediaMode('fit')">Fit</span>

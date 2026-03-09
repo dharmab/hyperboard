@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "content"}}
+{{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="flex items-center gap-2 mt-1">
   <h1>Tag Categories</h1>
   <a href="/tag-categories/_new" class="btn btn-primary">New Category</a>

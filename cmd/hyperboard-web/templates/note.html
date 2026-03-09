@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "content"}}
+{{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="flex items-center gap-2 mt-1">
   <input type="text" id="note-title" name="title" value="{{.Note.Title}}" style="font-size:1.5rem;font-weight:bold;background:transparent;border:none;border-bottom:1px solid var(--base02);border-radius:0;width:auto;flex:1">
   <button class="btn btn-danger"
