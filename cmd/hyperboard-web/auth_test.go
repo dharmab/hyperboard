@@ -19,7 +19,7 @@ func TestHandleLogin_GET(t *testing.T) {
 	t.Parallel()
 	app := newTestAppWithAuth(&mockAPIClient{})
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
@@ -33,7 +33,7 @@ func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
 	app := newTestAppWithAuth(&mockAPIClient{})
 
 	form := url.Values{"password": {"secret123"}}
-	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
@@ -61,7 +61,7 @@ func TestHandleLogin_POST_WrongPassword(t *testing.T) {
 	app := newTestAppWithAuth(&mockAPIClient{})
 
 	form := url.Values{"password": {"wrong"}}
-	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
@@ -78,7 +78,7 @@ func TestHandleLogin_UnsupportedMethod(t *testing.T) {
 	t.Parallel()
 	app := newTestAppWithAuth(&mockAPIClient{})
 
-	req := httptest.NewRequest(http.MethodPut, "/login", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/login", nil)
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
@@ -91,7 +91,7 @@ func TestHandleLogout(t *testing.T) {
 	t.Parallel()
 	app := newTestAppWithAuth(&mockAPIClient{})
 
-	req := httptest.NewRequest(http.MethodGet, "/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/logout", nil)
 	w := httptest.NewRecorder()
 	app.handleLogout(w, req)
 
@@ -117,7 +117,7 @@ func TestSessionMiddleware_NoCookie(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -134,7 +134,7 @@ func TestSessionMiddleware_InvalidCookie(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "invalid-token"})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -153,7 +153,7 @@ func TestSessionMiddleware_ValidCookie(t *testing.T) {
 	}))
 
 	token := signSession(app.cfg.SessionSecret)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

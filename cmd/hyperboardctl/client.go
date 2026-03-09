@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +10,7 @@ import (
 )
 
 func doRequest(cfg *Config, method, reqURL, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(method, reqURL, body)
+	req, err := http.NewRequestWithContext(context.TODO(), method, reqURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}

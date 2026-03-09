@@ -110,8 +110,9 @@ func run() error {
 	mux.Handle("/", app.sessionMiddleware(protected))
 
 	httpServer := &http.Server{
-		Handler: httplog.RequestLoggingMiddleware(mux),
-		Addr:    ":" + cfg.Port,
+		Handler:           httplog.RequestLoggingMiddleware(mux),
+		Addr:              ":" + cfg.Port,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

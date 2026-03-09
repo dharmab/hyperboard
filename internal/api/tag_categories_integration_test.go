@@ -23,7 +23,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 			Color:       "#ff0000",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTagCategory(w, req, catName)
@@ -42,7 +42,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	})
 
 	t.Run("get tag category", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tagCategories/"+catName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tagCategories/"+catName, nil)
 		w := httptest.NewRecorder()
 		srv.GetTagCategory(w, req, catName)
 
@@ -60,7 +60,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	})
 
 	t.Run("list tag categories", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tagCategories", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tagCategories", nil)
 		w := httptest.NewRecorder()
 		srv.GetTagCategories(w, req, GetTagCategoriesParams{})
 
@@ -84,7 +84,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 			Color:       "#00ff00",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTagCategory(w, req, catName)
@@ -103,7 +103,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	})
 
 	t.Run("delete tag category", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/v1/tagCategories/"+catName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/tagCategories/"+catName, nil)
 		w := httptest.NewRecorder()
 		srv.DeleteTagCategory(w, req, catName)
 
@@ -113,7 +113,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	})
 
 	t.Run("get deleted tag category returns not found", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tagCategories/"+catName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tagCategories/"+catName, nil)
 		w := httptest.NewRecorder()
 		srv.GetTagCategory(w, req, catName)
 

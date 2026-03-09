@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +15,7 @@ import (
 
 func insertTestPost(t *testing.T, opts ...func(*models.PostSetter)) *models.Post {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	id := uuid.Must(uuid.NewV4())
 	mime := "image/webp"
 	contentURL := "http://fake-storage/posts/" + id.String() + "/content.webp"
@@ -49,7 +48,7 @@ func TestGetPost(t *testing.T) {
 	post := insertTestPost(t)
 
 	t.Run("existing post", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetPost(w, req, types.ID(post.ID))
 
@@ -68,7 +67,7 @@ func TestGetPost(t *testing.T) {
 
 	t.Run("nonexistent post", func(t *testing.T) {
 		fakeID := types.ID(uuid.Must(uuid.NewV4()))
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetPost(w, req, fakeID)
 
@@ -94,8 +93,11 @@ func TestPutPost(t *testing.T) {
 		Note:         "Updated note",
 		Tags:         []types.TagName{tagName},
 	}
-	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/posts/"+post.ID.String(), bytes.NewReader(b))
+	b, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+post.ID.String(), bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	srv.PutPost(w, req, postID)
@@ -122,7 +124,7 @@ func TestDeletePost(t *testing.T) {
 	post := insertTestPost(t)
 	postID := types.ID(post.ID)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/posts/"+post.ID.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/posts/"+post.ID.String(), nil)
 	w := httptest.NewRecorder()
 	srv.DeletePost(w, req, postID)
 
@@ -131,7 +133,7 @@ func TestDeletePost(t *testing.T) {
 	}
 
 	// Verify deleted
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
+	getReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
 	getW := httptest.NewRecorder()
 	srv.GetPost(getW, getReq, postID)
 	if getW.Code != http.StatusNotFound {
@@ -156,7 +158,7 @@ func TestGetPostsSearch(t *testing.T) {
 
 	t.Run("search by tag inclusion", func(t *testing.T) {
 		search := tag1Name
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?search="+search, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search, nil)
 		w := httptest.NewRecorder()
 		srv.GetPosts(w, req, GetPostsParams{Search: &search})
 
@@ -184,7 +186,7 @@ func TestGetPostsSearch(t *testing.T) {
 
 	t.Run("search by tag exclusion", func(t *testing.T) {
 		search := "-" + tag1Name
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?search="+search, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search, nil)
 		w := httptest.NewRecorder()
 		srv.GetPosts(w, req, GetPostsParams{Search: &search})
 
@@ -208,7 +210,7 @@ func TestGetPostsSearch(t *testing.T) {
 	t.Run("search untagged", func(t *testing.T) {
 		untaggedPost := insertTestPost(t)
 		search := "tagged:false"
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?search="+search, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search, nil)
 		w := httptest.NewRecorder()
 		srv.GetPosts(w, req, GetPostsParams{Search: &search})
 
@@ -236,7 +238,7 @@ func TestGetPostsSearch(t *testing.T) {
 
 	t.Run("search type image", func(t *testing.T) {
 		search := "type:image"
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?search="+search, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search, nil)
 		w := httptest.NewRecorder()
 		srv.GetPosts(w, req, GetPostsParams{Search: &search})
 
@@ -247,7 +249,7 @@ func TestGetPostsSearch(t *testing.T) {
 
 	t.Run("pagination", func(t *testing.T) {
 		limit := 1
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?limit=1", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?limit=1", nil)
 		w := httptest.NewRecorder()
 		srv.GetPosts(w, req, GetPostsParams{Limit: &limit})
 
@@ -270,7 +272,7 @@ func TestGetPostsSearch(t *testing.T) {
 
 func tagPost(t *testing.T, srv *Server, postID uuid.UUID, tagName string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create the tag
 	now := new(time.Now().UTC())

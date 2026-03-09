@@ -22,7 +22,7 @@ func TestNotesIntegration(t *testing.T) {
 			Content: "This is test content.",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/notes", bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/notes", bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.CreateNote(w, req)
@@ -45,7 +45,7 @@ func TestNotesIntegration(t *testing.T) {
 	})
 
 	t.Run("get note", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetNote(w, req, noteID)
 
@@ -63,7 +63,7 @@ func TestNotesIntegration(t *testing.T) {
 	})
 
 	t.Run("list notes", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/notes", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes", nil)
 		w := httptest.NewRecorder()
 		srv.GetNotes(w, req)
 
@@ -86,7 +86,7 @@ func TestNotesIntegration(t *testing.T) {
 			Content: "Updated content.",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/notes/"+uuid.UUID(noteID).String(), bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/notes/"+uuid.UUID(noteID).String(), bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutNote(w, req, noteID)
@@ -105,7 +105,7 @@ func TestNotesIntegration(t *testing.T) {
 	})
 
 	t.Run("delete note", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.DeleteNote(w, req, noteID)
 
@@ -115,7 +115,7 @@ func TestNotesIntegration(t *testing.T) {
 	})
 
 	t.Run("get deleted note returns not found", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes/"+uuid.UUID(noteID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetNote(w, req, noteID)
 
@@ -126,7 +126,7 @@ func TestNotesIntegration(t *testing.T) {
 
 	t.Run("get nonexistent note returns not found", func(t *testing.T) {
 		fakeID := types.ID(uuid.Must(uuid.NewV4()))
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/notes/"+uuid.UUID(fakeID).String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes/"+uuid.UUID(fakeID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetNote(w, req, fakeID)
 

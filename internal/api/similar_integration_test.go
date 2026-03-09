@@ -35,7 +35,7 @@ func TestGetSimilarPosts(t *testing.T) {
 
 	t.Run("returns similar posts", func(t *testing.T) {
 		postID := types.ID(post.ID)
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+post.ID.String()+"/similar", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String()+"/similar", nil)
 		w := httptest.NewRecorder()
 		srv.GetSimilarPosts(w, req, postID, GetSimilarPostsParams{})
 
@@ -55,7 +55,7 @@ func TestGetSimilarPosts(t *testing.T) {
 	t.Run("post without phash returns empty", func(t *testing.T) {
 		noPhashPost := insertTestPost(t)
 		postID := types.ID(noPhashPost.ID)
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+noPhashPost.ID.String()+"/similar", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+noPhashPost.ID.String()+"/similar", nil)
 		w := httptest.NewRecorder()
 		srv.GetSimilarPosts(w, req, postID, GetSimilarPostsParams{})
 
@@ -74,7 +74,7 @@ func TestGetSimilarPosts(t *testing.T) {
 
 	t.Run("nonexistent post returns not found", func(t *testing.T) {
 		fakeID := types.ID(uuid.Must(uuid.NewV4()))
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String()+"/similar", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String()+"/similar", nil)
 		w := httptest.NewRecorder()
 		srv.GetSimilarPosts(w, req, fakeID, GetSimilarPostsParams{})
 

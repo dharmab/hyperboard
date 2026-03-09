@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
@@ -38,7 +39,7 @@ func EncodeWebP(img image.Image, quality int) ([]byte, error) {
 	defer func() { _ = os.Remove(outFile.Name()) }()
 
 	cmd := exec.Command("cwebp",
-		"-q", fmt.Sprintf("%d", quality),
+		"-q", strconv.Itoa(quality),
 		inFile.Name(),
 		"-o", outFile.Name(),
 	)

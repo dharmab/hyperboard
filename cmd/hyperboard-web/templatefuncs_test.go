@@ -80,7 +80,7 @@ func TestCatColor(t *testing.T) {
 	t.Parallel()
 	funcs := templateFuncs()
 	catColor := funcs["catColor"].(func(map[string]string, *string) string)
-	defaultColor := "var(--base03)"
+	const defaultColor = "var(--base03)"
 
 	t.Run("nil cat", func(t *testing.T) {
 		t.Parallel()

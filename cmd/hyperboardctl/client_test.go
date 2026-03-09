@@ -76,7 +76,7 @@ func TestCheckStatus(t *testing.T) {
 	t.Parallel()
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
-		resp := &http.Response{StatusCode: 200, Body: http.NoBody}
+		resp := &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}
 		if err := checkStatus(resp); err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -84,7 +84,7 @@ func TestCheckStatus(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
-		resp := &http.Response{StatusCode: 500, Body: http.NoBody}
+		resp := &http.Response{StatusCode: http.StatusInternalServerError, Body: http.NoBody}
 		if err := checkStatus(resp); err == nil {
 			t.Error("expected error for 500 status")
 		}

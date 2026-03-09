@@ -419,7 +419,7 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 
 	// Look up source tag
 	var sourceID uuid.UUID
-	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", string(name)).Scan(&sourceID)
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", name).Scan(&sourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondWithError(w, http.StatusNotFound, "Source tag %q not found", name)
@@ -466,17 +466,16 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 		respondWithError(w, http.StatusInternalServerError, "Failed to collect source aliases")
 		return
 	}
+	defer func() { _ = aliasRows.Close() }()
 	var sourceAliases []string
 	for aliasRows.Next() {
 		var alias string
 		if err := aliasRows.Scan(&alias); err != nil {
-			_ = aliasRows.Close()
 			respondWithError(w, http.StatusInternalServerError, "Failed to read source aliases")
 			return
 		}
 		sourceAliases = append(sourceAliases, alias)
 	}
-	_ = aliasRows.Close()
 	if err := aliasRows.Err(); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to iterate source aliases")
 		return
@@ -490,7 +489,7 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 	}
 
 	// Add source name + source aliases as aliases of target
-	allNewAliases := append([]string{string(name)}, sourceAliases...)
+	allNewAliases := append([]string{name}, sourceAliases...)
 	for _, alias := range allNewAliases {
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO tag_aliases (tag_id, alias_name) VALUES ($1, $2) ON CONFLICT DO NOTHING",

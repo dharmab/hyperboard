@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"embed"
+	"errors"
 
 	"github.com/rs/zerolog/log"
 
@@ -36,7 +37,7 @@ func Migrate(dsn string) error {
 			log.Error().Err(err).Msg("Error closing migration database")
 		}
 	}()
-	if err := migrator.Up(); err != nil && err != migrate.ErrNoChange {
+	if err := migrator.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
 	return nil

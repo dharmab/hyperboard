@@ -118,8 +118,9 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	mux.HandleFunc("/media/", apiServer.HandleMedia)
 	authMiddleware := authmw.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
-		Handler: httplog.RequestLoggingMiddleware(authMiddleware(mux)),
-		Addr:    ":" + cfg.Port,
+		Handler:           httplog.RequestLoggingMiddleware(authMiddleware(mux)),
+		Addr:              ":" + cfg.Port,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	shutdownCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
@@ -140,6 +141,7 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 		log.Info().Msg("Shutting down API server...")
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		//nolint:contextcheck // intentional: using fresh context for graceful shutdown after signal cancellation
 		if err := httpServer.Shutdown(timeoutCtx); err != nil {
 			return fmt.Errorf("failed to shut down API server: %w", err)
 		}

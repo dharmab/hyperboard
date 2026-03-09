@@ -12,6 +12,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const newResourceName = "_new"
+
 func (app *App) handlePosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	search := r.URL.Query().Get("search")
@@ -241,14 +243,14 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	for _, header := range files {
 		file, err := header.Open()
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("%s: failed to open", header.Filename))
+			errors = append(errors, header.Filename+": failed to open")
 			continue
 		}
 
 		data, err := io.ReadAll(file)
 		_ = file.Close()
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("%s: failed to read", header.Filename))
+			errors = append(errors, header.Filename+": failed to read")
 			continue
 		}
 
@@ -273,16 +275,20 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write(respBody)
 				return
 			}
-			var apiErr struct{ Message string }
+			var apiErr struct {
+				Message string `json:"message"`
+			}
 			if json.Unmarshal(respBody, &apiErr) == nil {
 				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
 			} else {
-				errors = append(errors, fmt.Sprintf("%s: duplicate detected", header.Filename))
+				errors = append(errors, header.Filename+": duplicate detected")
 			}
 			continue
 		}
 		if statusCode >= 400 {
-			var apiErr struct{ Message string }
+			var apiErr struct {
+				Message string `json:"message"`
+			}
 			if json.Unmarshal(respBody, &apiErr) == nil && apiErr.Message != "" {
 				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
 			} else {
@@ -314,7 +320,7 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(errors) > 0 {
-		app.renderTemplate(w, r, "upload", map[string]any{"Error": fmt.Sprintf("Some uploads failed: %s", strings.Join(errors, "; "))})
+		app.renderTemplate(w, r, "upload", map[string]any{"Error": "Some uploads failed: " + strings.Join(errors, "; ")})
 		return
 	}
 
@@ -328,7 +334,7 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 func (app *App) respondJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data) //nolint:errchkjson // encoding response to HTTP writer, error is not actionable
 }
 
 func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
@@ -376,7 +382,7 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := r.PathValue("name")
-	isNew := name == "_new"
+	isNew := name == newResourceName
 
 	// Fetch categories for dropdown
 	var catResp tagCategoriesResponse
@@ -530,7 +536,7 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := r.PathValue("name")
-	isNew := name == "_new"
+	isNew := name == newResourceName
 
 	switch r.Method {
 	case http.MethodGet:
@@ -624,7 +630,7 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		if id == "_new" {
+		if id == newResourceName {
 			note := types.Note{Title: "New Note"}
 			var created types.Note
 			if _, err := app.api.post(ctx, "/api/v1/notes", note, &created); err != nil {

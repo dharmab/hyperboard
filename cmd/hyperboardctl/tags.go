@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const noCategoryLabel = "(none)"
+
 type editableTag struct {
 	Name        string  `yaml:"name"`
 	Category    *string `yaml:"category,omitempty"`
@@ -90,7 +92,7 @@ func getTag(name string) error {
 		return err
 	}
 	return printResource(tag, func() [][2]string {
-		cat := "(none)"
+		cat := noCategoryLabel
 		if tag.Category != nil {
 			cat = *tag.Category
 		}
@@ -112,7 +114,7 @@ func listTags() error {
 	return printList(tags, []string{"NAME", "CATEGORY", "DESCRIPTION"}, func() [][]string {
 		rows := make([][]string, 0, len(tags))
 		for _, t := range tags {
-			cat := "(none)"
+			cat := noCategoryLabel
 			if t.Category != nil {
 				cat = *t.Category
 			}
@@ -140,7 +142,7 @@ func createTag(name string, tag types.Tag) error {
 		return err
 	}
 	return printResource(created, func() [][2]string {
-		cat := "(none)"
+		cat := noCategoryLabel
 		if created.Category != nil {
 			cat = *created.Category
 		}
@@ -206,7 +208,7 @@ func editTag(name string) error {
 		return err
 	}
 	return printResource(result, func() [][2]string {
-		cat := "(none)"
+		cat := noCategoryLabel
 		if result.Category != nil {
 			cat = *result.Category
 		}

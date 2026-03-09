@@ -22,7 +22,7 @@ func TestTagsIntegration(t *testing.T) {
 			Description: "A test tag",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTag(w, req, tagName)
@@ -41,7 +41,7 @@ func TestTagsIntegration(t *testing.T) {
 	})
 
 	t.Run("get tag", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags/"+tagName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tags/"+tagName, nil)
 		w := httptest.NewRecorder()
 		srv.GetTag(w, req, tagName)
 
@@ -59,7 +59,7 @@ func TestTagsIntegration(t *testing.T) {
 	})
 
 	t.Run("list tags", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tags", nil)
 		w := httptest.NewRecorder()
 		srv.GetTags(w, req, GetTagsParams{})
 
@@ -82,7 +82,7 @@ func TestTagsIntegration(t *testing.T) {
 			Description: "Updated description",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTag(w, req, tagName)
@@ -107,7 +107,7 @@ func TestTagsIntegration(t *testing.T) {
 			Description: "Updated description",
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTag(w, req, tagName)
@@ -127,7 +127,7 @@ func TestTagsIntegration(t *testing.T) {
 			Aliases: &aliases,
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTag(w, req, tagName)
@@ -150,7 +150,7 @@ func TestTagsIntegration(t *testing.T) {
 		catName := "tag-test-cat-" + uuid.Must(uuid.NewV4()).String()[:8]
 		catBody := types.TagCategory{Name: catName, Description: "For tag test"}
 		cb, _ := json.Marshal(catBody)
-		catReq := httptest.NewRequest(http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(cb))
+		catReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(cb))
 		catReq.Header.Set("Content-Type", "application/json")
 		catW := httptest.NewRecorder()
 		srv.PutTagCategory(catW, catReq, catName)
@@ -164,7 +164,7 @@ func TestTagsIntegration(t *testing.T) {
 			Category: &catName,
 		}
 		b, _ := json.Marshal(body)
-		req := httptest.NewRequest(http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		srv.PutTag(w, req, tagName)
@@ -183,7 +183,7 @@ func TestTagsIntegration(t *testing.T) {
 	})
 
 	t.Run("delete tag", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/v1/tags/"+tagName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/tags/"+tagName, nil)
 		w := httptest.NewRecorder()
 		srv.DeleteTag(w, req, tagName)
 
@@ -193,7 +193,7 @@ func TestTagsIntegration(t *testing.T) {
 	})
 
 	t.Run("get deleted tag returns not found", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags/"+tagName, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tags/"+tagName, nil)
 		w := httptest.NewRecorder()
 		srv.GetTag(w, req, tagName)
 

@@ -1,9 +1,9 @@
 package api
 
 import (
-	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/dharmab/hyperboard/internal/storage"
@@ -50,7 +50,7 @@ func (s *Server) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", obj.ContentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if obj.ContentLength > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", obj.ContentLength))
+		w.Header().Set("Content-Length", strconv.FormatInt(obj.ContentLength, 10))
 	}
 	_, _ = io.Copy(w, obj.Body)
 }

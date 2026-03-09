@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,7 +16,7 @@ const sessionExpiry = 30 * 24 * time.Hour
 
 // signSession creates an HMAC-signed session token: base64(timestamp) + "." + base64(hmac)
 func signSession(secret string) string {
-	ts := fmt.Sprintf("%d", time.Now().Unix())
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(ts))
 	sig := mac.Sum(nil)

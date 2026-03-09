@@ -4,7 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -57,7 +57,7 @@ func TestSignVerifySession(t *testing.T) {
 		t.Parallel()
 		// Construct a token with an expired timestamp
 		expired := time.Now().Add(-(sessionExpiry + time.Hour))
-		ts := fmt.Sprintf("%d", expired.Unix())
+		ts := strconv.FormatInt(expired.Unix(), 10)
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write([]byte(ts))
 		sig := mac.Sum(nil)

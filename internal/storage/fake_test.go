@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"io"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 func TestFakeStorage_UploadDownloadRoundTrip(t *testing.T) {
 	t.Parallel()
 	fs := NewFakeStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	data := []byte("hello world")
 	contentType := "text/plain"
@@ -42,7 +41,7 @@ func TestFakeStorage_UploadDownloadRoundTrip(t *testing.T) {
 func TestFakeStorage_DownloadNonexistent(t *testing.T) {
 	t.Parallel()
 	fs := NewFakeStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err := fs.Download(ctx, "missing")
 	if err == nil {
@@ -53,7 +52,7 @@ func TestFakeStorage_DownloadNonexistent(t *testing.T) {
 func TestFakeStorage_DeleteThenDownload(t *testing.T) {
 	t.Parallel()
 	fs := NewFakeStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err := fs.Upload(ctx, "key1", []byte("data"), "text/plain")
 	if err != nil {
@@ -72,7 +71,7 @@ func TestFakeStorage_DeleteThenDownload(t *testing.T) {
 func TestFakeStorage_UploadOverwrites(t *testing.T) {
 	t.Parallel()
 	fs := NewFakeStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := fs.Upload(ctx, "key1", []byte("first"), "text/plain"); err != nil {
 		t.Fatalf("Upload() error = %v", err)

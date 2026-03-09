@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -29,56 +30,56 @@ func (m *mockAPIClient) get(ctx context.Context, path string, out any) error {
 	if m.getFunc != nil {
 		return m.getFunc(ctx, path, out)
 	}
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (m *mockAPIClient) getWithQuery(ctx context.Context, path string, query url.Values, out any) error {
 	if m.getWithQueryFn != nil {
 		return m.getWithQueryFn(ctx, path, query, out)
 	}
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (m *mockAPIClient) getRaw(ctx context.Context, path string) (*http.Response, error) {
 	if m.getRawFn != nil {
 		return m.getRawFn(ctx, path)
 	}
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (m *mockAPIClient) head(ctx context.Context, path string) (*http.Response, error) {
 	if m.headFn != nil {
 		return m.headFn(ctx, path)
 	}
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (m *mockAPIClient) post(ctx context.Context, path string, body any, out any) (int, error) {
 	if m.postFn != nil {
 		return m.postFn(ctx, path, body, out)
 	}
-	return 0, fmt.Errorf("not implemented")
+	return 0, errors.New("not implemented")
 }
 
 func (m *mockAPIClient) put(ctx context.Context, path string, body any, out any) (int, error) {
 	if m.putFn != nil {
 		return m.putFn(ctx, path, body, out)
 	}
-	return 0, fmt.Errorf("not implemented")
+	return 0, errors.New("not implemented")
 }
 
 func (m *mockAPIClient) delete(ctx context.Context, path string) (int, error) {
 	if m.deleteFn != nil {
 		return m.deleteFn(ctx, path)
 	}
-	return 0, fmt.Errorf("not implemented")
+	return 0, errors.New("not implemented")
 }
 
 func (m *mockAPIClient) uploadFile(ctx context.Context, data []byte, contentType string, force bool, out any) (int, []byte, error) {
 	if m.uploadFileFn != nil {
 		return m.uploadFileFn(ctx, data, contentType, force, out)
 	}
-	return 0, nil, fmt.Errorf("not implemented")
+	return 0, nil, errors.New("not implemented")
 }
 
 func newTestApp(mock *mockAPIClient) *App {
@@ -110,7 +111,7 @@ func TestHandlePosts(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
@@ -151,7 +152,7 @@ func TestHandlePost_GET(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/posts/"+postID.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/posts/"+postID.String(), nil)
 	req.SetPathValue("id", postID.String())
 	w := httptest.NewRecorder()
 	app.handlePost(w, req)
@@ -174,7 +175,7 @@ func TestHandlePost_DELETE(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodDelete, "/posts/"+postID.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/posts/"+postID.String(), nil)
 	req.SetPathValue("id", postID.String())
 	w := httptest.NewRecorder()
 	app.handlePost(w, req)
@@ -192,7 +193,7 @@ func TestHandleUpload_GET(t *testing.T) {
 	mock := &mockAPIClient{}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/upload", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/upload", nil)
 	w := httptest.NewRecorder()
 	app.handleUpload(w, req)
 
@@ -223,7 +224,7 @@ func TestHandleTags(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/tags", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tags", nil)
 	w := httptest.NewRecorder()
 	app.handleTags(w, req)
 
@@ -249,7 +250,7 @@ func TestHandleNotes_GET(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/notes", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes", nil)
 	w := httptest.NewRecorder()
 	app.handleNotes(w, req)
 
@@ -278,7 +279,7 @@ func TestHandlePosts_WithTagFilters(t *testing.T) {
 	app := newTestApp(mock)
 	app.cfg.TagFilters = `[{"label":"Rating","tags":["rating:safe","rating:explicit"]}]`
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
@@ -313,7 +314,7 @@ func TestHandlePosts_WithoutTagFilters(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
@@ -332,7 +333,10 @@ func TestHandleNotes_POST(t *testing.T) {
 	mock := &mockAPIClient{
 		postFn: func(ctx context.Context, path string, body any, out any) (int, error) {
 			if out != nil {
-				data, _ := json.Marshal(types.Note{ID: createdID, Title: "New Note"})
+				data, err := json.Marshal(types.Note{ID: createdID, Title: "New Note"})
+				if err != nil {
+					panic(err)
+				}
 				_ = json.Unmarshal(data, out)
 			}
 			return http.StatusCreated, nil
@@ -340,7 +344,7 @@ func TestHandleNotes_POST(t *testing.T) {
 	}
 	app := newTestApp(mock)
 
-	req := httptest.NewRequest(http.MethodPost, "/notes", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/notes", nil)
 	w := httptest.NewRecorder()
 	app.handleNotes(w, req)
 

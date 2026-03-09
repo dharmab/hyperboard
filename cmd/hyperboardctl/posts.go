@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,7 +35,7 @@ func init() {
 			if searchQuery != "" {
 				return searchPosts(searchQuery)
 			}
-			return fmt.Errorf("either provide a post ID or use --search")
+			return errors.New("either provide a post ID or use --search")
 		},
 	}
 	getPostCmd.Flags().StringVar(&searchQuery, "search", "", "Search query")

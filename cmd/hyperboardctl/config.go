@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -33,10 +33,10 @@ func loadConfig() (*Config, error) {
 	}
 
 	if cfg.APIURL == "" {
-		return nil, fmt.Errorf("API URL is required (set --api-url flag, HYPERBOARDCTL_API_URL env var, or api-url in config file)")
+		return nil, errors.New("API URL is required (set --api-url flag, HYPERBOARDCTL_API_URL env var, or api-url in config file)")
 	}
 	if cfg.AdminPassword == "" {
-		return nil, fmt.Errorf("admin password is required (set --admin-password flag, HYPERBOARDCTL_ADMIN_PASSWORD env var, or admin-password in config file)")
+		return nil, errors.New("admin password is required (set --admin-password flag, HYPERBOARDCTL_ADMIN_PASSWORD env var, or admin-password in config file)")
 	}
 
 	return cfg, nil

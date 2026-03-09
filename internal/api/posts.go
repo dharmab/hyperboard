@@ -98,6 +98,7 @@ type postCursor struct {
 }
 
 func encodePostCursor(pc postCursor) string {
+	//nolint:errchkjson // postCursor contains only string fields, json.Marshal cannot fail
 	data, _ := json.Marshal(pc)
 	return base64.StdEncoding.EncodeToString(data)
 }
@@ -117,6 +118,7 @@ type randomCursor struct {
 }
 
 func encodeRandomCursor(rc randomCursor) string {
+	//nolint:errchkjson // randomCursor contains only primitive fields, json.Marshal cannot fail
 	data, _ := json.Marshal(rc)
 	return base64.StdEncoding.EncodeToString(data)
 }
@@ -189,6 +191,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				WHERE pt.post_id = posts.id
 			)`,
 		)))
+	case types.TaggedFilterNone:
+		// No filter applied
 	}
 
 	// Apply type: virtual tag filters

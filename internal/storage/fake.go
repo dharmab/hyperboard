@@ -28,7 +28,7 @@ func (f *FakeStorage) Upload(_ context.Context, key string, data []byte, content
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.objects[key] = storageEntry{data: append([]byte(nil), data...), contentType: contentType}
-	return fmt.Sprintf("http://fake-storage/%s", key), nil
+	return "http://fake-storage/" + key, nil
 }
 
 func (f *FakeStorage) Download(_ context.Context, key string) (*StorageObject, error) {

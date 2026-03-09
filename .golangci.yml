@@ -2,8 +2,158 @@ version: "2"
 
 linters:
   enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - contextcheck
+    - copyloopvar
+    - dupword
+    - durationcheck
+    - errchkjson
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - goconst
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - intrange
+    - loggercheck
+    - makezero
+    - mirror
+    - musttag
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nolintlint
+    - nosprintfhostport
     - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - protogetter
+    - reassign
+    - recvcheck
+    - rowserrcheck
+    - spancheck
+    - sqlclosecheck
+    - testableexamples
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - zerologlint
+  disable:
+    # exhaustruct requires all struct fields to be explicitly initialized.
+    # This conflicts with idiomatic Go which relies on zero values.
+    - exhaustruct
+    # testpackage requires tests to be in separate _test packages (black-box testing).
+    # We use white-box testing to allow tests to access unexported functions.
+    - testpackage
   exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Integration tests use testcontainers and cannot run in parallel.
+      - linters:
+          - paralleltest
+          - tparallel
+        path: "_integration_test\\.go"
+      # hyperboardctl output tests use shared stdout capture and cannot run in parallel.
+      - linters:
+          - paralleltest
+          - tparallel
+        path: "cmd/hyperboardctl/output_test\\.go"
+      # HX-Request is the standard HTMX header name. The canonical Go casing
+      # does not match the HTMX spec.
+      - linters:
+          - canonicalheader
+        text: "HX-"
+      # The markdown renderer explicitly sanitizes HTML before converting to
+      # template.HTML. The gosec G203 warning is a false positive here.
+      - linters:
+          - gosec
+        path: "cmd/hyperboard-web/markdown\\.go"
+        text: "G203"
+      # The media processing commands use temporary file paths, not user input.
+      - linters:
+          - gosec
+        path: "internal/media/"
+        text: "G204"
+      # The web frontend API client constructs URLs from server configuration,
+      # not user input. SSRF is not a concern here.
+      - linters:
+          - gosec
+        path: "cmd/hyperboard-web/apiclient\\.go"
+        text: "G704"
+      # G120 (FormValue without MaxBytesReader) is a false positive for this
+      # application. The web frontend is behind session auth and the multipart
+      # form handler already enforces a 32MB limit.
+      - linters:
+          - gosec
+        path: "cmd/hyperboard-web/"
+        text: "G120"
+      # G705 (XSS via taint): the web frontend proxies API responses and the
+      # content is trusted.
+      - linters:
+          - gosec
+        path: "cmd/hyperboard-web/"
+        text: "G705"
+      # musttag on generated types (types.Tag) used in yaml.Unmarshal in tests.
+      # The generated types only have json tags, and adding yaml tags is not
+      # appropriate for generated code.
+      - linters:
+          - musttag
+        path: "cmd/hyperboardctl/output_test\\.go"
+      # G702 (command injection): the editor command comes from the user's
+      # EDITOR environment variable, which is standard Unix behavior.
+      - linters:
+          - gosec
+        path: "cmd/hyperboardctl/output\\.go"
+        text: "G702"
+      # G115 (integer overflow int->uint32): port numbers from net.Listen are
+      # always in valid uint16 range.
+      - linters:
+          - gosec
+        text: "G115"
+      # exec.Command in media processing (cwebp/ffmpeg) and the CLI editor
+      # launcher. Context propagation requires a larger refactor.
+      - linters:
+          - noctx
+        text: "os/exec.Command"
+      # net.Listen for ephemeral port discovery in test helpers and code
+      # generation scripts does not need context.
+      - linters:
+          - noctx
+        path: "(testdb_test|scripts/generate)"
+        text: "net.Listen"
     paths:
-      - "internal/api/.*_integration_test\\.go"
-      - "cmd/hyperboardctl/output_test\\.go"
+      - third_party$
+      - builtin$
+      - examples$
+
+issues:
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

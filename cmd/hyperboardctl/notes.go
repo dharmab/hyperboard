@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -58,7 +59,7 @@ func init() {
 				title = noteTitle
 				content = noteContent
 			} else {
-				return fmt.Errorf("either -f/--file or --title is required")
+				return errors.New("either -f/--file or --title is required")
 			}
 
 			return createNote(title, content)
