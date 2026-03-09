@@ -49,12 +49,17 @@ type TagTemplate struct {
 
 type tagR struct {
 	Posts       []*tagRPostsR
+	TagAliases  []*tagRTagAliasesR
 	TagCategory *tagRTagCategoryR
 }
 
 type tagRPostsR struct {
 	number int
 	o      *PostTemplate
+}
+type tagRTagAliasesR struct {
+	number int
+	o      *TagAliasTemplate
 }
 type tagRTagCategoryR struct {
 	o *TagCategoryTemplate
@@ -80,6 +85,19 @@ func (t TagTemplate) setModelRels(o *models.Tag) {
 			rel = append(rel, related...)
 		}
 		o.R.Posts = rel
+	}
+
+	if t.r.TagAliases != nil {
+		rel := models.TagAliasSlice{}
+		for _, r := range t.r.TagAliases {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.TagID = o.ID // h2
+				rel.R.Tag = o
+			}
+			rel = append(rel, related...)
+		}
+		o.R.TagAliases = rel
 	}
 
 	if t.r.TagCategory != nil {
@@ -208,15 +226,32 @@ func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *m
 		}
 	}
 
+	isTagAliasesDone, _ := tagRelTagAliasesCtx.Value(ctx)
+	if !isTagAliasesDone && o.r.TagAliases != nil {
+		ctx = tagRelTagAliasesCtx.WithValue(ctx, true)
+		for _, r := range o.r.TagAliases {
+			var rel1 models.TagAliasSlice
+			ctx, rel1, err = r.o.createMany(ctx, exec, r.number)
+			if err != nil {
+				return ctx, err
+			}
+
+			err = m.AttachTagAliases(ctx, exec, rel1...)
+			if err != nil {
+				return ctx, err
+			}
+		}
+	}
+
 	isTagCategoryDone, _ := tagRelTagCategoryCtx.Value(ctx)
 	if !isTagCategoryDone && o.r.TagCategory != nil {
 		ctx = tagRelTagCategoryCtx.WithValue(ctx, true)
-		var rel1 *models.TagCategory
-		ctx, rel1, err = o.r.TagCategory.o.create(ctx, exec)
+		var rel2 *models.TagCategory
+		ctx, rel2, err = o.r.TagCategory.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachTagCategory(ctx, exec, rel1)
+		err = m.AttachTagCategory(ctx, exec, rel2)
 		if err != nil {
 			return ctx, err
 		}
@@ -618,5 +653,43 @@ func (m tagMods) AddNewPosts(number int, mods ...PostMod) TagMod {
 func (m tagMods) WithoutPosts() TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
 		o.r.Posts = nil
+	})
+}
+
+func (m tagMods) WithTagAliases(number int, related *TagAliasTemplate) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.TagAliases = []*tagRTagAliasesR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m tagMods) WithNewTagAliases(number int, mods ...TagAliasMod) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		related := o.f.NewTagAlias(ctx, mods...)
+		m.WithTagAliases(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) AddTagAliases(number int, related *TagAliasTemplate) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.TagAliases = append(o.r.TagAliases, &tagRTagAliasesR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m tagMods) AddNewTagAliases(number int, mods ...TagAliasMod) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		related := o.f.NewTagAlias(ctx, mods...)
+		m.AddTagAliases(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) WithoutTagAliases() TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.TagAliases = nil
 	})
 }

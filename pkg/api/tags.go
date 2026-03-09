@@ -54,7 +54,7 @@ func (s *Server) getTagAliases(ctx context.Context, tagIDs ...uuid.UUID) (map[uu
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT tag_id, alias FROM tag_aliases WHERE tag_id IN ("+placeholders.String()+") ORDER BY alias",
+		"SELECT tag_id, alias_name FROM tag_aliases WHERE tag_id IN ("+placeholders.String()+") ORDER BY alias_name",
 		args...,
 	)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []s
 			continue
 		}
 		_, err := s.db.ExecContext(ctx,
-			"INSERT INTO tag_aliases (tag_id, alias) VALUES ($1, $2)",
+			"INSERT INTO tag_aliases (tag_id, alias_name) VALUES ($1, $2)",
 			tagID, alias,
 		)
 		if err != nil {
@@ -118,7 +118,7 @@ func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []s
 func (s *Server) resolveAlias(ctx context.Context, name string) (string, error) {
 	var canonical string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT t.name FROM tags t JOIN tag_aliases ta ON t.id = ta.tag_id WHERE ta.alias = $1",
+		"SELECT t.name FROM tags t JOIN tag_aliases ta ON t.id = ta.tag_id WHERE ta.alias_name = $1",
 		name,
 	).Scan(&canonical)
 	if err != nil {

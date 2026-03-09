@@ -1,6 +1,11 @@
+DROP TRIGGER IF EXISTS trg_check_tag_name_not_alias ON tags;
+DROP FUNCTION IF EXISTS check_tag_name_not_alias();
+DROP TRIGGER IF EXISTS trg_check_alias_not_tag_name ON tag_aliases;
+DROP FUNCTION IF EXISTS check_alias_not_tag_name();
 DROP TABLE IF EXISTS posts_tags;
 DROP TABLE IF EXISTS notes;
 DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS tag_aliases;
 DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS tag_categories;
 DROP EXTENSION IF EXISTS "uuid-ossp";

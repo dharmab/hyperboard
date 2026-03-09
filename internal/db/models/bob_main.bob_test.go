@@ -24,6 +24,9 @@ var _ bob.HookableType = &models.Post{}
 // Make sure the type PostsTag runs hooks after queries
 var _ bob.HookableType = &models.PostsTag{}
 
+// Make sure the type TagAlias runs hooks after queries
+var _ bob.HookableType = &models.TagAlias{}
+
 // Make sure the type TagCategory runs hooks after queries
 var _ bob.HookableType = &models.TagCategory{}
 

@@ -17,6 +17,7 @@ var (
 	noteCtx        = newContextual[*models.Note]("note")
 	postCtx        = newContextual[*models.Post]("post")
 	postsTagCtx    = newContextual[*models.PostsTag]("postsTag")
+	tagAliasCtx    = newContextual[*models.TagAlias]("tagAlias")
 	tagCategoryCtx = newContextual[*models.TagCategory]("tagCategory")
 	tagCtx         = newContextual[*models.Tag]("tag")
 
@@ -32,6 +33,10 @@ var (
 	postsTagRelPostCtx              = newContextual[bool]("posts.posts_tags.posts_tags.posts_tags_post_id_fkey")
 	postsTagRelTagCtx               = newContextual[bool]("posts_tags.tags.posts_tags.posts_tags_tag_id_fkey")
 
+	// Relationship Contexts for tag_aliases
+	tagAliasWithParentsCascadingCtx = newContextual[bool]("tagAliasWithParentsCascading")
+	tagAliasRelTagCtx               = newContextual[bool]("tag_aliases.tags.tag_aliases.tag_aliases_tag_id_fkey")
+
 	// Relationship Contexts for tag_categories
 	tagCategoryWithParentsCascadingCtx = newContextual[bool]("tagCategoryWithParentsCascading")
 	tagCategoryRelTagsCtx              = newContextual[bool]("tag_categories.tags.tags.tags_tag_category_id_fkey")
@@ -39,6 +44,7 @@ var (
 	// Relationship Contexts for tags
 	tagWithParentsCascadingCtx = newContextual[bool]("tagWithParentsCascading")
 	tagRelPostsCtx             = newContextual[bool]("posts.tags.posts_tags.posts_tags_post_id_fkeyposts_tags.posts_tags_tag_id_fkey")
+	tagRelTagAliasesCtx        = newContextual[bool]("tag_aliases.tags.tag_aliases.tag_aliases_tag_id_fkey")
 	tagRelTagCategoryCtx       = newContextual[bool]("tag_categories.tags.tags.tags_tag_category_id_fkey")
 )
 

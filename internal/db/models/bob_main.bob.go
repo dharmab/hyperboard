@@ -22,12 +22,14 @@ var TableNames = struct {
 	Notes         string
 	Posts         string
 	PostsTags     string
+	TagAliases    string
 	TagCategories string
 	Tags          string
 }{
 	Notes:         "notes",
 	Posts:         "posts",
 	PostsTags:     "posts_tags",
+	TagAliases:    "tag_aliases",
 	TagCategories: "tag_categories",
 	Tags:          "tags",
 }
@@ -36,6 +38,7 @@ var ColumnNames = struct {
 	Notes         noteColumnNames
 	Posts         postColumnNames
 	PostsTags     postsTagColumnNames
+	TagAliases    tagAliasColumnNames
 	TagCategories tagCategoryColumnNames
 	Tags          tagColumnNames
 }{
@@ -58,6 +61,12 @@ var ColumnNames = struct {
 	PostsTags: postsTagColumnNames{
 		PostID: "post_id",
 		TagID:  "tag_id",
+	},
+	TagAliases: tagAliasColumnNames{
+		ID:        "id",
+		TagID:     "tag_id",
+		AliasName: "alias_name",
+		CreatedAt: "created_at",
 	},
 	TagCategories: tagCategoryColumnNames{
 		ID:          "id",
@@ -88,6 +97,7 @@ func Where[Q psql.Filterable]() struct {
 	Notes         noteWhere[Q]
 	Posts         postWhere[Q]
 	PostsTags     postsTagWhere[Q]
+	TagAliases    tagAliasWhere[Q]
 	TagCategories tagCategoryWhere[Q]
 	Tags          tagWhere[Q]
 } {
@@ -95,12 +105,14 @@ func Where[Q psql.Filterable]() struct {
 		Notes         noteWhere[Q]
 		Posts         postWhere[Q]
 		PostsTags     postsTagWhere[Q]
+		TagAliases    tagAliasWhere[Q]
 		TagCategories tagCategoryWhere[Q]
 		Tags          tagWhere[Q]
 	}{
 		Notes:         buildNoteWhere[Q](NoteColumns),
 		Posts:         buildPostWhere[Q](PostColumns),
 		PostsTags:     buildPostsTagWhere[Q](PostsTagColumns),
+		TagAliases:    buildTagAliasWhere[Q](TagAliasColumns),
 		TagCategories: buildTagCategoryWhere[Q](TagCategoryColumns),
 		Tags:          buildTagWhere[Q](TagColumns),
 	}
@@ -111,6 +123,7 @@ var Preload = getPreloaders()
 type preloaders struct {
 	Post        postPreloader
 	PostsTag    postsTagPreloader
+	TagAlias    tagAliasPreloader
 	TagCategory tagCategoryPreloader
 	Tag         tagPreloader
 }
@@ -119,6 +132,7 @@ func getPreloaders() preloaders {
 	return preloaders{
 		Post:        buildPostPreloader(),
 		PostsTag:    buildPostsTagPreloader(),
+		TagAlias:    buildTagAliasPreloader(),
 		TagCategory: buildTagCategoryPreloader(),
 		Tag:         buildTagPreloader(),
 	}
@@ -133,6 +147,7 @@ var (
 type thenLoaders[Q orm.Loadable] struct {
 	Post        postThenLoader[Q]
 	PostsTag    postsTagThenLoader[Q]
+	TagAlias    tagAliasThenLoader[Q]
 	TagCategory tagCategoryThenLoader[Q]
 	Tag         tagThenLoader[Q]
 }
@@ -141,6 +156,7 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 	return thenLoaders[Q]{
 		Post:        buildPostThenLoader[Q](),
 		PostsTag:    buildPostsTagThenLoader[Q](),
+		TagAlias:    buildTagAliasThenLoader[Q](),
 		TagCategory: buildTagCategoryThenLoader[Q](),
 		Tag:         buildTagThenLoader[Q](),
 	}
@@ -189,6 +205,7 @@ func (j joinSet[Q]) AliasedAs(alias string) joinSet[Q] {
 type joins[Q dialect.Joinable] struct {
 	Posts         joinSet[postJoins[Q]]
 	PostsTags     joinSet[postsTagJoins[Q]]
+	TagAliases    joinSet[tagAliasJoins[Q]]
 	TagCategories joinSet[tagCategoryJoins[Q]]
 	Tags          joinSet[tagJoins[Q]]
 }
@@ -205,6 +222,7 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 	return joins[Q]{
 		Posts:         buildJoinSet[postJoins[Q]](PostColumns, buildPostJoins),
 		PostsTags:     buildJoinSet[postsTagJoins[Q]](PostsTagColumns, buildPostsTagJoins),
+		TagAliases:    buildJoinSet[tagAliasJoins[Q]](TagAliasColumns, buildTagAliasJoins),
 		TagCategories: buildJoinSet[tagCategoryJoins[Q]](TagCategoryColumns, buildTagCategoryJoins),
 		Tags:          buildJoinSet[tagJoins[Q]](TagColumns, buildTagJoins),
 	}

@@ -9,6 +9,7 @@ type Factory struct {
 	baseNoteMods        NoteModSlice
 	basePostMods        PostModSlice
 	basePostsTagMods    PostsTagModSlice
+	baseTagAliasMods    TagAliasModSlice
 	baseTagCategoryMods TagCategoryModSlice
 	baseTagMods         TagModSlice
 }
@@ -49,6 +50,18 @@ func (f *Factory) NewPostsTag(ctx context.Context, mods ...PostsTagMod) *PostsTa
 	}
 
 	PostsTagModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) NewTagAlias(ctx context.Context, mods ...TagAliasMod) *TagAliasTemplate {
+	o := &TagAliasTemplate{f: f}
+
+	if f != nil {
+		f.baseTagAliasMods.Apply(ctx, o)
+	}
+
+	TagAliasModSlice(mods).Apply(ctx, o)
 
 	return o
 }
@@ -99,6 +112,14 @@ func (f *Factory) ClearBasePostsTagMods() {
 
 func (f *Factory) AddBasePostsTagMod(mods ...PostsTagMod) {
 	f.basePostsTagMods = append(f.basePostsTagMods, mods...)
+}
+
+func (f *Factory) ClearBaseTagAliasMods() {
+	f.baseTagAliasMods = nil
+}
+
+func (f *Factory) AddBaseTagAliasMod(mods ...TagAliasMod) {
+	f.baseTagAliasMods = append(f.baseTagAliasMods, mods...)
 }
 
 func (f *Factory) ClearBaseTagCategoryMods() {
