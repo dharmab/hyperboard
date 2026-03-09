@@ -272,6 +272,57 @@ func TestGetPostsSearch(t *testing.T) {
 	})
 }
 
+func TestGetPostsSortRandom(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	// Insert enough posts to require pagination
+	for range 3 {
+		insertTestPost(t)
+	}
+
+	t.Run("first page", func(t *testing.T) {
+		search := "sort:random"
+		limit := 2
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search+"&limit=2", nil)
+		w := httptest.NewRecorder()
+		srv.GetPosts(w, req, GetPostsParams{Search: &search, Limit: &limit})
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+		}
+
+		var resp PostsResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if resp.Items == nil || len(*resp.Items) != 2 {
+			t.Fatalf("expected 2 items, got %v", resp.Items)
+		}
+		if resp.Cursor == nil {
+			t.Error("expected cursor for next page")
+		}
+
+		t.Run("second page", func(t *testing.T) {
+			req2 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search="+search+"&limit=2&cursor="+*resp.Cursor, nil)
+			w2 := httptest.NewRecorder()
+			srv.GetPosts(w2, req2, GetPostsParams{Search: &search, Limit: &limit, Cursor: resp.Cursor})
+
+			if w2.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body = %s", w2.Code, http.StatusOK, w2.Body.String())
+			}
+
+			var resp2 PostsResponse
+			if err := json.NewDecoder(w2.Body).Decode(&resp2); err != nil {
+				t.Fatalf("failed to decode: %v", err)
+			}
+			if resp2.Items == nil || len(*resp2.Items) == 0 {
+				t.Fatal("expected items on second page")
+			}
+		})
+	})
+}
+
 func tagPost(t *testing.T, srv *Server, postID uuid.UUID, tagName string) {
 	t.Helper()
 	ctx := t.Context()

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -223,7 +224,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		}
 
 		mods = append(mods,
-			sm.OrderBy(psql.Raw("md5(posts.id::text || $1::text)", currentSeed)),
+			sm.OrderBy(psql.Raw("md5(posts.id::text || ?)", strconv.FormatInt(currentSeed, 10))),
 			sm.Limit(int64(limit+1)),
 			sm.Offset(int64(offset)),
 		)
