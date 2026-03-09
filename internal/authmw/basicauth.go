@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// AdminUsername is the conventional username used for HTTP Basic Auth.
+const AdminUsername = "admin"
+
 // BasicAuthMiddleware returns a middleware that enforces HTTP Basic Auth.
 // Any username is accepted; the password must match adminPassword.
 // The paths in exemptPaths are allowed without authentication. Paths

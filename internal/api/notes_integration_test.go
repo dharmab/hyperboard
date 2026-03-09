@@ -12,6 +12,7 @@ import (
 )
 
 func TestNotesIntegration(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	var noteID types.ID

@@ -255,6 +255,12 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// uploadConflict records a conflict response from a single file upload.
+type uploadConflict struct {
+	Filename string
+	Body     []byte
+}
+
 func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	isXHR := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
@@ -285,6 +291,7 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	var lastPostID types.ID
 	var errors []string
+	var conflicts []uploadConflict
 	for _, header := range files {
 		file, err := header.Open()
 		if err != nil {
@@ -316,20 +323,7 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if resp.StatusCode() == http.StatusConflict {
-			if isXHR {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusConflict)
-				_, _ = w.Write(resp.Body)
-				return
-			}
-			var apiErr struct {
-				Message string `json:"message"`
-			}
-			if json.Unmarshal(resp.Body, &apiErr) == nil {
-				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
-			} else {
-				errors = append(errors, header.Filename+": duplicate detected")
-			}
+			conflicts = append(conflicts, uploadConflict{Filename: header.Filename, Body: resp.Body})
 			continue
 		}
 		if resp.StatusCode() >= 400 {
@@ -349,7 +343,27 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Convert conflicts to errors for non-XHR responses
+	for _, c := range conflicts {
+		var apiErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(c.Body, &apiErr) == nil && apiErr.Message != "" {
+			errors = append(errors, fmt.Sprintf("%s: %s", c.Filename, apiErr.Message))
+		} else {
+			errors = append(errors, c.Filename+": duplicate detected")
+		}
+	}
+
 	if isXHR {
+		// XHR uploads send one file per request, so there is at most one conflict.
+		// Return its body so the frontend can display similar-post suggestions.
+		if len(conflicts) > 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write(conflicts[0].Body)
+			return
+		}
 		if len(errors) == len(files) {
 			app.respondJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": strings.Join(errors, "; ")})
 		} else if len(errors) > 0 {
@@ -363,12 +377,13 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(errors) == len(files) {
+	totalErrors := len(errors)
+	if totalErrors == len(files) {
 		app.renderTemplate(w, r, "upload", map[string]any{"Error": strings.Join(errors, "; ")})
 		return
 	}
 
-	if len(errors) > 0 {
+	if totalErrors > 0 {
 		app.renderTemplate(w, r, "upload", map[string]any{"Error": "Some uploads failed: " + strings.Join(errors, "; ")})
 		return
 	}
@@ -577,32 +592,12 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 		cats = *resp.JSON200.Items
 	}
 
-	// Count tags per category
+	// Tag counts are now provided server-side via TagCategory.TagCount.
 	tagCounts := map[string]int{}
-	var cursor *string
-	for {
-		tagLimit := 1000
-		params := &client.GetTagsParams{Limit: &tagLimit, Cursor: cursor}
-		tagsResp, err := app.api.GetTagsWithResponse(ctx, params)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("Failed to load tags: %v", err))
-			break
+	for _, c := range cats {
+		if c.TagCount != nil {
+			tagCounts[c.Name] = *c.TagCount
 		}
-		if tagsResp.StatusCode() >= 400 {
-			errs = append(errs, fmt.Sprintf("Failed to load tags: %s", tagsResp.Body))
-			break
-		}
-		if tagsResp.JSON200 != nil && tagsResp.JSON200.Items != nil {
-			for _, t := range *tagsResp.JSON200.Items {
-				if t.Category != nil {
-					tagCounts[*t.Category]++
-				}
-			}
-		}
-		if tagsResp.JSON200 == nil || tagsResp.JSON200.Cursor == nil || *tagsResp.JSON200.Cursor == "" {
-			break
-		}
-		cursor = tagsResp.JSON200.Cursor
 	}
 
 	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats, TagCounts: tagCounts, Error: strings.Join(errs, "; ")})
@@ -726,21 +721,6 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		if id == newResourceName {
-			resp, err := app.api.CreateNoteWithResponse(ctx, client.CreateNoteJSONRequestBody{
-				Title: "New Note",
-			})
-			if err != nil || resp.StatusCode() >= 400 {
-				errMsg := "Failed to create note"
-				if err != nil {
-					errMsg = fmt.Sprintf("Failed to create note: %v", err)
-				}
-				app.renderTemplate(w, r, "note", NoteData{Error: errMsg})
-				return
-			}
-			http.Redirect(w, r, fmt.Sprintf("/notes/%s", resp.JSON201.ID), http.StatusSeeOther)
-			return
-		}
 		noteID, err := uuid.Parse(id)
 		if err != nil {
 			app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Invalid note ID: %v", err)})

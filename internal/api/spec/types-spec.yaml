@@ -59,6 +59,8 @@ components:
           $ref: "#/components/schemas/Description"
         color:
           type: string
+        tagCount:
+          type: integer
         createdAt:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:

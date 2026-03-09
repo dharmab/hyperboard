@@ -66,16 +66,7 @@ func freePort() (uint32, error) {
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	t.Cleanup(func() { cleanTestDB(t) })
+	// No cleanup needed: tests use unique random data (UUIDs, random tag names)
+	// and query by specific IDs/names, so they don't interfere with each other.
 	return NewServer(testDB, storage.NewFakeStorage(), 5)
-}
-
-func cleanTestDB(t *testing.T) {
-	t.Helper()
-	ctx := t.Context()
-	for _, table := range []string{"posts_tags", "tag_aliases", "tags", "posts", "notes", "tag_categories"} {
-		if _, err := testDB.ExecContext(ctx, "DELETE FROM "+table); err != nil {
-			t.Logf("warning: failed to clean table %s: %v", table, err)
-		}
-	}
 }

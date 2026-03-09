@@ -25,7 +25,7 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
-func postFromModel(model *models.Post) (types.Post, error) {
+func postFromModel(model *models.Post) types.Post {
 	post := types.Post{
 		ID:           types.ID(model.ID),
 		MimeType:     model.MimeType,
@@ -44,7 +44,7 @@ func postFromModel(model *models.Post) (types.Post, error) {
 	}
 	post.Tags = tagNames
 
-	return post, nil
+	return post
 }
 
 var sortTerms = map[string]bool{
@@ -100,11 +100,11 @@ type postCursor struct {
 func encodePostCursor(pc postCursor) string {
 	//nolint:errchkjson // postCursor contains only string fields, json.Marshal cannot fail
 	data, _ := json.Marshal(pc)
-	return base64.StdEncoding.EncodeToString(data)
+	return base64.URLEncoding.EncodeToString(data)
 }
 
 func decodePostCursor(s string) (postCursor, error) {
-	data, err := base64.StdEncoding.DecodeString(s)
+	data, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
 		return postCursor{}, err
 	}
@@ -120,11 +120,11 @@ type randomCursor struct {
 func encodeRandomCursor(rc randomCursor) string {
 	//nolint:errchkjson // randomCursor contains only primitive fields, json.Marshal cannot fail
 	data, _ := json.Marshal(rc)
-	return base64.StdEncoding.EncodeToString(data)
+	return base64.URLEncoding.EncodeToString(data)
 }
 
 func decodeRandomCursor(s string, rc *randomCursor) error {
-	data, err := base64.StdEncoding.DecodeString(s)
+	data, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
 		return err
 	}
@@ -249,12 +249,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 		items := make([]types.Post, 0, len(posts))
 		for _, post := range posts {
-			postResp, err := postFromModel(post)
-			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-				return
-			}
-			items = append(items, postResp)
+			items = append(items, postFromModel(post))
 		}
 		respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
 		return
@@ -312,12 +307,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	items := make([]types.Post, 0, len(posts))
 	for _, post := range posts {
-		postResp, err := postFromModel(post)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-			return
-		}
-		items = append(items, postResp)
+		items = append(items, postFromModel(post))
 	}
 	respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
 }
@@ -344,13 +334,7 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	postResp, err := postFromModel(model)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-		return
-	}
-
-	respond(w, http.StatusOK, postResp)
+	respond(w, http.StatusOK, postFromModel(model))
 }
 
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {
@@ -392,17 +376,12 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
 		if err != nil {
 			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
-		hasAudio, probeErr := media.ProbeHasAudio(data)
-		if probeErr != nil {
-			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
-		}
-		hasAudioVal = hasAudio
 	} else {
 		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
 		return
@@ -439,11 +418,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 			} else if len(similar) > 0 {
 				items := make([]types.Post, 0, len(similar))
 				for _, p := range similar {
-					postResp, convErr := postFromModel(p)
-					if convErr != nil {
-						continue
-					}
-					items = append(items, postResp)
+					items = append(items, postFromModel(p))
 				}
 				respond(w, http.StatusConflict, SimilarPostsResponse{
 					Message: "Similar posts found",
@@ -501,13 +476,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	model.R.Tags = nil
-	postResp, err := postFromModel(model)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-		return
-	}
-
-	respond(w, http.StatusCreated, postResp)
+	respond(w, http.StatusCreated, postFromModel(model))
 }
 
 // mimeToExt returns a file extension for a given MIME type.
@@ -530,6 +499,16 @@ func mimeToExt(mime string) string {
 	default:
 		return "bin"
 	}
+}
+
+// storageKeyForContent derives the storage key for a post's content from its ID and MIME type.
+func storageKeyForContent(postID uuid.UUID, mimeType string) string {
+	return fmt.Sprintf("posts/%s/content.%s", postID, mimeToExt(mimeType))
+}
+
+// storageKeyForThumbnail derives the storage key for a post's thumbnail from its ID.
+func storageKeyForThumbnail(postID uuid.UUID) string {
+	return fmt.Sprintf("posts/%s/thumbnail.webp", postID)
 }
 
 func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
@@ -560,13 +539,12 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	// Only update mutable metadata — storage-controlled fields (MimeType,
+	// ContentURL, ThumbnailURL) are managed by UploadPost/ReplacePostContent.
 	putNow := new(time.Now().UTC())
 	err = existingPost.Update(ctx, s.db, &models.PostSetter{
-		MimeType:     &post.MimeType,
-		ContentURL:   &post.ContentUrl,
-		ThumbnailURL: &post.ThumbnailUrl,
-		Note:         &post.Note,
-		UpdatedAt:    putNow,
+		Note:      &post.Note,
+		UpdatedAt: putNow,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
@@ -617,13 +595,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	postResp, err := postFromModel(existingPost)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-		return
-	}
-
-	respond(w, http.StatusOK, postResp)
+	respond(w, http.StatusOK, postFromModel(existingPost))
 }
 
 func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id) {
@@ -672,26 +644,28 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
 		if err != nil {
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
-		hasAudio, probeErr := media.ProbeHasAudio(data)
-		if probeErr != nil {
-			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
-		}
-		hasAudioVal = hasAudio
 	} else {
 		respondWithError(w, http.StatusUnsupportedMediaType, "Unsupported media type: %s", mimeStr)
 		return
 	}
 
-	ext := mimeToExt(contentMIME)
-	contentKey := fmt.Sprintf("posts/%s/content.%s", postID, ext)
-	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
+	// Delete old content object if the extension changed (new key won't overwrite old one).
+	oldContentKey := storageKeyForContent(postID, existingPost.MimeType)
+	newContentKey := storageKeyForContent(postID, contentMIME)
+	if oldContentKey != newContentKey {
+		if err := s.storage.Delete(ctx, oldContentKey); err != nil {
+			log.Warn().Err(err).Str("key", oldContentKey).Msg("failed to delete old content object")
+		}
+	}
 
-	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
+	thumbnailKey := storageKeyForThumbnail(postID)
+
+	contentURL, err := s.storage.Upload(ctx, newContentKey, contentData, contentMIME)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
 		return
@@ -733,13 +707,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		return
 	}
 
-	postResp, err := postFromModel(existingPost)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-		return
-	}
-
-	respond(w, http.StatusOK, postResp)
+	respond(w, http.StatusOK, postFromModel(existingPost))
 }
 
 func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id) {
@@ -785,7 +753,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 
-	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
+	thumbnailKey := storageKeyForThumbnail(postID)
 	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
@@ -806,13 +774,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 
-	postResp, err := postFromModel(existingPost)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert post")
-		return
-	}
-
-	respond(w, http.StatusOK, postResp)
+	respond(w, http.StatusOK, postFromModel(existingPost))
 }
 
 func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
@@ -820,16 +782,35 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	postID := uuid.UUID(id)
 
-	_, err := models.Posts.Delete(
-		dm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
-	).Exec(ctx, s.db)
+	// Fetch the post first to get storage keys for cleanup.
+	post, err := models.Posts.Query(
+		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
+		return
+	}
+
+	_, err = models.Posts.Delete(
+		dm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+	).Exec(ctx, s.db)
+	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return
+	}
+
+	// Clean up storage objects (best-effort).
+	contentKey := storageKeyForContent(postID, post.MimeType)
+	thumbnailKey := storageKeyForThumbnail(postID)
+	if err := s.storage.Delete(ctx, contentKey); err != nil {
+		log.Warn().Err(err).Str("key", contentKey).Msg("failed to delete content object after post deletion")
+	}
+	if err := s.storage.Delete(ctx, thumbnailKey); err != nil {
+		log.Warn().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object after post deletion")
 	}
 
 	w.WriteHeader(http.StatusNoContent)

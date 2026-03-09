@@ -12,6 +12,7 @@ import (
 )
 
 func TestTagsIntegration(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	tagName := "test-tag-" + uuid.Must(uuid.NewV4()).String()[:8]

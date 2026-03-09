@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/dharmab/hyperboard/internal/authmw"
 	"github.com/dharmab/hyperboard/internal/client"
 )
 
@@ -13,7 +14,7 @@ func newAPIClient(baseURL, password string) (*client.ClientWithResponses, error)
 	return client.NewClientWithResponses(
 		baseURL,
 		client.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-			req.SetBasicAuth("admin", password)
+			req.SetBasicAuth(authmw.AdminUsername, password)
 			return nil
 		}),
 	)

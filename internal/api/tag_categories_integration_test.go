@@ -12,6 +12,7 @@ import (
 )
 
 func TestTagCategoriesIntegration(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	catName := "test-category-" + uuid.Must(uuid.NewV4()).String()[:8]

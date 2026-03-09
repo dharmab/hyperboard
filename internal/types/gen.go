@@ -54,6 +54,7 @@ type TagCategory struct {
 	CreatedAt   Timestamp       `json:"createdAt"`
 	Description Description     `json:"description"`
 	Name        TagCategoryName `json:"name"`
+	TagCount    *int            `json:"tagCount,omitempty"`
 	UpdatedAt   Timestamp       `json:"updatedAt"`
 }
 

@@ -1,14 +1,18 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -24,6 +28,43 @@ func tagCategoryFromModel(model *models.TagCategory) types.TagCategory {
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
 	}
+}
+
+// getTagCountsByCategory returns the number of tags in each category, keyed by category ID.
+func (s *Server) getTagCountsByCategory(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID]int, error) {
+	if len(categoryIDs) == 0 {
+		return map[uuid.UUID]int{}, nil
+	}
+
+	args := make([]any, len(categoryIDs))
+	var placeholders strings.Builder
+	for i, id := range categoryIDs {
+		if i > 0 {
+			placeholders.WriteString(", ")
+		}
+		placeholders.WriteString("$" + strconv.Itoa(i+1))
+		args[i] = id
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT tag_category_id, COUNT(*) FROM tags WHERE tag_category_id IN ("+placeholders.String()+") GROUP BY tag_category_id",
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	counts := make(map[uuid.UUID]int)
+	for rows.Next() {
+		var catID uuid.UUID
+		var count int
+		if err := rows.Scan(&catID, &count); err != nil {
+			return nil, err
+		}
+		counts[catID] = count
+	}
+	return counts, rows.Err()
 }
 
 func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params GetTagCategoriesParams) {
@@ -55,6 +96,20 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 		return
 	}
 
+	// Collect IDs for the current page
+	pageSize := min(len(categories), limit)
+	catIDs := make([]uuid.UUID, pageSize)
+	for i := range pageSize {
+		catIDs[i] = categories[i].ID
+	}
+
+	// Query tag counts server-side
+	tagCounts, err := s.getTagCountsByCategory(ctx, catIDs)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag counts")
+		return
+	}
+
 	// Check if there's content after the limit
 	hasMore, nextCursor := paginate(len(categories), limit, func() string {
 		return categories[limit-1].Name
@@ -66,7 +121,14 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 	// Response
 	items := make([]types.TagCategory, 0, len(categories))
 	for _, category := range categories {
-		items = append(items, tagCategoryFromModel(category))
+		cat := tagCategoryFromModel(category)
+		if count, ok := tagCounts[category.ID]; ok {
+			cat.TagCount = &count
+		} else {
+			zero := 0
+			cat.TagCount = &zero
+		}
+		items = append(items, cat)
 	}
 	resp := TagCategoriesResponse{
 		Items:  &items,

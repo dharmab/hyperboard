@@ -77,11 +77,7 @@ func (s *Server) GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, 
 
 	items := make([]types.Post, 0, len(similar))
 	for _, p := range similar {
-		postResp, convErr := postFromModel(p)
-		if convErr != nil {
-			continue
-		}
-		items = append(items, postResp)
+		items = append(items, postFromModel(p))
 	}
 	respond(w, http.StatusOK, PostsResponse{Items: &items})
 }

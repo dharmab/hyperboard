@@ -13,6 +13,7 @@ import (
 )
 
 func TestGetSimilarPosts(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	// Insert a post with a known phash

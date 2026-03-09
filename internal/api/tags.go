@@ -21,7 +21,7 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
-func tagFromModel(model *models.Tag) (types.Tag, error) {
+func tagFromModel(model *models.Tag) types.Tag {
 	tag := types.Tag{
 		Name:        model.Name,
 		Description: model.Description,
@@ -36,7 +36,7 @@ func tagFromModel(model *models.Tag) (types.Tag, error) {
 		}
 	}
 
-	return tag, nil
+	return tag
 }
 
 // getTagAliases returns a map from tag ID to its list of aliases.
@@ -166,18 +166,21 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		return
 	}
 
-	// Query post counts per tag
-	postCounts, err := s.getTagPostCounts(ctx)
+	// Collect tag IDs for the current page only
+	pageSize := min(len(tags), limit)
+	tagIDs := make([]uuid.UUID, pageSize)
+	for i := range pageSize {
+		tagIDs[i] = tags[i].ID
+	}
+
+	// Query post counts only for the tags on this page
+	postCounts, err := s.getTagPostCounts(ctx, tagIDs)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post counts")
 		return
 	}
 
-	// Query aliases for all tags
-	tagIDs := make([]uuid.UUID, len(tags))
-	for i, tag := range tags {
-		tagIDs[i] = tag.ID
-	}
+	// Query aliases only for the tags on this page
 	aliasMap, err := s.getTagAliases(ctx, tagIDs...)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag aliases")
@@ -194,11 +197,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 
 	items := make([]types.Tag, 0, len(tags))
 	for _, tag := range tags {
-		tagResp, err := tagFromModel(tag)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-			return
-		}
+		tagResp := tagFromModel(tag)
 		if count, ok := postCounts[tag.ID]; ok {
 			tagResp.PostCount = &count
 		} else {
@@ -243,11 +242,7 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		}
 	}
 
-	tagResp, err := tagFromModel(model)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-		return
-	}
+	tagResp := tagFromModel(model)
 
 	aliasMap, err := s.getTagAliases(ctx, model.ID)
 	if err != nil {
@@ -355,11 +350,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		}
 	}
 
-	tagResp, err := tagFromModel(resultModel)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-		return
-	}
+	tagResp := tagFromModel(resultModel)
 
 	aliasMap, err := s.getTagAliases(ctx, resultModel.ID)
 	if err != nil {
@@ -377,8 +368,26 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	respond(w, status, tagResp)
 }
 
-func (s *Server) getTagPostCounts(ctx context.Context) (map[uuid.UUID]int, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT tag_id, COUNT(*) FROM posts_tags GROUP BY tag_id")
+// getTagPostCounts returns post counts for the given tag IDs.
+func (s *Server) getTagPostCounts(ctx context.Context, tagIDs []uuid.UUID) (map[uuid.UUID]int, error) {
+	if len(tagIDs) == 0 {
+		return map[uuid.UUID]int{}, nil
+	}
+
+	args := make([]any, len(tagIDs))
+	var placeholders strings.Builder
+	for i, id := range tagIDs {
+		if i > 0 {
+			placeholders.WriteString(", ")
+		}
+		placeholders.WriteString("$" + strconv.Itoa(i+1))
+		args[i] = id
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT tag_id, COUNT(*) FROM posts_tags WHERE tag_id IN ("+placeholders.String()+") GROUP BY tag_id",
+		args...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -501,40 +510,67 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
-		return
-	}
-
-	// Return the updated target tag
-	targetModel, err := models.Tags.Query(
-		sm.Where(models.TagColumns.ID.EQ(psql.Arg(targetID))),
-	).One(ctx, s.db)
+	// Read the target tag and its aliases within the transaction so the
+	// response is consistent even if a concurrent request modifies it.
+	var tagName, tagDesc string
+	var tagCatID sql.Null[uuid.UUID]
+	var tagCreatedAt, tagUpdatedAt time.Time
+	err = tx.QueryRowContext(ctx,
+		"SELECT name, description, tag_category_id, created_at, updated_at FROM tags WHERE id = $1",
+		targetID,
+	).Scan(&tagName, &tagDesc, &tagCatID, &tagCreatedAt, &tagUpdatedAt)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated target tag")
 		return
 	}
 
-	if targetModel.TagCategoryID.Valid {
-		if err := targetModel.LoadTagCategory(ctx, s.db); err != nil {
+	var catName *string
+	if tagCatID.Valid {
+		var cn string
+		err = tx.QueryRowContext(ctx, "SELECT name FROM tag_categories WHERE id = $1", tagCatID.V).Scan(&cn)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to load tag category")
 			return
 		}
+		if err == nil {
+			catName = &cn
+		}
 	}
 
-	tagResp, err := tagFromModel(targetModel)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to convert tag")
-		return
-	}
-
-	aliasMap, err := s.getTagAliases(ctx, targetModel.ID)
+	txAliasRows, err := tx.QueryContext(ctx, "SELECT alias_name FROM tag_aliases WHERE tag_id = $1 ORDER BY alias_name", targetID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
 		return
 	}
-	if a, ok := aliasMap[targetModel.ID]; ok {
-		tagResp.Aliases = &a
+	defer func() { _ = txAliasRows.Close() }()
+	var targetAliases []string
+	for txAliasRows.Next() {
+		var a string
+		if err := txAliasRows.Scan(&a); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to read tag aliases")
+			return
+		}
+		targetAliases = append(targetAliases, a)
+	}
+	if err := txAliasRows.Err(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to iterate tag aliases")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
+		return
+	}
+
+	tagResp := types.Tag{
+		Name:        tagName,
+		Description: tagDesc,
+		Category:    catName,
+		CreatedAt:   tagCreatedAt,
+		UpdatedAt:   tagUpdatedAt,
+	}
+	if len(targetAliases) > 0 {
+		tagResp.Aliases = &targetAliases
 	}
 
 	respond(w, http.StatusOK, tagResp)

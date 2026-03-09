@@ -44,6 +44,7 @@ func insertTestPost(t *testing.T, opts ...func(*models.PostSetter)) *models.Post
 }
 
 func TestGetPost(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
 
@@ -142,6 +143,7 @@ func TestDeletePost(t *testing.T) {
 }
 
 func TestGetPostsSearch(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	// Create posts with specific tags
