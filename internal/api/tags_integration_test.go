@@ -12,7 +12,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func TestIsValidTagName(t *testing.T) {
+func TestIsValidName(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
@@ -38,8 +38,8 @@ func TestIsValidTagName(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := isValidTagName(tc.name); got != tc.valid {
-				t.Errorf("isValidTagName(%q) = %v, want %v", tc.name, got, tc.valid)
+			if got := isValidName(tc.name); got != tc.valid {
+				t.Errorf("isValidName(%q) = %v, want %v", tc.name, got, tc.valid)
 			}
 		})
 	}

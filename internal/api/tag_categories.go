@@ -161,6 +161,11 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		return
 	}
 
+	if !isValidName(req.Name) {
+		respondWithError(w, http.StatusBadRequest, "Tag category name must begin with a unicode letter or digit")
+		return
+	}
+
 	existing, err := models.TagCategories.Query(
 		sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)

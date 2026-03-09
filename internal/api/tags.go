@@ -22,9 +22,9 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
-// isValidTagName reports whether name begins with a unicode letter or digit,
+// isValidName reports whether name begins with a unicode letter or digit,
 // does not end with whitespace, and does not contain consecutive whitespace.
-func isValidTagName(name string) bool {
+func isValidName(name string) bool {
 	var prev rune
 	for i, r := range name {
 		if i == 0 && !(unicode.IsLetter(r) || unicode.IsDigit(r)) {
@@ -287,7 +287,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 
-	if !isValidTagName(tag.Name) {
+	if !isValidName(tag.Name) {
 		respondWithError(w, http.StatusBadRequest, "Tag name must begin with a unicode letter or digit")
 		return
 	}

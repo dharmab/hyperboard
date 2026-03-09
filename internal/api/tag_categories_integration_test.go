@@ -5,11 +5,32 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
 )
+
+func TestPutTagCategoryValidation(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	for _, name := range []string{"-bad", "_bad", " bad", "!bad", "bad ", "bad  category"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := types.TagCategory{Name: name, Description: "test", Color: "#ff0000"}
+			b, _ := json.Marshal(body)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+url.PathEscape(name), bytes.NewReader(b))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.PutTagCategory(w, req, name)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("PutTagCategory(%q) status = %d, want %d", name, w.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
 
 func TestTagCategoriesIntegration(t *testing.T) {
 	t.Parallel()
