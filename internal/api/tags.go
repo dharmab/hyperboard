@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/types"
@@ -20,6 +21,14 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/dm"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
+
+// isValidTagName reports whether name begins with a unicode letter or digit.
+func isValidTagName(name string) bool {
+	for _, r := range name {
+		return unicode.IsLetter(r) || unicode.IsDigit(r)
+	}
+	return false
+}
 
 func tagFromModel(model *models.Tag) types.Tag {
 	tag := types.Tag{
@@ -267,6 +276,11 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	var tag types.Tag
 	if err := json.NewDecoder(r.Body).Decode(&tag); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if !isValidTagName(tag.Name) {
+		respondWithError(w, http.StatusBadRequest, "Tag name must begin with a unicode letter or digit")
 		return
 	}
 

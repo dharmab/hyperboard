@@ -5,11 +5,60 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
 )
+
+func TestIsValidTagName(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		valid bool
+	}{
+		{"abc", true},
+		{"ABC", true},
+		{"123", true},
+		{"1abc", true},
+		{"café", true},
+		{"日本語", true},
+		{"", false},
+		{"-abc", false},
+		{"_abc", false},
+		{" abc", false},
+		{"!abc", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isValidTagName(tc.name); got != tc.valid {
+				t.Errorf("isValidTagName(%q) = %v, want %v", tc.name, got, tc.valid)
+			}
+		})
+	}
+}
+
+func TestPutTagValidation(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	for _, name := range []string{"-bad", "_bad", " bad", "!bad"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := types.Tag{Name: name, Description: "test"}
+			b, _ := json.Marshal(body)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+url.PathEscape(name), bytes.NewReader(b))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.PutTag(w, req, name)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("PutTag(%q) status = %d, want %d", name, w.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
 
 func TestTagsIntegration(t *testing.T) {
 	t.Parallel()
