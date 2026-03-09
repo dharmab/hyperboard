@@ -27,7 +27,7 @@ import (
 func isValidName(name string) bool {
 	var prev rune
 	for i, r := range name {
-		if i == 0 && !(unicode.IsLetter(r) || unicode.IsDigit(r)) {
+		if i == 0 && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			return false
 		}
 		if unicode.IsSpace(r) && unicode.IsSpace(prev) {

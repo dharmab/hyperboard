@@ -6,9 +6,9 @@ Hyperboard is an image and video hosting web application built with Go, followin
 
 - `cmd/` — Entry points for each binary (`hyperboard-api`, `hyperboard-web`, `hyperboardctl`)
 - `internal/api/` — OpenAPI spec and generated API client/server code
-- `internal/authmw/` — Authentication middleware
+- `internal/middleware/auth/` — Authentication middleware
+- `internal/middleware/logging/` — HTTP request logging
 - `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, generated models in `internal/db/models/`)
-- `internal/httplog/` — HTTP request logging
 - `internal/media/` — Media processing
 - `internal/storage/` — Storage abstraction (S3)
 - `internal/types/` — Shared types (generated from OpenAPI spec)

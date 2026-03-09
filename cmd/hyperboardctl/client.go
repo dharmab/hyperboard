@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/dharmab/hyperboard/internal/authmw"
 	"github.com/dharmab/hyperboard/internal/client"
+	"github.com/dharmab/hyperboard/internal/middleware/auth"
 )
 
 func newClient(cfg *Config) (*client.ClientWithResponses, error) {
 	return client.NewClientWithResponses(
 		cfg.APIURL,
 		client.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-			req.SetBasicAuth(authmw.AdminUsername, cfg.AdminPassword)
+			req.SetBasicAuth(auth.AdminUsername, cfg.AdminPassword)
 			return nil
 		}),
 	)

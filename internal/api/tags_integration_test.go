@@ -23,7 +23,7 @@ func TestIsValidName(t *testing.T) {
 		{"123", true},
 		{"1abc", true},
 		{"café", true},
-		{"日本語", true},
+		{"日本語", true}, //nolint:gosmopolitan // intentional: testing Unicode letter support
 		{"", false},
 		{"-abc", false},
 		{"_abc", false},

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/api"
-	"github.com/dharmab/hyperboard/internal/authmw"
 	"github.com/dharmab/hyperboard/internal/db/migrations"
-	"github.com/dharmab/hyperboard/internal/httplog"
+	"github.com/dharmab/hyperboard/internal/middleware/auth"
+	"github.com/dharmab/hyperboard/internal/middleware/logging"
 	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -116,9 +116,9 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	mux := http.NewServeMux()
 	api.HandlerFromMux(apiServer, mux)
 	mux.HandleFunc("/media/", apiServer.HandleMedia)
-	authMiddleware := authmw.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
+	authMiddleware := auth.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
-		Handler:           httplog.RequestLoggingMiddleware(authMiddleware(mux)),
+		Handler:           logging.RequestLoggingMiddleware(authMiddleware(mux)),
 		Addr:              ":" + cfg.Port,
 		ReadHeaderTimeout: 30 * time.Second,
 	}
