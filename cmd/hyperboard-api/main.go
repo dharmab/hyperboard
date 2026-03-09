@@ -96,7 +96,7 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 		return fmt.Errorf("failed to create S3 storage: %w", err)
 	}
 
-	apiServer, err := api.NewServer(ctx, dsn, storage)
+	apiServer, err := api.NewServer(ctx, dsn, storage, cfg.SimilarityThreshold)
 	if err != nil {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}

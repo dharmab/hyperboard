@@ -32,6 +32,8 @@ CREATE TABLE posts (
     thumbnail_url TEXT NOT NULL,
     note          TEXT NOT NULL DEFAULT '',
     has_audio     BOOLEAN NOT NULL DEFAULT FALSE,
+    sha256        TEXT NOT NULL DEFAULT '',
+    phash         BIGINT,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -57,6 +59,7 @@ CREATE INDEX idx_tags_created_at           ON tags(created_at);
 CREATE INDEX idx_tag_aliases_tag_id        ON tag_aliases(tag_id);
 CREATE INDEX idx_tag_aliases_alias_name    ON tag_aliases(alias_name);
 CREATE INDEX idx_posts_created_at          ON posts(created_at);
+CREATE UNIQUE INDEX idx_posts_sha256       ON posts(sha256) WHERE sha256 != '';
 CREATE INDEX idx_notes_created_at          ON notes(created_at);
 
 -- Prevent an alias from having the same name as an existing tag

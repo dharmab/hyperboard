@@ -56,6 +56,8 @@ var ColumnNames = struct {
 		ThumbnailURL: "thumbnail_url",
 		Note:         "note",
 		HasAudio:     "has_audio",
+		Sha256:       "sha256",
+		Phash:        "phash",
 		CreatedAt:    "created_at",
 		UpdatedAt:    "updated_at",
 	},

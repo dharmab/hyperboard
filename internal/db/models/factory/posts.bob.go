@@ -5,6 +5,7 @@ package factory
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -41,6 +42,8 @@ type PostTemplate struct {
 	ThumbnailURL func() string
 	Note         func() string
 	HasAudio     func() bool
+	Sha256       func() string
+	Phash        func() sql.Null[int64]
 	CreatedAt    func() time.Time
 	UpdatedAt    func() time.Time
 
@@ -109,6 +112,14 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 		val := o.HasAudio()
 		m.HasAudio = &val
 	}
+	if o.Sha256 != nil {
+		val := o.Sha256()
+		m.Sha256 = &val
+	}
+	if o.Phash != nil {
+		val := o.Phash()
+		m.Phash = &val
+	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
 		m.CreatedAt = &val
@@ -156,6 +167,12 @@ func (o PostTemplate) Build() *models.Post {
 	}
 	if o.HasAudio != nil {
 		m.HasAudio = o.HasAudio()
+	}
+	if o.Sha256 != nil {
+		m.Sha256 = o.Sha256()
+	}
+	if o.Phash != nil {
+		m.Phash = o.Phash()
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
@@ -333,6 +350,8 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 		PostMods.RandomThumbnailURL(f),
 		PostMods.RandomNote(f),
 		PostMods.RandomHasAudio(f),
+		PostMods.RandomSha256(f),
+		PostMods.RandomPhash(f),
 		PostMods.RandomCreatedAt(f),
 		PostMods.RandomUpdatedAt(f),
 	}
@@ -520,6 +539,90 @@ func (m postMods) RandomHasAudio(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.HasAudio = func() bool {
 			return random_bool(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) Sha256(val string) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Sha256 = func() string { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) Sha256Func(f func() string) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Sha256 = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetSha256() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Sha256 = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m postMods) RandomSha256(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Sha256 = func() string {
+			return random_string(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) Phash(val sql.Null[int64]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Phash = func() sql.Null[int64] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) PhashFunc(f func() sql.Null[int64]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Phash = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetPhash() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Phash = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomPhash(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Phash = func() sql.Null[int64] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_int64(f)
+			return sql.Null[int64]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomPhashNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Phash = func() sql.Null[int64] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_int64(f)
+			return sql.Null[int64]{V: val, Valid: true}
 		}
 	})
 }

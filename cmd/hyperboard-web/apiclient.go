@@ -121,30 +121,28 @@ func (c *APIClient) delete(ctx context.Context, path string) (int, error) {
 	return resp.StatusCode, nil
 }
 
-func (c *APIClient) uploadFile(ctx context.Context, data []byte, contentType string, out any) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/upload", bytes.NewReader(data))
+func (c *APIClient) uploadFile(ctx context.Context, data []byte, contentType string, force bool, out any) (int, []byte, error) {
+	uploadURL := c.baseURL + "/api/v1/upload"
+	if force {
+		uploadURL += "?force=true"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bytes.NewReader(data))
 	if err != nil {
-		return 0, fmt.Errorf("create upload request: %w", err)
+		return 0, nil, fmt.Errorf("create upload request: %w", err)
 	}
 	req.SetBasicAuth("admin", c.password)
 	req.Header.Set("Content-Type", contentType)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		var apiErr struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
-			return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, apiErr.Message)
-		}
-		return resp.StatusCode, fmt.Errorf("API %d: %s", resp.StatusCode, string(body))
+		return resp.StatusCode, body, nil
 	}
 	if out != nil {
-		return resp.StatusCode, json.NewDecoder(resp.Body).Decode(out)
+		return resp.StatusCode, body, json.Unmarshal(body, out)
 	}
-	return resp.StatusCode, nil
+	return resp.StatusCode, body, nil
 }

@@ -12,6 +12,17 @@ import (
 // Set the testDB to enable tests that use the database
 var testDB bob.Transactor
 
+func TestRandom_int64(t *testing.T) {
+	t.Parallel()
+
+	val1 := random_int64(nil)
+	val2 := random_int64(nil)
+
+	if val1 == val2 {
+		t.Fatalf("random_int64() returned the same value twice: %v", val1)
+	}
+}
+
 func TestRandom_string(t *testing.T) {
 	t.Parallel()
 

@@ -215,6 +215,8 @@ paths:
     post:
       operationId: uploadPost
       summary: Upload a new post's content.
+      parameters:
+        - $ref: "#/components/parameters/force"
       requestBody:
         $ref: "#/components/requestBodies/UploadPostRequest"
       responses:
@@ -226,6 +228,8 @@ paths:
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "409":
+          $ref: "#/components/responses/ConflictResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -343,6 +347,28 @@ paths:
           $ref: "#/components/responses/BadRequestResponse"
         "422":
           $ref: "#/components/responses/BadRequestResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/posts/{id}/similar:
+    get:
+      operationId: getSimilarPosts
+      summary: Get posts that are visually similar to the given post based on perceptual hash.
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -496,6 +522,13 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/Search"
+    force:
+      name: force
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
   requestBodies:
     TagRequest:
       required: true
@@ -565,6 +598,11 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     ForbiddenResponse:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ConflictResponse:
       content:
         application/json:
           schema:

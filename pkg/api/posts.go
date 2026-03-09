@@ -1,8 +1,10 @@
 package api
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -300,8 +302,10 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 	respond(w, http.StatusOK, postResp)
 }
 
-func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
+func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {
 	ctx := r.Context()
+
+	force := params.Force != nil && *params.Force
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -353,6 +357,52 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hash := sha256.Sum256(contentData)
+	hashHex := hex.EncodeToString(hash[:])
+
+	existing, err := models.Posts.Query(
+		sm.Where(models.PostColumns.Sha256.EQ(psql.Arg(hashHex))),
+	).One(ctx, s.db)
+	if err == nil {
+		respondWithError(w, http.StatusConflict, "Duplicate of existing post %s", existing.ID)
+		return
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		log.Error().Err(err).Msg("failed to check for duplicate post")
+		respondWithError(w, http.StatusInternalServerError, "Failed to check for duplicate")
+		return
+	}
+
+	// Compute perceptual hash from the thumbnail.
+	var phashVal *sql.Null[int64]
+	pHash, phashErr := dhashFromBytes(thumbnailData)
+	if phashErr != nil {
+		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
+	} else {
+		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
+
+		// Check for visually similar posts (unless force is set).
+		if !force && s.similarityThreshold > 0 {
+			similar, err := s.findSimilarPosts(ctx, uuid.Nil, pHash, 5)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to check for similar posts")
+			} else if len(similar) > 0 {
+				items := make([]types.Post, 0, len(similar))
+				for _, p := range similar {
+					postResp, convErr := postFromModel(p)
+					if convErr != nil {
+						continue
+					}
+					items = append(items, postResp)
+				}
+				respond(w, http.StatusConflict, SimilarPostsResponse{
+					Message: "Similar posts found",
+					Similar: items,
+				})
+				return
+			}
+		}
+	}
+
 	postID, err := uuid.NewV4()
 	if err != nil {
 		log.Error().Err(err).Msg("failed to generate post ID")
@@ -386,6 +436,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 			ContentURL:   &contentURL,
 			ThumbnailURL: &thumbnailURL,
 			HasAudio:     &hasAudioVal,
+			Sha256:       &hashHex,
+			Phash:        phashVal,
 			CreatedAt:    now(),
 			UpdatedAt:    now(),
 		},
@@ -603,11 +655,24 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		return
 	}
 
+	hash := sha256.Sum256(contentData)
+	hashHex := hex.EncodeToString(hash[:])
+
+	var phashVal *sql.Null[int64]
+	pHash, phashErr := dhashFromBytes(thumbnailData)
+	if phashErr != nil {
+		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
+	} else {
+		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
+	}
+
 	err = existingPost.Update(ctx, s.db, &models.PostSetter{
 		MimeType:     &contentMIME,
 		ContentURL:   &contentURL,
 		ThumbnailURL: &thumbnailURL,
 		HasAudio:     &hasAudioVal,
+		Sha256:       &hashHex,
+		Phash:        phashVal,
 		UpdatedAt:    now(),
 	})
 	if err != nil {

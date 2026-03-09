@@ -81,10 +81,18 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 			_ = resp.Body.Close()
 			fileSize = resp.ContentLength
 		}
+		var similarPosts []types.Post
+		var similarResp postsResponse
+		if err := app.api.getWithQuery(ctx, "/api/v1/posts/"+id+"/similar", url.Values{"limit": {"12"}}, &similarResp); err == nil {
+			if similarResp.Items != nil {
+				similarPosts = *similarResp.Items
+			}
+		}
 		app.renderTemplate(w, r, "post", PostData{
-			Post:     post,
-			IsVideo:  strings.HasPrefix(post.MimeType, "video/"),
-			FileSize: fileSize,
+			Post:         post,
+			IsVideo:      strings.HasPrefix(post.MimeType, "video/"),
+			FileSize:     fileSize,
+			SimilarPosts: similarPosts,
 		})
 
 	case http.MethodDelete:
@@ -248,17 +256,41 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 			contentType = "application/octet-stream"
 		}
 
+		force := r.FormValue("force") == "true"
 		var post types.Post
-		statusCode, err := app.api.uploadFile(ctx, data, contentType, &post)
+		statusCode, respBody, err := app.api.uploadFile(ctx, data, contentType, force, &post)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", header.Filename, err))
 			continue
 		}
+		if statusCode == http.StatusConflict {
+			// Could be exact duplicate or similar posts found.
+			// Pass through the API response body for the JS to handle.
+			if isXHR {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write(respBody)
+				return
+			}
+			var apiErr struct{ Message string }
+			if json.Unmarshal(respBody, &apiErr) == nil {
+				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
+			} else {
+				errors = append(errors, fmt.Sprintf("%s: duplicate detected", header.Filename))
+			}
+			continue
+		}
 		if statusCode >= 400 {
-			errors = append(errors, fmt.Sprintf("%s: HTTP %d", header.Filename, statusCode))
+			var apiErr struct{ Message string }
+			if json.Unmarshal(respBody, &apiErr) == nil && apiErr.Message != "" {
+				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
+			} else {
+				errors = append(errors, fmt.Sprintf("%s: HTTP %d", header.Filename, statusCode))
+			}
 			continue
 		}
 		lastPostID = post.ID
+		log.Info().Str("id", post.ID.String()).Str("filename", header.Filename).Msg("uploaded post")
 	}
 
 	if isXHR {

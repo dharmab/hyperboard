@@ -5,6 +5,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"strconv"
@@ -26,14 +27,16 @@ import (
 
 // Post is an object representing the database table.
 type Post struct {
-	ID           uuid.UUID `db:"id,pk" `
-	MimeType     string    `db:"mime_type" `
-	ContentURL   string    `db:"content_url" `
-	ThumbnailURL string    `db:"thumbnail_url" `
-	Note         string    `db:"note" `
-	HasAudio     bool      `db:"has_audio" `
-	CreatedAt    time.Time `db:"created_at" `
-	UpdatedAt    time.Time `db:"updated_at" `
+	ID           uuid.UUID       `db:"id,pk" `
+	MimeType     string          `db:"mime_type" `
+	ContentURL   string          `db:"content_url" `
+	ThumbnailURL string          `db:"thumbnail_url" `
+	Note         string          `db:"note" `
+	HasAudio     bool            `db:"has_audio" `
+	Sha256       string          `db:"sha256" `
+	Phash        sql.Null[int64] `db:"phash" `
+	CreatedAt    time.Time       `db:"created_at" `
+	UpdatedAt    time.Time       `db:"updated_at" `
 
 	R postR `db:"-" `
 }
@@ -60,6 +63,8 @@ type postColumnNames struct {
 	ThumbnailURL string
 	Note         string
 	HasAudio     string
+	Sha256       string
+	Phash        string
 	CreatedAt    string
 	UpdatedAt    string
 }
@@ -74,6 +79,8 @@ type postColumns struct {
 	ThumbnailURL psql.Expression
 	Note         psql.Expression
 	HasAudio     psql.Expression
+	Sha256       psql.Expression
+	Phash        psql.Expression
 	CreatedAt    psql.Expression
 	UpdatedAt    psql.Expression
 }
@@ -95,6 +102,8 @@ func buildPostColumns(alias string) postColumns {
 		ThumbnailURL: psql.Quote(alias, "thumbnail_url"),
 		Note:         psql.Quote(alias, "note"),
 		HasAudio:     psql.Quote(alias, "has_audio"),
+		Sha256:       psql.Quote(alias, "sha256"),
+		Phash:        psql.Quote(alias, "phash"),
 		CreatedAt:    psql.Quote(alias, "created_at"),
 		UpdatedAt:    psql.Quote(alias, "updated_at"),
 	}
@@ -107,6 +116,8 @@ type postWhere[Q psql.Filterable] struct {
 	ThumbnailURL psql.WhereMod[Q, string]
 	Note         psql.WhereMod[Q, string]
 	HasAudio     psql.WhereMod[Q, bool]
+	Sha256       psql.WhereMod[Q, string]
+	Phash        psql.WhereNullMod[Q, int64]
 	CreatedAt    psql.WhereMod[Q, time.Time]
 	UpdatedAt    psql.WhereMod[Q, time.Time]
 }
@@ -123,6 +134,8 @@ func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
 		Note:         psql.Where[Q, string](cols.Note),
 		HasAudio:     psql.Where[Q, bool](cols.HasAudio),
+		Sha256:       psql.Where[Q, string](cols.Sha256),
+		Phash:        psql.WhereNull[Q, int64](cols.Phash),
 		CreatedAt:    psql.Where[Q, time.Time](cols.CreatedAt),
 		UpdatedAt:    psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
@@ -145,18 +158,20 @@ type postErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PostSetter struct {
-	ID           *uuid.UUID `db:"id,pk" `
-	MimeType     *string    `db:"mime_type" `
-	ContentURL   *string    `db:"content_url" `
-	ThumbnailURL *string    `db:"thumbnail_url" `
-	Note         *string    `db:"note" `
-	HasAudio     *bool      `db:"has_audio" `
-	CreatedAt    *time.Time `db:"created_at" `
-	UpdatedAt    *time.Time `db:"updated_at" `
+	ID           *uuid.UUID       `db:"id,pk" `
+	MimeType     *string          `db:"mime_type" `
+	ContentURL   *string          `db:"content_url" `
+	ThumbnailURL *string          `db:"thumbnail_url" `
+	Note         *string          `db:"note" `
+	HasAudio     *bool            `db:"has_audio" `
+	Sha256       *string          `db:"sha256" `
+	Phash        *sql.Null[int64] `db:"phash" `
+	CreatedAt    *time.Time       `db:"created_at" `
+	UpdatedAt    *time.Time       `db:"updated_at" `
 }
 
 func (s PostSetter) SetColumns() []string {
-	vals := make([]string, 0, 8)
+	vals := make([]string, 0, 10)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
@@ -179,6 +194,14 @@ func (s PostSetter) SetColumns() []string {
 
 	if s.HasAudio != nil {
 		vals = append(vals, "has_audio")
+	}
+
+	if s.Sha256 != nil {
+		vals = append(vals, "sha256")
+	}
+
+	if s.Phash != nil {
+		vals = append(vals, "phash")
 	}
 
 	if s.CreatedAt != nil {
@@ -211,6 +234,12 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.HasAudio != nil {
 		t.HasAudio = *s.HasAudio
 	}
+	if s.Sha256 != nil {
+		t.Sha256 = *s.Sha256
+	}
+	if s.Phash != nil {
+		t.Phash = *s.Phash
+	}
 	if s.CreatedAt != nil {
 		t.CreatedAt = *s.CreatedAt
 	}
@@ -225,7 +254,7 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 8)
+		vals := make([]bob.Expression, 10)
 		if s.ID != nil {
 			vals[0] = psql.Arg(*s.ID)
 		} else {
@@ -262,16 +291,28 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[6] = psql.Arg(*s.CreatedAt)
+		if s.Sha256 != nil {
+			vals[6] = psql.Arg(*s.Sha256)
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
-		if s.UpdatedAt != nil {
-			vals[7] = psql.Arg(*s.UpdatedAt)
+		if s.Phash != nil {
+			vals[7] = psql.Arg(*s.Phash)
 		} else {
 			vals[7] = psql.Raw("DEFAULT")
+		}
+
+		if s.CreatedAt != nil {
+			vals[8] = psql.Arg(*s.CreatedAt)
+		} else {
+			vals[8] = psql.Raw("DEFAULT")
+		}
+
+		if s.UpdatedAt != nil {
+			vals[9] = psql.Arg(*s.UpdatedAt)
+		} else {
+			vals[9] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -283,7 +324,7 @@ func (s PostSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 8)
+	exprs := make([]bob.Expression, 0, 10)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -324,6 +365,20 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "has_audio")...),
 			psql.Arg(s.HasAudio),
+		}})
+	}
+
+	if s.Sha256 != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "sha256")...),
+			psql.Arg(s.Sha256),
+		}})
+	}
+
+	if s.Phash != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "phash")...),
+			psql.Arg(s.Phash),
 		}})
 	}
 

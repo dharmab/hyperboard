@@ -14,21 +14,23 @@ import (
 )
 
 type Server struct {
-	db      bob.DB
-	storage Storage
+	db                  bob.DB
+	storage             Storage
+	similarityThreshold int
 }
 
 var _ ServerInterface = &Server{}
 
-func NewServer(ctx context.Context, dsn string, storage Storage) (*Server, error) {
+func NewServer(ctx context.Context, dsn string, storage Storage, similarityThreshold int) (*Server, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		db:      bob.NewDB(stdlib.OpenDBFromPool(pool)),
-		storage: storage,
+		db:                  bob.NewDB(stdlib.OpenDBFromPool(pool)),
+		storage:             storage,
+		similarityThreshold: similarityThreshold,
 	}, nil
 }
 

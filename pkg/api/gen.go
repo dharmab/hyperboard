@@ -27,6 +27,9 @@ type Limit = int
 // Search defines model for Search.
 type Search = string
 
+// Force defines model for force.
+type Force = bool
+
 // Id defines model for id.
 type Id = externalRef0.ID
 
@@ -38,6 +41,9 @@ type TagCategory = externalRef0.TagCategoryName
 
 // BadRequestResponse defines model for BadRequestResponse.
 type BadRequestResponse = Error
+
+// ConflictResponse defines model for ConflictResponse.
+type ConflictResponse = Error
 
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
@@ -127,6 +133,11 @@ type GetPostsParams struct {
 	Search *Search `form:"search,omitempty" json:"search,omitempty"`
 }
 
+// GetSimilarPostsParams defines parameters for GetSimilarPosts.
+type GetSimilarPostsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetTagCategoriesParams defines parameters for GetTagCategories.
 type GetTagCategoriesParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
@@ -137,6 +148,11 @@ type GetTagCategoriesParams struct {
 type GetTagsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// UploadPostParams defines parameters for UploadPost.
+type UploadPostParams struct {
+	Force *Force `form:"force,omitempty" json:"force,omitempty"`
 }
 
 // CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
@@ -186,6 +202,9 @@ type ServerInterface interface {
 	// Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
 	// (PUT /api/v1/posts/{id}/content)
 	ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id)
+	// Get posts that are visually similar to the given post based on perceptual hash.
+	// (GET /api/v1/posts/{id}/similar)
+	GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, params GetSimilarPostsParams)
 	// Replace a post's thumbnail image. The server processes the image into a WebP thumbnail.
 	// (PUT /api/v1/posts/{id}/thumbnail)
 	ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
@@ -215,7 +234,7 @@ type ServerInterface interface {
 	PutTag(w http.ResponseWriter, r *http.Request, tag Tag)
 	// Upload a new post's content.
 	// (POST /api/v1/upload)
-	UploadPost(w http.ResponseWriter, r *http.Request)
+	UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams)
 
 	// (GET /healthz)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -482,6 +501,42 @@ func (siw *ServerInterfaceWrapper) ReplacePostContent(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// GetSimilarPosts operation middleware
+func (siw *ServerInterfaceWrapper) GetSimilarPosts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSimilarPostsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSimilarPosts(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ReplacePostThumbnail operation middleware
 func (siw *ServerInterfaceWrapper) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request) {
 
@@ -730,8 +785,21 @@ func (siw *ServerInterfaceWrapper) PutTag(w http.ResponseWriter, r *http.Request
 // UploadPost operation middleware
 func (siw *ServerInterfaceWrapper) UploadPost(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadPostParams
+
+	// ------------- Optional query parameter "force" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "force", r.URL.Query(), &params.Force)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "force", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UploadPost(w, r)
+		siw.Handler.UploadPost(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -913,6 +981,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.ReplacePostContent)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/similar", wrapper.GetSimilarPosts)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.ReplacePostThumbnail)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories", wrapper.GetTagCategories)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.DeleteTagCategory)

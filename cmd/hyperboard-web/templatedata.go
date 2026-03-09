@@ -14,10 +14,11 @@ type PostsData struct {
 }
 
 type PostData struct {
-	Post     types.Post
-	IsVideo  bool
-	FileSize int64
-	Error    string
+	Post         types.Post
+	IsVideo      bool
+	FileSize     int64
+	SimilarPosts []types.Post
+	Error        string
 }
 
 type TagsData struct {

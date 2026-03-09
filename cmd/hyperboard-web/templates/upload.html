@@ -31,45 +31,55 @@
   }
   #preview-zone {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.75rem;
     margin-bottom: 1rem;
   }
   #preview-zone:empty {
     display: none;
   }
   .file-preview {
-    position: relative;
-    display: inline-block;
-  }
-  .file-preview img {
-    max-width: 150px;
-    max-height: 150px;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border: 1px solid #444;
     border-radius: 4px;
   }
-  .file-preview .file-name {
-    max-width: 150px;
-    padding: 2rem 1rem;
-    border: 1px solid #666;
+  .file-preview-thumb {
+    flex-shrink: 0;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     border-radius: 4px;
+  }
+  .file-preview-thumb img {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 4px;
+  }
+  .file-preview-thumb .file-name {
+    padding: 1rem 0.5rem;
     text-align: center;
     word-break: break-all;
     font-size: 0.85em;
   }
+  .file-preview-info {
+    flex: 1;
+    min-width: 0;
+  }
   .file-preview .remove-btn {
-    position: absolute;
-    top: -6px;
-    right: -6px;
+    flex-shrink: 0;
     background: #c00;
     color: #fff;
     border: none;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
     cursor: pointer;
     font-size: 12px;
-    line-height: 20px;
-    padding: 0;
   }
   .file-preview .progress-bar {
     width: 100%;
@@ -87,23 +97,54 @@
   }
   .file-preview.upload-success .progress-fill { background: #2a2; }
   .file-preview.upload-error .progress-fill { background: #c00; }
+  .file-preview.upload-similar .progress-fill { background: #da0; }
   .file-preview .upload-status {
-    font-size: 0.75em;
-    text-align: center;
-    margin-top: 2px;
-    max-width: 150px;
+    font-size: 0.85em;
+    margin-top: 4px;
     word-break: break-word;
+  }
+  .similar-posts {
+    margin-top: 0.5rem;
+  }
+  .similar-posts-label {
+    font-size: 0.85em;
+    color: #da0;
+    margin-bottom: 0.25rem;
+  }
+  .similar-posts-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .similar-thumb {
+    display: block;
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 2px solid #444;
+  }
+  .similar-thumb:hover {
+    border-color: #4a9eff;
+  }
+  .similar-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+  .similar-actions .btn {
+    font-size: 0.85em;
+    padding: 0.25rem 0.75rem;
   }
 </style>
 <script>
 (function() {
-  const form = document.getElementById('upload-form');
-  const fileInput = document.getElementById('file-input');
-  const previewZone = document.getElementById('preview-zone');
+  var form = document.getElementById('upload-form');
+  var fileInput = document.getElementById('file-input');
+  var previewZone = document.getElementById('preview-zone');
 
-  // Unified file list keyed by content hash
-  var fileMap = new Map(); // key -> { file, element }
-  var pendingHashes = new Set(); // track in-flight hash computations
+  var fileMap = new Map();
+  var pendingHashes = new Set();
 
   function hashFile(file) {
     return file.arrayBuffer().then(function(buf) {
@@ -133,16 +174,26 @@
     var wrapper = document.createElement('div');
     wrapper.className = 'file-preview';
 
+    var thumbDiv = document.createElement('div');
+    thumbDiv.className = 'file-preview-thumb';
     if (file.type.startsWith('image/')) {
       var img = document.createElement('img');
       img.src = URL.createObjectURL(file);
-      wrapper.appendChild(img);
+      thumbDiv.appendChild(img);
     } else {
       var nameEl = document.createElement('div');
       nameEl.className = 'file-name';
       nameEl.textContent = file.name;
-      wrapper.appendChild(nameEl);
+      thumbDiv.appendChild(nameEl);
     }
+    wrapper.appendChild(thumbDiv);
+
+    var infoDiv = document.createElement('div');
+    infoDiv.className = 'file-preview-info';
+    var fnameEl = document.createElement('div');
+    fnameEl.textContent = file.name || 'pasted-image.png';
+    infoDiv.appendChild(fnameEl);
+    wrapper.appendChild(infoDiv);
 
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -158,16 +209,13 @@
     fileMap.set(key, { file: file, element: wrapper });
   }
 
-  // Handle file input changes — add selected files to the unified list
   fileInput.addEventListener('change', function() {
     for (var i = 0; i < fileInput.files.length; i++) {
       addFile(fileInput.files[i]);
     }
-    // Clear the input so the same file can be re-selected after removal
     fileInput.value = '';
   });
 
-  // Handle clipboard paste
   document.addEventListener('paste', function(e) {
     var items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
@@ -180,8 +228,27 @@
     }
   });
 
-  function uploadFile(entry) {
+  function mediaUrl(rawUrl) {
+    try {
+      var u = new URL(rawUrl);
+      return '/media' + u.pathname;
+    } catch(e) {
+      return rawUrl;
+    }
+  }
+
+  function uploadFile(entry, forceUpload) {
     var wrapper = entry.element;
+    var infoDiv = wrapper.querySelector('.file-preview-info');
+
+    // Remove previous status/similar content on re-upload
+    var oldProgress = wrapper.querySelector('.progress-bar');
+    if (oldProgress) oldProgress.remove();
+    var oldStatus = wrapper.querySelector('.upload-status');
+    if (oldStatus) oldStatus.remove();
+    var oldSimilar = wrapper.querySelector('.similar-posts');
+    if (oldSimilar) oldSimilar.remove();
+    wrapper.classList.remove('upload-success', 'upload-error', 'upload-similar');
 
     // Remove the remove button during upload
     var removeBtn = wrapper.querySelector('.remove-btn');
@@ -193,18 +260,21 @@
     var progressFill = document.createElement('div');
     progressFill.className = 'progress-fill';
     progressBar.appendChild(progressFill);
-    wrapper.appendChild(progressBar);
+    infoDiv.appendChild(progressBar);
 
     // Add status text
     var statusEl = document.createElement('div');
     statusEl.className = 'upload-status';
     statusEl.textContent = 'Uploading\u2026';
-    wrapper.appendChild(statusEl);
+    infoDiv.appendChild(statusEl);
 
     return new Promise(function(resolve) {
       var xhr = new XMLHttpRequest();
       var formData = new FormData();
       formData.append('files', entry.file, entry.file.name || 'pasted-image.png');
+      if (forceUpload) {
+        formData.append('force', 'true');
+      }
 
       xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
@@ -218,18 +288,69 @@
         var resp;
         try { resp = JSON.parse(xhr.responseText); } catch(e) { resp = {}; }
 
-        if (xhr.status >= 200 && xhr.status < 300 && resp.id) {
+        if (xhr.status === 201 || (xhr.status >= 200 && xhr.status < 300 && resp.id)) {
           wrapper.classList.add('upload-success');
           var link = document.createElement('a');
           link.href = '/posts/' + resp.id;
           link.textContent = 'View post';
           statusEl.textContent = '';
           statusEl.appendChild(link);
+          resolve();
+        } else if (xhr.status === 409 && resp.similar && resp.similar.length > 0) {
+          // Similar posts found — show them with force/discard options
+          wrapper.classList.add('upload-similar');
+          statusEl.textContent = 'Similar posts found:';
+
+          var similarDiv = document.createElement('div');
+          similarDiv.className = 'similar-posts';
+
+          var grid = document.createElement('div');
+          grid.className = 'similar-posts-grid';
+          resp.similar.forEach(function(post) {
+            var a = document.createElement('a');
+            a.href = '/posts/' + post.id;
+            a.target = '_blank';
+            var thumb = document.createElement('img');
+            thumb.className = 'similar-thumb';
+            thumb.src = mediaUrl(post.thumbnailUrl);
+            thumb.alt = 'Similar post';
+            a.appendChild(thumb);
+            grid.appendChild(a);
+          });
+          similarDiv.appendChild(grid);
+
+          var actions = document.createElement('div');
+          actions.className = 'similar-actions';
+          var forceBtn = document.createElement('button');
+          forceBtn.type = 'button';
+          forceBtn.className = 'btn btn-primary';
+          forceBtn.textContent = 'Upload anyway';
+          forceBtn.addEventListener('click', function() {
+            uploadFile(entry, true).then(resolve);
+          });
+          actions.appendChild(forceBtn);
+
+          var discardBtn = document.createElement('button');
+          discardBtn.type = 'button';
+          discardBtn.className = 'btn btn-danger';
+          discardBtn.textContent = 'Discard';
+          discardBtn.addEventListener('click', function() {
+            wrapper.classList.remove('upload-similar');
+            wrapper.classList.add('upload-error');
+            statusEl.textContent = 'Discarded';
+            similarDiv.remove();
+            resolve();
+          });
+          actions.appendChild(discardBtn);
+
+          similarDiv.appendChild(actions);
+          infoDiv.appendChild(similarDiv);
+          // Do NOT resolve — wait for user action
         } else {
           wrapper.classList.add('upload-error');
-          statusEl.textContent = resp.error || 'Upload failed';
+          statusEl.textContent = resp.error || resp.message || 'Upload failed';
+          resolve();
         }
-        resolve();
       });
 
       xhr.addEventListener('error', function() {
@@ -249,7 +370,6 @@
     e.preventDefault();
     if (fileMap.size === 0) return;
 
-    // Disable inputs during upload
     fileInput.disabled = true;
     form.querySelector('button[type="submit"]').disabled = true;
 
@@ -259,7 +379,7 @@
     // Upload files serially
     var chain = Promise.resolve();
     entries.forEach(function(entry) {
-      chain = chain.then(function() { return uploadFile(entry); });
+      chain = chain.then(function() { return uploadFile(entry, false); });
     });
     chain.then(function() {
       fileMap.clear();

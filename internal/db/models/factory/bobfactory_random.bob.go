@@ -22,6 +22,14 @@ func random_bool(f *faker.Faker, limits ...string) bool {
 	return f.Bool()
 }
 
+func random_int64(f *faker.Faker, limits ...string) int64 {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	return f.Int64()
+}
+
 func random_string(f *faker.Faker, limits ...string) string {
 	if f == nil {
 		f = &defaultFaker

@@ -72,6 +72,19 @@ function setMediaMode(mode) {
   {{end}}
 </div>
 
+{{if .SimilarPosts}}
+<div class="mt-2">
+  <h3>Similar Posts</h3>
+  <div class="similar-posts-grid">
+    {{range .SimilarPosts}}
+    <a href="/posts/{{.ID}}">
+      <img class="similar-thumb" src="{{.ThumbnailUrl | mediaUrl}}" alt="Similar post">
+    </a>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
 <div class="mt-2">
   <button class="btn btn-danger"
     hx-delete="/posts/{{.Post.ID}}"
