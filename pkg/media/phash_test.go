@@ -1,4 +1,4 @@
-package api
+package media
 
 import (
 	"image"
@@ -9,8 +9,8 @@ import (
 func TestDhash(t *testing.T) {
 	t.Run("identical images produce same hash", func(t *testing.T) {
 		img := syntheticImage(100, 100, color.White)
-		h1 := dhash(img)
-		h2 := dhash(img)
+		h1 := Dhash(img)
+		h2 := Dhash(img)
 		if h1 != h2 {
 			t.Errorf("same image produced different hashes: %d vs %d", h1, h2)
 		}
@@ -19,8 +19,8 @@ func TestDhash(t *testing.T) {
 	t.Run("different images produce different hashes", func(t *testing.T) {
 		img1 := checkerboardImage(100, 100, 10)
 		img2 := checkerboardImage(100, 100, 25)
-		h1 := dhash(img1)
-		h2 := dhash(img2)
+		h1 := Dhash(img1)
+		h2 := Dhash(img2)
 		if h1 == h2 {
 			t.Error("different images produced the same hash")
 		}
@@ -28,7 +28,7 @@ func TestDhash(t *testing.T) {
 
 	t.Run("patterned image produces non-zero hash", func(t *testing.T) {
 		img := checkerboardImage(100, 100, 10)
-		h := dhash(img)
+		h := Dhash(img)
 		if h == 0 {
 			t.Error("checkerboard image should produce non-zero hash")
 		}

@@ -1,4 +1,4 @@
-package api
+package storage
 
 import (
 	"context"
@@ -13,12 +13,14 @@ type storageEntry struct {
 	contentType string
 }
 
+// FakeStorage is an in-memory Storage implementation for testing.
 type FakeStorage struct {
 	mu      sync.Mutex
 	objects map[string]storageEntry
 }
 
-func newFakeStorage() *FakeStorage {
+// NewFakeStorage creates a new FakeStorage.
+func NewFakeStorage() *FakeStorage {
 	return &FakeStorage{objects: make(map[string]storageEntry)}
 }
 

@@ -1,4 +1,4 @@
-package api
+package media
 
 import (
 	"bytes"
@@ -51,12 +51,12 @@ func TestFitImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			img := image.NewRGBA(image.Rect(0, 0, tt.srcW, tt.srcH))
-			result := fitImage(img, tt.maxW, tt.maxH)
+			result := FitImage(img, tt.maxW, tt.maxH)
 			bounds := result.Bounds()
 			gotW := bounds.Max.X - bounds.Min.X
 			gotH := bounds.Max.Y - bounds.Min.Y
 			if gotW != tt.expectW || gotH != tt.expectH {
-				t.Errorf("fitImage(%dx%d, %d, %d) = %dx%d, want %dx%d",
+				t.Errorf("FitImage(%dx%d, %d, %d) = %dx%d, want %dx%d",
 					tt.srcW, tt.srcH, tt.maxW, tt.maxH, gotW, gotH, tt.expectW, tt.expectH)
 			}
 		})
@@ -72,9 +72,9 @@ func TestProcessImage(t *testing.T) {
 		img := syntheticColorImage(64, 64)
 		pngData := encodePNG(t, img)
 
-		content, mime, thumbnail, err := processImage(pngData, "image/png")
+		content, mime, thumbnail, err := ProcessImage(pngData, "image/png")
 		if err != nil {
-			t.Fatalf("processImage error: %v", err)
+			t.Fatalf("ProcessImage error: %v", err)
 		}
 		if mime != "image/webp" {
 			t.Errorf("mime = %q, want %q", mime, "image/webp")

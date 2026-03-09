@@ -6,19 +6,20 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dharmab/hyperboard/pkg/storage"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
 
 type Server struct {
 	db                  bob.DB
-	storage             Storage
+	storage             storage.Storage
 	similarityThreshold int
 }
 
 var _ ServerInterface = &Server{}
 
-func NewServer(db bob.DB, storage Storage, similarityThreshold int) *Server {
+func NewServer(db bob.DB, storage storage.Storage, similarityThreshold int) *Server {
 	return &Server{
 		db:                  db,
 		storage:             storage,

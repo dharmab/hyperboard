@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
+	"github.com/dharmab/hyperboard/pkg/storage"
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -66,7 +67,7 @@ func freePort() (uint32, error) {
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	t.Cleanup(func() { cleanTestDB(t) })
-	return NewServer(testDB, newFakeStorage(), 5)
+	return NewServer(testDB, storage.NewFakeStorage(), 5)
 }
 
 func cleanTestDB(t *testing.T) {

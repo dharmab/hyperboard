@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/dharmab/hyperboard/pkg/media"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog/log"
@@ -378,7 +379,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
-		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
+		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
 		if err != nil {
 			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
@@ -387,13 +388,13 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, err = processVideo(data)
+		thumbnailData, err = media.ProcessVideo(data)
 		if err != nil {
 			log.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
-		hasAudio, probeErr := probeHasAudio(data)
+		hasAudio, probeErr := media.ProbeHasAudio(data)
 		if probeErr != nil {
 			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
 		}
@@ -420,7 +421,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 
 	// Compute perceptual hash from the thumbnail.
 	var phashVal *sql.Null[int64]
-	pHash, phashErr := dhashFromBytes(thumbnailData)
+	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
 		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
@@ -659,7 +660,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
-		contentData, contentMIME, thumbnailData, err = processImage(data, mimeStr)
+		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
 		if err != nil {
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 			return
@@ -667,12 +668,12 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, err = processVideo(data)
+		thumbnailData, err = media.ProcessVideo(data)
 		if err != nil {
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
 		}
-		hasAudio, probeErr := probeHasAudio(data)
+		hasAudio, probeErr := media.ProbeHasAudio(data)
 		if probeErr != nil {
 			log.Warn().Err(probeErr).Msg("failed to probe audio; assuming no audio")
 		}
@@ -702,7 +703,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	hashHex := hex.EncodeToString(hash[:])
 
 	var phashVal *sql.Null[int64]
-	pHash, phashErr := dhashFromBytes(thumbnailData)
+	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
 		log.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
@@ -774,7 +775,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 
-	_, _, thumbnailData, err := processImage(data, mimeStr)
+	_, _, thumbnailData, err := media.ProcessImage(data, mimeStr)
 	if err != nil {
 		respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
 		return

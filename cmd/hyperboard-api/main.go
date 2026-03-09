@@ -12,7 +12,9 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/pkg/api"
+	"github.com/dharmab/hyperboard/pkg/authmw"
 	"github.com/dharmab/hyperboard/pkg/httplog"
+	"github.com/dharmab/hyperboard/pkg/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog"
@@ -90,7 +92,7 @@ func migrateDatabase(dsn string) error {
 }
 
 func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
-	storage, err := api.NewS3Storage(
+	objStorage, err := storage.NewS3Storage(
 		ctx,
 		cfg.Storage.Endpoint,
 		cfg.Storage.Bucket,
@@ -110,11 +112,11 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	defer pool.Close()
 
 	db := bob.NewDB(stdlib.OpenDBFromPool(pool))
-	apiServer := api.NewServer(db, storage, cfg.SimilarityThreshold)
+	apiServer := api.NewServer(db, objStorage, cfg.SimilarityThreshold)
 	mux := http.NewServeMux()
 	api.HandlerFromMux(apiServer, mux)
 	mux.HandleFunc("/media/", apiServer.HandleMedia)
-	authMiddleware := api.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
+	authMiddleware := authmw.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
 		Handler: httplog.RequestLoggingMiddleware(authMiddleware(mux)),
 		Addr:    ":" + cfg.Port,
