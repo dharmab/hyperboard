@@ -1,14 +1,11 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
@@ -21,21 +18,12 @@ type Server struct {
 
 var _ ServerInterface = &Server{}
 
-func NewServer(ctx context.Context, dsn string, storage Storage, similarityThreshold int) (*Server, error) {
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(db bob.DB, storage Storage, similarityThreshold int) *Server {
 	return &Server{
-		db:                  bob.NewDB(stdlib.OpenDBFromPool(pool)),
+		db:                  db,
 		storage:             storage,
 		similarityThreshold: similarityThreshold,
-	}, nil
-}
-
-func (s *Server) Close() error {
-	return s.db.Close()
+	}
 }
 
 // HandleMedia serves media objects from storage.

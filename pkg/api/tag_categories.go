@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -112,7 +113,7 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 			Name:        &req.Name,
 			Description: &req.Description,
 			Color:       &req.Color,
-			UpdatedAt:   now(),
+			UpdatedAt:   new(time.Now().UTC()),
 		})
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update tag category")
@@ -132,8 +133,8 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 				Name:        &req.Name,
 				Description: &req.Description,
 				Color:       &req.Color,
-				CreatedAt:   now(),
-				UpdatedAt:   now(),
+				CreatedAt:   new(time.Now().UTC()),
+				UpdatedAt:   new(time.Now().UTC()),
 			},
 		).One(ctx, s.db)
 		if err != nil {

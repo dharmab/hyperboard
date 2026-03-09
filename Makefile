@@ -1,4 +1,4 @@
-.PHONY: install-deps build-images generate lint format start stop ci clean
+.PHONY: install-deps build-images generate lint format test start stop ci clean
 
 install-deps:
 	brew install go k3d tilt
@@ -21,6 +21,9 @@ format:
 	go fix ./...
 	gofmt -s -w .
 
+test:
+	go test ./...
+
 start:
 	k3d registry create hyperboard
 	k3d cluster create hyperboard --registry-use hyperboard --wait
@@ -31,7 +34,7 @@ stop:
 	k3d cluster delete hyperboard
 	k3d registry delete hyperboard
 
-ci: build-images lint
+ci: build-images lint test
 
 clean:
 	find . -name 'gen.go' -delete

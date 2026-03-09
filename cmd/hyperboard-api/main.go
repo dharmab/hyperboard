@@ -9,10 +9,13 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/pkg/api"
 	"github.com/dharmab/hyperboard/pkg/httplog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/stephenafamo/bob"
 )
 
 var configPath string
@@ -96,10 +99,14 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 		return fmt.Errorf("failed to create S3 storage: %w", err)
 	}
 
-	apiServer, err := api.NewServer(ctx, dsn, storage, cfg.SimilarityThreshold)
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		return fmt.Errorf("failed to create API server: %w", err)
+		return fmt.Errorf("failed to create database pool: %w", err)
 	}
+	defer pool.Close()
+
+	db := bob.NewDB(stdlib.OpenDBFromPool(pool))
+	apiServer := api.NewServer(db, storage, cfg.SimilarityThreshold)
 	mux := http.NewServeMux()
 	api.HandlerFromMux(apiServer, mux)
 	mux.HandleFunc("/media/", apiServer.HandleMedia)

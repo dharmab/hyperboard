@@ -28,8 +28,8 @@ type SimilarPostsResponse struct {
 func (s *Server) findSimilarPosts(ctx context.Context, excludeID uuid.UUID, pHash int64, limit int) (models.PostSlice, error) {
 	mods := []bob.Mod[*dialect.SelectQuery]{
 		sm.Where(psql.Raw("phash IS NOT NULL")),
-		sm.Where(psql.Raw("bit_count((phash # $1)::bit(64)) <= $2", pHash, s.similarityThreshold)),
-		sm.OrderBy(psql.Raw("bit_count((phash # $1)::bit(64))", pHash)),
+		sm.Where(psql.Raw("bit_count((phash # ?)::bit(64)) <= ?", pHash, s.similarityThreshold)),
+		sm.OrderBy(psql.Raw("bit_count((phash # ?)::bit(64))", pHash)),
 		sm.Limit(int64(limit)),
 	}
 

@@ -455,8 +455,8 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 			HasAudio:     &hasAudioVal,
 			Sha256:       &hashHex,
 			Phash:        phashVal,
-			CreatedAt:    now(),
-			UpdatedAt:    now(),
+			CreatedAt:    new(time.Now().UTC()),
+			UpdatedAt:    new(time.Now().UTC()),
 		},
 	).One(ctx, s.db)
 	if err != nil {
@@ -530,7 +530,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		ContentURL:   &post.ContentUrl,
 		ThumbnailURL: &post.ThumbnailUrl,
 		Note:         &post.Note,
-		UpdatedAt:    now(),
+		UpdatedAt:    new(time.Now().UTC()),
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
@@ -560,8 +560,8 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 				tag, err = models.Tags.Insert(
 					&models.TagSetter{
 						Name:      &resolvedName,
-						CreatedAt: now(),
-						UpdatedAt: now(),
+						CreatedAt: new(time.Now().UTC()),
+						UpdatedAt: new(time.Now().UTC()),
 					},
 				).One(ctx, s.db)
 				if err != nil {
@@ -690,7 +690,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		HasAudio:     &hasAudioVal,
 		Sha256:       &hashHex,
 		Phash:        phashVal,
-		UpdatedAt:    now(),
+		UpdatedAt:    new(time.Now().UTC()),
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
@@ -763,7 +763,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 
 	err = existingPost.Update(ctx, s.db, &models.PostSetter{
 		ThumbnailURL: &thumbnailURL,
-		UpdatedAt:    now(),
+		UpdatedAt:    new(time.Now().UTC()),
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")

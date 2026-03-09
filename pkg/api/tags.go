@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -313,7 +314,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			Name:          &tag.Name,
 			Description:   &tag.Description,
 			TagCategoryID: &tagCategoryID,
-			UpdatedAt:     now(),
+			UpdatedAt:     new(time.Now().UTC()),
 		})
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update tag")
@@ -333,8 +334,8 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 				Name:          &tag.Name,
 				Description:   &tag.Description,
 				TagCategoryID: &tagCategoryID,
-				CreatedAt:     now(),
-				UpdatedAt:     now(),
+				CreatedAt:     new(time.Now().UTC()),
+				UpdatedAt:     new(time.Now().UTC()),
 			},
 		).One(ctx, s.db)
 		if err != nil {
