@@ -8,9 +8,52 @@
   <h1>Notes</h1>
   <a href="/notes/_new" class="btn btn-primary">New Note</a>
 </div>
-<ul class="tag-list mt-2">
-{{range .Notes}}
-<li><a href="/notes/{{.ID}}">{{.Title}}</a></li>
-{{end}}
-</ul>
+<table class="data-table mt-2" id="notes-table">
+  <thead>
+    <tr>
+      <th class="sortable sorted-asc" data-sort="title" data-type="string">Title</th>
+      <th class="sortable" data-sort="updated" data-type="string">Updated</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Notes}}
+    <tr>
+      <td data-value="{{.Title}}">
+        <a href="/notes/{{.ID}}">{{.Title}}</a>
+      </td>
+      <td data-value="{{.UpdatedAt}}">{{.UpdatedAt}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+<script>
+(function() {
+  const table = document.getElementById('notes-table');
+  const headers = table.querySelectorAll('th.sortable');
+  headers.forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col = th.cellIndex;
+      const type = th.dataset.type;
+      const asc = !th.classList.contains('sorted-asc');
+      headers.forEach(h => { h.classList.remove('sorted-asc', 'sorted-desc'); });
+      th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const av = a.cells[col].dataset.value;
+        const bv = b.cells[col].dataset.value;
+        let cmp;
+        if (type === 'number') {
+          cmp = parseInt(av, 10) - parseInt(bv, 10);
+        } else {
+          cmp = av.localeCompare(bv, undefined, {sensitivity: 'base'});
+        }
+        return asc ? cmp : -cmp;
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+})();
+</script>
 {{end}}
