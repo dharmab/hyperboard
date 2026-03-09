@@ -29,6 +29,11 @@ func TestIsValidTagName(t *testing.T) {
 		{"_abc", false},
 		{" abc", false},
 		{"!abc", false},
+		{"abc ", false},
+		{"abc  def", false},
+		{"abc def", true},
+		{"abc\t\tdef", false},
+		{"abc\tdef", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,7 +49,7 @@ func TestPutTagValidation(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	for _, name := range []string{"-bad", "_bad", " bad", "!bad"} {
+	for _, name := range []string{"-bad", "_bad", " bad", "!bad", "bad ", "bad  tag"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			body := types.Tag{Name: name, Description: "test"}

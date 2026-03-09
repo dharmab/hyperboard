@@ -22,12 +22,20 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
-// isValidTagName reports whether name begins with a unicode letter or digit.
+// isValidTagName reports whether name begins with a unicode letter or digit,
+// does not end with whitespace, and does not contain consecutive whitespace.
 func isValidTagName(name string) bool {
-	for _, r := range name {
-		return unicode.IsLetter(r) || unicode.IsDigit(r)
+	var prev rune
+	for i, r := range name {
+		if i == 0 && !(unicode.IsLetter(r) || unicode.IsDigit(r)) {
+			return false
+		}
+		if unicode.IsSpace(r) && unicode.IsSpace(prev) {
+			return false
+		}
+		prev = r
 	}
-	return false
+	return prev != 0 && !unicode.IsSpace(prev)
 }
 
 func tagFromModel(model *models.Tag) types.Tag {
