@@ -81,6 +81,8 @@ func parseSearch(search string) types.PostSearch {
 			postSearch.TypeVideo = true
 		} else if term == types.TagAudio {
 			postSearch.TypeAudio = true
+		} else if excluded, ok := strings.CutPrefix(term, "-"); ok && excluded != "" {
+			postSearch.ExcludeTags = append(postSearch.ExcludeTags, excluded)
 		} else {
 			postSearch.Tags = append(postSearch.Tags, term)
 		}
@@ -127,6 +129,21 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		}
 		mods = append(mods, sm.Where(psql.Raw(
 			`EXISTS (
+				SELECT 1 FROM posts_tags pt
+				JOIN tags t ON pt.tag_id = t.id
+				WHERE pt.post_id = posts.id AND t.name = ?
+			)`, resolved,
+		)))
+	}
+
+	for _, tagName := range searchParams.ExcludeTags {
+		resolved, err := s.resolveAlias(ctx, tagName)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
+			return
+		}
+		mods = append(mods, sm.Where(psql.Raw(
+			`NOT EXISTS (
 				SELECT 1 FROM posts_tags pt
 				JOIN tags t ON pt.tag_id = t.id
 				WHERE pt.post_id = posts.id AND t.name = ?
