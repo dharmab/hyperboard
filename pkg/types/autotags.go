@@ -23,15 +23,9 @@ const (
 
 const (
 	// SortRandom is a shuffled ordering. It is not randomized every query, but rather is a pre-shuffled ordering which is periodically reshuffled.
-	SortShuffle = "shuffle"
+	SortRandom = "random"
 	// SortCreatedAt orders posts by their creation..
 	SortCreatedAt = "created"
 	// SortUpdatedAt orders posts by their last update.
 	SortUpdatedAt = "updated"
-	// SortFileSize orders posts by their file size on disk.
-	SortFileSize = "file-size"
-	// SortResolution orders posts by their resolution (pixel width x height).
-	SortResolution = "resolution"
-	// SortDuration sorts video and audio posts by their runtime. Images have a duration of 0.
-	SortDuration = "duration"
 )

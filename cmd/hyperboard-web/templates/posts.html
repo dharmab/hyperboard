@@ -10,36 +10,36 @@
     autocomplete="off">
   <datalist id="search-suggestions"></datalist>
   <button type="submit" class="btn btn-primary">Search</button>
-  <button type="button" class="btn" id="btn-shuffle" onclick="toggleShuffle()">Shuffle</button>
+  <button type="button" class="btn" id="btn-random" onclick="toggleRandom()">Random</button>
 </form>
 <div id="posts-grid" class="posts-grid">
   {{template "posts-items" .}}
 </div>
 <script>
-function toggleShuffle() {
+function toggleRandom() {
   var input = document.getElementById('posts-search');
-  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== '' && s !== 'shuffle'; });
-  if (!hasShuffleTerm(input.value)) {
-    terms.push('shuffle');
+  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== '' && !s.startsWith('sort:'); });
+  if (!hasRandomTerm(input.value)) {
+    terms.push('sort:random');
   }
   input.value = terms.join(', ');
   htmx.trigger(document.querySelector('.posts-controls'), 'submit');
 }
 
-function hasShuffleTerm(value) {
-  return value.split(',').map(function(s) { return s.trim(); }).indexOf('shuffle') >= 0;
+function hasRandomTerm(value) {
+  return value.split(',').map(function(s) { return s.trim(); }).indexOf('sort:random') >= 0;
 }
 
-function updateShuffleButton() {
+function updateRandomButton() {
   var input = document.getElementById('posts-search');
-  var btn = document.getElementById('btn-shuffle');
-  if (hasShuffleTerm(input.value)) {
+  var btn = document.getElementById('btn-random');
+  if (hasRandomTerm(input.value)) {
     btn.classList.add('btn-primary');
   } else {
     btn.classList.remove('btn-primary');
   }
 }
-updateShuffleButton();
+updateRandomButton();
 
 (function() {
   var searchInput = document.getElementById('posts-search');
@@ -47,7 +47,7 @@ updateShuffleButton();
   var debounceTimer;
 
   searchInput.addEventListener('input', function() {
-    updateShuffleButton();
+    updateRandomButton();
     clearTimeout(debounceTimer);
     var value = this.value;
     var lastCommaIdx = value.lastIndexOf(',');

@@ -44,12 +44,9 @@ func postFromModel(model *models.Post) (types.Post, error) {
 }
 
 var sortTerms = map[string]bool{
-	types.SortShuffle:    true,
-	types.SortCreatedAt:  true,
-	types.SortUpdatedAt:  true,
-	types.SortFileSize:   true,
-	types.SortResolution: true,
-	types.SortDuration:   true,
+	types.SortRandom:    true,
+	types.SortCreatedAt: true,
+	types.SortUpdatedAt: true,
 }
 
 func parseSearch(search string) types.PostSearch {
@@ -67,8 +64,10 @@ func parseSearch(search string) types.PostSearch {
 		if term == "" {
 			continue
 		}
-		if sortTerms[term] {
-			postSearch.Sort = term
+		if sortValue, ok := strings.CutPrefix(term, "sort:"); ok {
+			if sortTerms[sortValue] {
+				postSearch.Sort = sortValue
+			}
 		} else {
 			postSearch.Tags = append(postSearch.Tags, term)
 		}
@@ -124,7 +123,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	limit := parseLimit(params.Limit)
 
-	if searchParams.Sort == types.SortShuffle {
+	if searchParams.Sort == types.SortRandom {
 		currentSeed := time.Now().Unix() / 21600
 		offset := 0
 
@@ -176,8 +175,12 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		return
 	}
 
-	// sort == Recent (default)
-	mods = append(mods, sm.OrderBy(models.PostColumns.CreatedAt).Desc())
+	// Determine sort column (default: created_at, newest first)
+	sortCol := models.PostColumns.CreatedAt
+	if searchParams.Sort == types.SortUpdatedAt {
+		sortCol = models.PostColumns.UpdatedAt
+	}
+	mods = append(mods, sm.OrderBy(sortCol).Desc())
 
 	if params.Cursor != nil && *params.Cursor != "" {
 		decodedCursor, err := deobfuscateCursor(*params.Cursor)
@@ -185,7 +188,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(models.PostColumns.CreatedAt.LT(psql.Arg(decodedCursor))))
+		mods = append(mods, sm.Where(sortCol.LT(psql.Arg(decodedCursor))))
 	}
 
 	mods = append(mods, sm.Limit(int64(limit+1)))
@@ -201,9 +204,13 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		return
 	}
 
-	hasMore, nextCursor := paginate(len(posts), limit, func() string {
+	cursorTimeFn := func() string {
+		if searchParams.Sort == types.SortUpdatedAt {
+			return posts[limit-1].UpdatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")
+		}
 		return posts[limit-1].CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")
-	})
+	}
+	hasMore, nextCursor := paginate(len(posts), limit, cursorTimeFn)
 	if hasMore {
 		posts = posts[:limit]
 	}
