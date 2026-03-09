@@ -1,0 +1,19 @@
+[Unit]
+Description=Hyperboard Web
+After=hyperboard-api.service
+Requires=hyperboard-api.service
+
+[Container]
+Image=localhost/hyperboard-web:latest
+ContainerName=hyperboard-web
+Network=hyperboard.network
+Environment=HYPERBOARD_WEB_ADMIN_PASSWORD=hyperboard
+Environment=HYPERBOARD_WEB_API_URL=http://hyperboard-api:8080
+Environment=HYPERBOARD_WEB_LOG_LEVEL=info
+PublishPort=8080:8080
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

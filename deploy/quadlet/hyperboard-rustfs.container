@@ -1,0 +1,25 @@
+[Unit]
+Description=Hyperboard RustFS (S3-compatible storage)
+After=hyperboard.network
+
+[Container]
+Image=docker.io/rustfs/rustfs:1.0.0-alpha.85
+ContainerName=hyperboard-rustfs
+Network=hyperboard.network
+Volume=hyperboard-rustfs-data.volume:/data
+Exec=/data
+Environment=RUSTFS_ACCESS_KEY=rustfsadmin
+Environment=RUSTFS_SECRET_KEY=rustfsadmin
+Environment=RUSTFS_CONSOLE_ENABLE=true
+PublishPort=9000:9000
+PublishPort=9001:9001
+HealthCmd=curl -f http://localhost:9000/health/ready || exit 1
+HealthInterval=5s
+HealthTimeout=3s
+HealthRetries=5
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target

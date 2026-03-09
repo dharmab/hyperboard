@@ -1,0 +1,23 @@
+[Unit]
+Description=Hyperboard PostgreSQL
+After=hyperboard.network
+
+[Container]
+Image=docker.io/library/postgres:17
+ContainerName=hyperboard-postgresql
+Network=hyperboard.network
+Volume=hyperboard-postgresql-data.volume:/var/lib/postgresql/data
+Environment=POSTGRES_USER=hyperboard
+Environment=POSTGRES_PASSWORD=hyperboard
+Environment=POSTGRES_DB=hyperboard
+PublishPort=5432:5432
+HealthCmd=pg_isready -U hyperboard -d hyperboard
+HealthInterval=5s
+HealthTimeout=5s
+HealthRetries=5
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target
