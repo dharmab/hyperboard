@@ -1,17 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -94,18 +92,22 @@ func init() {
 }
 
 func getNote(id string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/notes/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	note, err := decodeJSON[types.Note](resp)
+	noteID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.GetNoteWithResponse(context.TODO(), noteID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	note := *resp.JSON200
 	return printResource(note, func() [][2]string {
 		content := note.Content
 		if len(content) > 80 {
@@ -122,21 +124,20 @@ func getNote(id string) error {
 }
 
 func listNotes() error {
-	resp, err := doRequest(cfg, http.MethodGet, cfg.APIURL+"/api/v1/notes", "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
+	resp, err := c.GetNotesWithResponse(context.TODO())
+	if err != nil {
 		return err
 	}
-	page, err := decodeJSON[listResponse[types.Note]](resp)
-	if err != nil {
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
 	var notes []types.Note
-	if page.Items != nil {
-		notes = *page.Items
+	if resp.JSON200 != nil && resp.JSON200.Items != nil {
+		notes = *resp.JSON200.Items
 	}
 	return printList(notes, []string{"ID", "TITLE", "CREATED"}, func() [][]string {
 		rows := make([][]string, 0, len(notes))
@@ -148,35 +149,30 @@ func listNotes() error {
 }
 
 func createNote(title, content string) error {
-	reqBody := struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-	}{Title: title, Content: content}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal note: %w", err)
-	}
-	resp, err := doRequest(cfg, http.MethodPost, cfg.APIURL+"/api/v1/notes", "application/json", bytes.NewReader(body))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	note, err := decodeJSON[types.Note](resp)
+	resp, err := c.CreateNoteWithResponse(context.TODO(), client.CreateNoteJSONRequestBody{
+		Title:   title,
+		Content: content,
+	})
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	note := *resp.JSON201
 	return printResource(note, func() [][2]string {
-		content := note.Content
-		if len(content) > 80 {
-			content = content[:80] + "..."
+		c := note.Content
+		if len(c) > 80 {
+			c = c[:80] + "..."
 		}
 		return [][2]string{
 			{"ID", note.ID.String()},
 			{"Title", note.Title},
-			{"Content", content},
+			{"Content", c},
 			{"Created", note.CreatedAt.Format(time.RFC3339)},
 			{"Updated", note.UpdatedAt.Format(time.RFC3339)},
 		}
@@ -184,18 +180,22 @@ func createNote(title, content string) error {
 }
 
 func editNote(id string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/notes/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	note, err := decodeJSON[types.Note](resp)
+	noteID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.GetNoteWithResponse(context.TODO(), noteID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	note := *resp.JSON200
 
 	editable := editableNote{
 		Title:   note.Title,
@@ -212,26 +212,17 @@ func editNote(id string) error {
 		return nil
 	}
 
-	reqBody := struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-	}{Title: edited.Title, Content: edited.Content}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal note: %w", err)
-	}
-	putResp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/notes/%s", cfg.APIURL, url.PathEscape(id)), "application/json", bytes.NewReader(body))
+	putResp, err := c.PutNoteWithResponse(context.TODO(), noteID, client.PutNoteJSONRequestBody{
+		Title:   edited.Title,
+		Content: edited.Content,
+	})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = putResp.Body.Close() }()
-	if err := checkStatus(putResp); err != nil {
+	if err := checkResponse(putResp.StatusCode(), putResp.Body); err != nil {
 		return err
 	}
-	result, err := decodeJSON[types.Note](putResp)
-	if err != nil {
-		return err
-	}
+	result := *putResp.JSON200
 	return printResource(result, func() [][2]string {
 		content := result.Content
 		if len(content) > 80 {
@@ -248,12 +239,19 @@ func editNote(id string) error {
 }
 
 func deleteNote(id string) error {
-	resp, err := doRequest(cfg, http.MethodDelete, fmt.Sprintf("%s/api/v1/notes/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
+	noteID, err := parseID(id)
+	if err != nil {
+		return err
+	}
+	resp, err := c.DeleteNoteWithResponse(context.TODO(), noteID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
 	fmt.Printf("note/%s deleted\n", id)

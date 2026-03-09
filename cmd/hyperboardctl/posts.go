@@ -2,15 +2,14 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/spf13/cobra"
@@ -94,28 +93,34 @@ func postTableRows(post types.Post) [][2]string {
 }
 
 func getPost(id string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/posts/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	post, err := decodeJSON[types.Post](resp)
+	postID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.GetPostWithResponse(context.TODO(), postID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	post := *resp.JSON200
 	return printResource(post, func() [][2]string {
 		return postTableRows(post)
 	})
 }
 
 func searchPosts(query string) error {
-	params := url.Values{}
-	params.Set("search", query)
-	params.Set("sort", "recent")
-	posts, err := fetchAll[types.Post](cfg, cfg.APIURL+"/api/v1/posts", params)
+	c, err := newClient(cfg)
+	if err != nil {
+		return err
+	}
+	search := query
+	posts, err := fetchAllPosts(c, &client.GetPostsParams{Search: &search})
 	if err != nil {
 		return err
 	}
@@ -134,6 +139,28 @@ func searchPosts(query string) error {
 	})
 }
 
+func fetchAllPosts(c *client.ClientWithResponses, baseParams *client.GetPostsParams) ([]types.Post, error) {
+	var all []types.Post
+	params := *baseParams
+	for {
+		resp, err := c.GetPostsWithResponse(context.TODO(), &params)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+			return nil, err
+		}
+		if resp.JSON200.Items != nil {
+			all = append(all, *resp.JSON200.Items...)
+		}
+		if resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			break
+		}
+		params.Cursor = resp.JSON200.Cursor
+	}
+	return all, nil
+}
+
 func createPost(filePath, tagsCSV, note string) error {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -146,18 +173,18 @@ func createPost(filePath, tagsCSV, note string) error {
 		return fmt.Errorf("unsupported file type: %s", mimeStr)
 	}
 
-	resp, err := doRequest(cfg, http.MethodPost, cfg.APIURL+"/api/v1/upload", mimeStr, bytes.NewReader(data))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	post, err := decodeJSON[types.Post](resp)
+	resp, err := c.UploadPostWithBodyWithResponse(context.TODO(), &client.UploadPostParams{}, mimeStr, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	post := *resp.JSON201
 
 	if tagsCSV != "" || note != "" {
 		if tagsCSV != "" {
@@ -166,22 +193,14 @@ func createPost(filePath, tagsCSV, note string) error {
 		if note != "" {
 			post.Note = note
 		}
-		body, err := json.Marshal(post)
-		if err != nil {
-			return fmt.Errorf("marshal post update: %w", err)
-		}
-		putResp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/posts/%s", cfg.APIURL, post.ID), "application/json", bytes.NewReader(body))
+		putResp, err := c.PutPostWithResponse(context.TODO(), post.ID, post)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = putResp.Body.Close() }()
-		if err := checkStatus(putResp); err != nil {
+		if err := checkResponse(putResp.StatusCode(), putResp.Body); err != nil {
 			return err
 		}
-		post, err = decodeJSON[types.Post](putResp)
-		if err != nil {
-			return err
-		}
+		post = *putResp.JSON200
 	}
 
 	return printResource(post, func() [][2]string {
@@ -190,18 +209,22 @@ func createPost(filePath, tagsCSV, note string) error {
 }
 
 func editPost(id string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/posts/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	post, err := decodeJSON[types.Post](resp)
+	postID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.GetPostWithResponse(context.TODO(), postID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	post := *resp.JSON200
 
 	editable := editablePost{
 		Tags: post.Tags,
@@ -220,34 +243,33 @@ func editPost(id string) error {
 
 	post.Tags = edited.Tags
 	post.Note = edited.Note
-	body, err := json.Marshal(post)
-	if err != nil {
-		return fmt.Errorf("marshal post: %w", err)
-	}
-	putResp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/posts/%s", cfg.APIURL, url.PathEscape(id)), "application/json", bytes.NewReader(body))
+	putResp, err := c.PutPostWithResponse(context.TODO(), postID, post)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = putResp.Body.Close() }()
-	if err := checkStatus(putResp); err != nil {
+	if err := checkResponse(putResp.StatusCode(), putResp.Body); err != nil {
 		return err
 	}
-	result, err := decodeJSON[types.Post](putResp)
-	if err != nil {
-		return err
-	}
+	result := *putResp.JSON200
 	return printResource(result, func() [][2]string {
 		return postTableRows(result)
 	})
 }
 
 func deletePost(id string) error {
-	resp, err := doRequest(cfg, http.MethodDelete, fmt.Sprintf("%s/api/v1/posts/%s", cfg.APIURL, url.PathEscape(id)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
+	postID, err := parseID(id)
+	if err != nil {
+		return err
+	}
+	resp, err := c.DeletePostWithResponse(context.TODO(), postID)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
 	fmt.Printf("post/%s deleted\n", id)

@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -79,18 +77,18 @@ func init() {
 }
 
 func getTag(name string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/tags/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	tag, err := decodeJSON[types.Tag](resp)
+	resp, err := c.GetTagWithResponse(context.TODO(), name)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	tag := *resp.JSON200
 	return printResource(tag, func() [][2]string {
 		cat := noCategoryLabel
 		if tag.Category != nil {
@@ -107,7 +105,11 @@ func getTag(name string) error {
 }
 
 func listTags() error {
-	tags, err := fetchAll[types.Tag](cfg, cfg.APIURL+"/api/v1/tags", url.Values{})
+	c, err := newClient(cfg)
+	if err != nil {
+		return err
+	}
+	tags, err := fetchAllTags(c)
 	if err != nil {
 		return err
 	}
@@ -124,23 +126,43 @@ func listTags() error {
 	})
 }
 
+func fetchAllTags(c *client.ClientWithResponses) ([]types.Tag, error) {
+	var all []types.Tag
+	var cursor *string
+	for {
+		limit := 1000
+		params := &client.GetTagsParams{Limit: &limit, Cursor: cursor}
+		resp, err := c.GetTagsWithResponse(context.TODO(), params)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+			return nil, err
+		}
+		if resp.JSON200.Items != nil {
+			all = append(all, *resp.JSON200.Items...)
+		}
+		if resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			break
+		}
+		cursor = resp.JSON200.Cursor
+	}
+	return all, nil
+}
+
 func createTag(name string, tag types.Tag) error {
-	body, err := json.Marshal(tag)
-	if err != nil {
-		return fmt.Errorf("marshal tag: %w", err)
-	}
-	resp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/tags/%s", cfg.APIURL, url.PathEscape(name)), "application/json", bytes.NewReader(body))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	created, err := decodeJSON[types.Tag](resp)
+	resp, err := c.PutTagWithResponse(context.TODO(), name, tag)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	created := *resp.JSON201
 	return printResource(created, func() [][2]string {
 		cat := noCategoryLabel
 		if created.Category != nil {
@@ -157,18 +179,18 @@ func createTag(name string, tag types.Tag) error {
 }
 
 func editTag(name string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/tags/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	tag, err := decodeJSON[types.Tag](resp)
+	resp, err := c.GetTagWithResponse(context.TODO(), name)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	tag := *resp.JSON200
 
 	editable := editableTag{
 		Name:        tag.Name,
@@ -191,22 +213,14 @@ func editTag(name string) error {
 		Category:    edited.Category,
 		Description: edited.Description,
 	}
-	body, err := json.Marshal(updated)
-	if err != nil {
-		return fmt.Errorf("marshal tag: %w", err)
-	}
-	putResp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/tags/%s", cfg.APIURL, url.PathEscape(name)), "application/json", bytes.NewReader(body))
+	putResp, err := c.PutTagWithResponse(context.TODO(), name, updated)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = putResp.Body.Close() }()
-	if err := checkStatus(putResp); err != nil {
+	if err := checkResponse(putResp.StatusCode(), putResp.Body); err != nil {
 		return err
 	}
-	result, err := decodeJSON[types.Tag](putResp)
-	if err != nil {
-		return err
-	}
+	result := *putResp.JSON201
 	return printResource(result, func() [][2]string {
 		cat := noCategoryLabel
 		if result.Category != nil {
@@ -223,12 +237,15 @@ func editTag(name string) error {
 }
 
 func deleteTag(name string) error {
-	resp, err := doRequest(cfg, http.MethodDelete, fmt.Sprintf("%s/api/v1/tags/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
+	resp, err := c.DeleteTagWithResponse(context.TODO(), name)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
 	fmt.Printf("tag/%s deleted\n", name)

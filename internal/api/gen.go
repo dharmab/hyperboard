@@ -45,6 +45,9 @@ type BadRequestResponse = Error
 // ConflictResponse defines model for ConflictResponse.
 type ConflictResponse = Error
 
+// CreatedPostResponse defines model for CreatedPostResponse.
+type CreatedPostResponse = externalRef0.Post
+
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
 
@@ -95,9 +98,6 @@ type TooManyRequestsResponse = Error
 
 // UnauthorizedResponse defines model for UnauthorizedResponse.
 type UnauthorizedResponse = Error
-
-// UploadPostResponse defines model for UploadPostResponse.
-type UploadPostResponse = externalRef0.Post
 
 // NoteRequest defines model for NoteRequest.
 type NoteRequest struct {

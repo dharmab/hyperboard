@@ -1,0 +1,10 @@
+#yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/refs/tags/v2.4.1/configuration-schema.json
+package: client
+import-mapping:
+  types-spec.yaml: github.com/dharmab/hyperboard/internal/types
+generate:
+  models: true
+  client: true
+output: gen.go
+output-options:
+  skip-prune: true

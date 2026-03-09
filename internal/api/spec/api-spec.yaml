@@ -253,7 +253,7 @@ paths:
         $ref: "#/components/requestBodies/UploadPostRequest"
       responses:
         "201":
-          $ref: "#/components/responses/UploadPostResponse"
+          $ref: "#/components/responses/CreatedPostResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -698,7 +698,7 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Post"
-    UploadPostResponse:
+    CreatedPostResponse:
       content:
         application/json:
           schema:

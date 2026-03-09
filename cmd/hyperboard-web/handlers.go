@@ -1,14 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -19,30 +21,33 @@ func (app *App) handlePosts(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 	cursor := r.URL.Query().Get("cursor")
 
-	q := url.Values{}
-	q.Set("limit", "24")
+	limit := 24
+	params := &client.GetPostsParams{Limit: &limit}
 	if search != "" {
-		q.Set("search", search)
+		params.Search = &search
 	}
 	if cursor != "" {
-		q.Set("cursor", cursor)
+		params.Cursor = &cursor
 	}
 
-	var resp postsResponse
+	resp, err := app.api.GetPostsWithResponse(ctx, params)
 	var loadErr string
-	if err := app.api.getWithQuery(ctx, "/api/v1/posts", q, &resp); err != nil {
+	if err != nil {
 		log.Error().Err(err).Str("search", search).Str("cursor", cursor).Msg("Failed to load posts")
 		loadErr = fmt.Sprintf("Failed to load posts: %v", err)
+	} else if resp.StatusCode() >= 400 {
+		loadErr = fmt.Sprintf("Failed to load posts: %s", resp.Body)
 	}
 
 	posts := []types.Post{}
-	if resp.Items != nil {
-		posts = *resp.Items
-	}
-
 	nextCursor := ""
-	if resp.Cursor != nil {
-		nextCursor = *resp.Cursor
+	if resp != nil && resp.JSON200 != nil {
+		if resp.JSON200.Items != nil {
+			posts = *resp.JSON200.Items
+		}
+		if resp.JSON200.Cursor != nil {
+			nextCursor = *resp.JSON200.Cursor
+		}
 	}
 
 	data := PostsData{
@@ -72,25 +77,38 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		var post types.Post
-		if err := app.api.get(ctx, "/api/v1/posts/"+id, &post); err != nil {
-			app.renderTemplate(w, r, "post", PostData{
-				Error: fmt.Sprintf("Post not found: %v", err),
-			})
+		postID, err := uuid.Parse(id)
+		if err != nil {
+			app.renderTemplate(w, r, "post", PostData{Error: fmt.Sprintf("Invalid post ID: %v", err)})
 			return
 		}
-		var fileSize int64
-		if resp, err := app.api.head(ctx, "/media"+mediaPath(post.ContentUrl)); err == nil {
-			_ = resp.Body.Close()
-			fileSize = resp.ContentLength
+		resp, err := app.api.GetPostWithResponse(ctx, postID)
+		if err != nil || resp.JSON200 == nil {
+			var errMsg string
+			if err != nil {
+				errMsg = fmt.Sprintf("Post not found: %v", err)
+			} else {
+				errMsg = fmt.Sprintf("Post not found: %s", resp.Body)
+			}
+			app.renderTemplate(w, r, "post", PostData{Error: errMsg})
+			return
 		}
+		post := *resp.JSON200
+
+		var fileSize int64
+		if headResp, err := app.media.head(ctx, "/media"+mediaPath(post.ContentUrl)); err == nil {
+			_ = headResp.Body.Close()
+			fileSize = headResp.ContentLength
+		}
+
 		var similarPosts []types.Post
-		var similarResp postsResponse
-		if err := app.api.getWithQuery(ctx, "/api/v1/posts/"+id+"/similar", url.Values{"limit": {"12"}}, &similarResp); err == nil {
-			if similarResp.Items != nil {
-				similarPosts = *similarResp.Items
+		similarLimit := 12
+		if similarResp, err := app.api.GetSimilarPostsWithResponse(ctx, postID, &client.GetSimilarPostsParams{Limit: &similarLimit}); err == nil && similarResp.JSON200 != nil {
+			if similarResp.JSON200.Items != nil {
+				similarPosts = *similarResp.JSON200.Items
 			}
 		}
+
 		app.renderTemplate(w, r, "post", PostData{
 			Post:         post,
 			IsVideo:      strings.HasPrefix(post.MimeType, "video/"),
@@ -99,8 +117,18 @@ func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case http.MethodDelete:
-		if _, err := app.api.delete(ctx, "/api/v1/posts/"+id); err != nil {
+		postID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid post ID: %v", err), http.StatusBadRequest)
+			return
+		}
+		resp, err := app.api.DeletePostWithResponse(ctx, postID)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete post: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if resp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to delete post: %s", resp.Body), http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -112,14 +140,21 @@ func (app *App) handlePostNote(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	note := r.FormValue("note")
 
-	var post types.Post
-	if err := app.api.get(ctx, "/api/v1/posts/"+id, &post); err != nil {
+	postID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+	resp, err := app.api.GetPostWithResponse(ctx, postID)
+	if err != nil || resp.JSON200 == nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
 	}
+	post := *resp.JSON200
 	post.Note = note
-	if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+	putResp, err := app.api.PutPostWithResponse(ctx, postID, post)
+	if err != nil || putResp.StatusCode() >= 400 {
+		http.Error(w, "Failed to save note", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -129,19 +164,26 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")
 
-	var post types.Post
-	if err := app.api.get(ctx, "/api/v1/posts/"+id, &post); err != nil {
+	postID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+	resp, err := app.api.GetPostWithResponse(ctx, postID)
+	if err != nil || resp.JSON200 == nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
 	}
+	post := *resp.JSON200
 
 	switch r.Method {
 	case http.MethodPost:
 		tagName := r.FormValue("q")
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
-			if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
-				http.Error(w, fmt.Sprintf("Failed to add tag: %v", err), http.StatusInternalServerError)
+			putResp, err := app.api.PutPostWithResponse(ctx, postID, post)
+			if err != nil || putResp.StatusCode() >= 400 {
+				http.Error(w, "Failed to add tag", http.StatusInternalServerError)
 				return
 			}
 		}
@@ -154,33 +196,36 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		post.Tags = newTags
-		if _, err := app.api.put(ctx, "/api/v1/posts/"+id, post, nil); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to remove tag: %v", err), http.StatusInternalServerError)
+		putResp, err := app.api.PutPostWithResponse(ctx, postID, post)
+		if err != nil || putResp.StatusCode() >= 400 {
+			http.Error(w, "Failed to remove tag", http.StatusInternalServerError)
 			return
 		}
 	}
 
 	// Re-fetch to get updated tags
-	if err := app.api.get(ctx, "/api/v1/posts/"+id, &post); err != nil {
+	reResp, err := app.api.GetPostWithResponse(ctx, postID)
+	if err != nil || reResp.JSON200 == nil {
 		http.Error(w, "Failed to reload post", http.StatusInternalServerError)
 		return
 	}
-	app.renderTemplate(w, r, "post-tags", PostData{Post: post})
+	app.renderTemplate(w, r, "post-tags", PostData{Post: *reResp.JSON200})
 }
 
 func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query().Get("q")
-	postID := r.URL.Query().Get("post")
+	postIDStr := r.URL.Query().Get("post")
 	exclude := r.URL.Query().Get("exclude")
 
 	// Load existing post tags to exclude from suggestions
 	excludeTags := map[string]bool{}
-	if postID != "" {
-		var post types.Post
-		if err := app.api.get(ctx, "/api/v1/posts/"+postID, &post); err == nil {
-			for _, t := range post.Tags {
-				excludeTags[t] = true
+	if postIDStr != "" {
+		if postID, err := uuid.Parse(postIDStr); err == nil {
+			if resp, err := app.api.GetPostWithResponse(ctx, postID); err == nil && resp.JSON200 != nil {
+				for _, t := range resp.JSON200.Tags {
+					excludeTags[t] = true
+				}
 			}
 		}
 	}
@@ -188,21 +233,21 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 		excludeTags[exclude] = true
 	}
 
-	var resp tagsResponse
-	query := url.Values{}
-	query.Set("limit", "10")
-	if q != "" {
-		query.Set("search", q)
-	}
-	if err := app.api.getWithQuery(ctx, "/api/v1/tags", query, &resp); err != nil {
+	limit := 1000
+	params := &client.GetTagsParams{Limit: &limit}
+	resp, err := app.api.GetTagsWithResponse(ctx, params)
+	if err != nil || resp.JSON200 == nil {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if resp.Items != nil {
-		for _, tag := range *resp.Items {
+	if resp.JSON200.Items != nil {
+		for _, tag := range *resp.JSON200.Items {
 			if excludeTags[tag.Name] {
+				continue
+			}
+			if q != "" && !strings.Contains(strings.ToLower(tag.Name), strings.ToLower(q)) {
 				continue
 			}
 			_, _ = fmt.Fprintf(w, "<option value=%q>", tag.Name)
@@ -260,44 +305,48 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 
 		force := r.FormValue("force") == "true"
-		var post types.Post
-		statusCode, respBody, err := app.api.uploadFile(ctx, data, contentType, force, &post)
+		forceParam := &client.UploadPostParams{}
+		if force {
+			forceParam.Force = &force
+		}
+
+		resp, err := app.api.UploadPostWithBodyWithResponse(ctx, forceParam, contentType, bytes.NewReader(data))
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", header.Filename, err))
 			continue
 		}
-		if statusCode == http.StatusConflict {
-			// Could be exact duplicate or similar posts found.
-			// Pass through the API response body for the JS to handle.
+		if resp.StatusCode() == http.StatusConflict {
 			if isXHR {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusConflict)
-				_, _ = w.Write(respBody)
+				_, _ = w.Write(resp.Body)
 				return
 			}
 			var apiErr struct {
 				Message string `json:"message"`
 			}
-			if json.Unmarshal(respBody, &apiErr) == nil {
+			if json.Unmarshal(resp.Body, &apiErr) == nil {
 				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
 			} else {
 				errors = append(errors, header.Filename+": duplicate detected")
 			}
 			continue
 		}
-		if statusCode >= 400 {
+		if resp.StatusCode() >= 400 {
 			var apiErr struct {
 				Message string `json:"message"`
 			}
-			if json.Unmarshal(respBody, &apiErr) == nil && apiErr.Message != "" {
+			if json.Unmarshal(resp.Body, &apiErr) == nil && apiErr.Message != "" {
 				errors = append(errors, fmt.Sprintf("%s: %s", header.Filename, apiErr.Message))
 			} else {
-				errors = append(errors, fmt.Sprintf("%s: HTTP %d", header.Filename, statusCode))
+				errors = append(errors, fmt.Sprintf("%s: HTTP %d", header.Filename, resp.StatusCode()))
 			}
 			continue
 		}
-		lastPostID = post.ID
-		log.Info().Str("id", post.ID.String()).Str("filename", header.Filename).Msg("uploaded post")
+		if resp.JSON201 != nil {
+			lastPostID = resp.JSON201.ID
+			log.Info().Str("id", resp.JSON201.ID.String()).Str("filename", header.Filename).Msg("uploaded post")
+		}
 	}
 
 	if isXHR {
@@ -343,35 +392,37 @@ func (app *App) handleTags(w http.ResponseWriter, r *http.Request) {
 	// Fetch all tags (paginate through all pages)
 	var errs []string
 	allTags := []types.Tag{}
-	cursor := ""
+	var cursor *string
 	for {
-		q := url.Values{}
-		q.Set("limit", "1000")
-		if cursor != "" {
-			q.Set("cursor", cursor)
-		}
-		var resp tagsResponse
-		if err := app.api.getWithQuery(ctx, "/api/v1/tags", q, &resp); err != nil {
+		limit := 1000
+		params := &client.GetTagsParams{Limit: &limit, Cursor: cursor}
+		resp, err := app.api.GetTagsWithResponse(ctx, params)
+		if err != nil {
 			errs = append(errs, fmt.Sprintf("Failed to load tags: %v", err))
 			break
 		}
-		if resp.Items != nil {
-			allTags = append(allTags, *resp.Items...)
-		}
-		if resp.Cursor == nil || *resp.Cursor == "" {
+		if resp.StatusCode() >= 400 {
+			errs = append(errs, fmt.Sprintf("Failed to load tags: %s", resp.Body))
 			break
 		}
-		cursor = *resp.Cursor
+		if resp.JSON200 != nil && resp.JSON200.Items != nil {
+			allTags = append(allTags, *resp.JSON200.Items...)
+		}
+		if resp.JSON200 == nil || resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			break
+		}
+		cursor = resp.JSON200.Cursor
 	}
 
 	// Fetch categories for color map
-	var catResp tagCategoriesResponse
-	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp); err != nil {
+	catLimit := 1000
+	catResp, err := app.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
+	if err != nil {
 		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
 	}
 	colorMap := map[string]string{}
-	if catResp.Items != nil {
-		for _, c := range *catResp.Items {
+	if catResp != nil && catResp.JSON200 != nil && catResp.JSON200.Items != nil {
+		for _, c := range *catResp.JSON200.Items {
 			colorMap[c.Name] = c.Color
 		}
 	}
@@ -385,14 +436,15 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	isNew := name == newResourceName
 
 	// Fetch categories for dropdown
-	var catResp tagCategoriesResponse
+	catLimit := 1000
+	catResp, err := app.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
 	var catErr string
-	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &catResp); err != nil {
+	if err != nil {
 		catErr = fmt.Sprintf("Failed to load categories: %v", err)
 	}
 	cats := []types.TagCategory{}
-	if catResp.Items != nil {
-		cats = *catResp.Items
+	if catResp != nil && catResp.JSON200 != nil && catResp.JSON200.Items != nil {
+		cats = *catResp.JSON200.Items
 	}
 
 	switch r.Method {
@@ -403,8 +455,13 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 			errs = append(errs, catErr)
 		}
 		if !isNew {
-			if err := app.api.get(ctx, "/api/v1/tags/"+name, &tag); err != nil {
+			resp, err := app.api.GetTagWithResponse(ctx, name)
+			if err != nil {
 				errs = append(errs, fmt.Sprintf("Failed to load tag: %v", err))
+			} else if resp.JSON200 != nil {
+				tag = *resp.JSON200
+			} else {
+				errs = append(errs, fmt.Sprintf("Failed to load tag: %s", resp.Body))
 			}
 		}
 		var aliases []string
@@ -447,23 +504,34 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		if isNew {
 			urlName = newName
 		}
-		_, err := app.api.put(ctx, "/api/v1/tags/"+urlName, tag, nil)
-		if err != nil {
+		resp, err := app.api.PutTagWithResponse(ctx, urlName, tag)
+		if err != nil || resp.StatusCode() >= 400 {
+			var errMsg string
+			if err != nil {
+				errMsg = fmt.Sprintf("Failed to save tag: %v", err)
+			} else {
+				errMsg = fmt.Sprintf("Failed to save tag: %s", resp.Body)
+			}
 			app.renderTemplate(w, r, "tag_edit", TagEditData{
 				Tag:         tag,
 				Aliases:     aliases,
 				Categories:  cats,
 				CurrentName: name,
 				IsNew:       isNew,
-				Error:       fmt.Sprintf("Failed to save tag: %v", err),
+				Error:       errMsg,
 			})
 			return
 		}
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
 
 	case http.MethodDelete:
-		if _, err := app.api.delete(ctx, "/api/v1/tags/"+name); err != nil {
+		resp, err := app.api.DeleteTagWithResponse(ctx, name)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete tag: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if resp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to delete tag: %s", resp.Body), http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
@@ -480,10 +548,15 @@ func (app *App) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	body := map[string]string{"target": targetName}
-	_, err := app.api.post(ctx, "/api/v1/tags/"+sourceName+"/convert-to-alias", body, nil)
+	resp, err := app.api.ConvertTagToAliasWithResponse(ctx, sourceName, client.ConvertTagToAliasJSONRequestBody{
+		Target: targetName,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to convert tag to alias: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if resp.StatusCode() >= 400 {
+		http.Error(w, fmt.Sprintf("Failed to convert tag to alias: %s", resp.Body), http.StatusInternalServerError)
 		return
 	}
 
@@ -494,40 +567,42 @@ func (app *App) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var errs []string
 
-	var resp tagCategoriesResponse
-	if err := app.api.getWithQuery(ctx, "/api/v1/tagCategories", url.Values{"limit": {"1000"}}, &resp); err != nil {
+	catLimit := 1000
+	resp, err := app.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
+	if err != nil {
 		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
 	}
 	cats := []types.TagCategory{}
-	if resp.Items != nil {
-		cats = *resp.Items
+	if resp != nil && resp.JSON200 != nil && resp.JSON200.Items != nil {
+		cats = *resp.JSON200.Items
 	}
 
 	// Count tags per category
 	tagCounts := map[string]int{}
-	cursor := ""
+	var cursor *string
 	for {
-		q := url.Values{}
-		q.Set("limit", "1000")
-		if cursor != "" {
-			q.Set("cursor", cursor)
-		}
-		var tagsResp tagsResponse
-		if err := app.api.getWithQuery(ctx, "/api/v1/tags", q, &tagsResp); err != nil {
+		tagLimit := 1000
+		params := &client.GetTagsParams{Limit: &tagLimit, Cursor: cursor}
+		tagsResp, err := app.api.GetTagsWithResponse(ctx, params)
+		if err != nil {
 			errs = append(errs, fmt.Sprintf("Failed to load tags: %v", err))
 			break
 		}
-		if tagsResp.Items != nil {
-			for _, t := range *tagsResp.Items {
+		if tagsResp.StatusCode() >= 400 {
+			errs = append(errs, fmt.Sprintf("Failed to load tags: %s", tagsResp.Body))
+			break
+		}
+		if tagsResp.JSON200 != nil && tagsResp.JSON200.Items != nil {
+			for _, t := range *tagsResp.JSON200.Items {
 				if t.Category != nil {
 					tagCounts[*t.Category]++
 				}
 			}
 		}
-		if tagsResp.Cursor == nil || *tagsResp.Cursor == "" {
+		if tagsResp.JSON200 == nil || tagsResp.JSON200.Cursor == nil || *tagsResp.JSON200.Cursor == "" {
 			break
 		}
-		cursor = *tagsResp.Cursor
+		cursor = tagsResp.JSON200.Cursor
 	}
 
 	app.renderTemplate(w, r, "tag_categories", TagCategoriesData{Categories: cats, TagCounts: tagCounts, Error: strings.Join(errs, "; ")})
@@ -543,8 +618,13 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		cat := types.TagCategory{Color: "#888888"}
 		var editErr string
 		if !isNew {
-			if err := app.api.get(ctx, "/api/v1/tagCategories/"+name, &cat); err != nil {
+			resp, err := app.api.GetTagCategoryWithResponse(ctx, name)
+			if err != nil {
 				editErr = fmt.Sprintf("Failed to load category: %v", err)
+			} else if resp.JSON200 != nil {
+				cat = *resp.JSON200
+			} else {
+				editErr = fmt.Sprintf("Failed to load category: %s", resp.Body)
 			}
 		}
 		app.renderTemplate(w, r, "tag_category_edit", TagCategoryEditData{
@@ -569,9 +649,14 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		if isNew {
 			urlName = newName
 		}
-		_, err := app.api.put(ctx, "/api/v1/tagCategories/"+urlName, cat, nil)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to save category: %v", err)
+		resp, err := app.api.PutTagCategoryWithResponse(ctx, urlName, cat)
+		if err != nil || resp.StatusCode() >= 400 {
+			var errMsg string
+			if err != nil {
+				errMsg = fmt.Sprintf("Failed to save category: %v", err)
+			} else {
+				errMsg = fmt.Sprintf("Failed to save category: %s", resp.Body)
+			}
 			app.renderTemplate(w, r, "tag_category_edit", TagCategoryEditData{
 				Category:    cat,
 				CurrentName: name,
@@ -583,8 +668,13 @@ func (app *App) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/tag-categories", http.StatusSeeOther)
 
 	case http.MethodDelete:
-		if _, err := app.api.delete(ctx, "/api/v1/tagCategories/"+name); err != nil {
+		resp, err := app.api.DeleteTagCategoryWithResponse(ctx, name)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete category: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if resp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to delete category: %s", resp.Body), http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, "/tag-categories", http.StatusSeeOther)
@@ -596,30 +686,36 @@ func (app *App) handleNotes(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		// Create new note
-		note := types.Note{Title: "New Note"}
-		var created types.Note
-		if _, err := app.api.post(ctx, "/api/v1/notes", note, &created); err != nil {
-			var resp notesResponse
-			_ = app.api.get(ctx, "/api/v1/notes", &resp)
+		resp, err := app.api.CreateNoteWithResponse(ctx, client.CreateNoteJSONRequestBody{
+			Title: "New Note",
+		})
+		if err != nil || resp.StatusCode() >= 400 {
+			notesResp, _ := app.api.GetNotesWithResponse(ctx)
 			notes := []types.Note{}
-			if resp.Items != nil {
-				notes = *resp.Items
+			if notesResp != nil && notesResp.JSON200 != nil && notesResp.JSON200.Items != nil {
+				notes = *notesResp.JSON200.Items
 			}
-			app.renderTemplate(w, r, "notes", NotesData{Notes: notes, Error: fmt.Sprintf("Failed to create note: %v", err)})
+			errMsg := "Failed to create note"
+			if err != nil {
+				errMsg = fmt.Sprintf("Failed to create note: %v", err)
+			}
+			app.renderTemplate(w, r, "notes", NotesData{Notes: notes, Error: errMsg})
 			return
 		}
-		http.Redirect(w, r, fmt.Sprintf("/notes/%s", created.ID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/notes/%s", resp.JSON201.ID), http.StatusSeeOther)
 		return
 	}
 
-	var resp notesResponse
+	resp, err := app.api.GetNotesWithResponse(ctx)
 	var loadErr string
-	if err := app.api.get(ctx, "/api/v1/notes", &resp); err != nil {
+	if err != nil {
 		loadErr = fmt.Sprintf("Failed to load notes: %v", err)
+	} else if resp.StatusCode() >= 400 {
+		loadErr = fmt.Sprintf("Failed to load notes: %s", resp.Body)
 	}
 	notes := []types.Note{}
-	if resp.Items != nil {
-		notes = *resp.Items
+	if resp != nil && resp.JSON200 != nil && resp.JSON200.Items != nil {
+		notes = *resp.JSON200.Items
 	}
 	app.renderTemplate(w, r, "notes", NotesData{Notes: notes, Error: loadErr})
 }
@@ -631,44 +727,73 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if id == newResourceName {
-			note := types.Note{Title: "New Note"}
-			var created types.Note
-			if _, err := app.api.post(ctx, "/api/v1/notes", note, &created); err != nil {
-				app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Failed to create note: %v", err)})
+			resp, err := app.api.CreateNoteWithResponse(ctx, client.CreateNoteJSONRequestBody{
+				Title: "New Note",
+			})
+			if err != nil || resp.StatusCode() >= 400 {
+				errMsg := "Failed to create note"
+				if err != nil {
+					errMsg = fmt.Sprintf("Failed to create note: %v", err)
+				}
+				app.renderTemplate(w, r, "note", NoteData{Error: errMsg})
 				return
 			}
-			http.Redirect(w, r, fmt.Sprintf("/notes/%s", created.ID), http.StatusSeeOther)
+			http.Redirect(w, r, fmt.Sprintf("/notes/%s", resp.JSON201.ID), http.StatusSeeOther)
 			return
 		}
-		var note types.Note
-		if err := app.api.get(ctx, "/api/v1/notes/"+id, &note); err != nil {
-			app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Note not found: %v", err)})
+		noteID, err := uuid.Parse(id)
+		if err != nil {
+			app.renderTemplate(w, r, "note", NoteData{Error: fmt.Sprintf("Invalid note ID: %v", err)})
 			return
 		}
+		resp, err := app.api.GetNoteWithResponse(ctx, noteID)
+		if err != nil || resp.JSON200 == nil {
+			var errMsg string
+			if err != nil {
+				errMsg = fmt.Sprintf("Note not found: %v", err)
+			} else {
+				errMsg = fmt.Sprintf("Note not found: %s", resp.Body)
+			}
+			app.renderTemplate(w, r, "note", NoteData{Error: errMsg})
+			return
+		}
+		note := *resp.JSON200
 		rendered := renderMarkdown(note.Content)
 		isNew := note.Content == ""
 		app.renderTemplate(w, r, "note", NoteData{Note: note, RenderedContent: rendered, IsNew: isNew})
 
 	case http.MethodPut:
-		var note types.Note
-		if err := app.api.get(ctx, "/api/v1/notes/"+id, &note); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to load note: %v", err), http.StatusInternalServerError)
+		noteID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, "Invalid note ID", http.StatusBadRequest)
 			return
 		}
-		note.Title = r.FormValue("title")
-		note.Content = r.FormValue("content")
-		if _, err := app.api.put(ctx, "/api/v1/notes/"+id, note, nil); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+		resp, err := app.api.PutNoteWithResponse(ctx, noteID, client.PutNoteJSONRequestBody{
+			Title:   r.FormValue("title"),
+			Content: r.FormValue("content"),
+		})
+		if err != nil || resp.StatusCode() >= 400 {
+			http.Error(w, "Failed to save note", http.StatusInternalServerError)
 			return
 		}
 		// Return rendered markdown for HTMX swap
-		rendered := renderMarkdown(note.Content)
+		rendered := renderMarkdown(r.FormValue("content"))
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = fmt.Fprintf(w, `<div id="note-view" class="note-content mt-2">%s</div>`, string(rendered))
 
 	case http.MethodDelete:
-		if _, err := app.api.delete(ctx, "/api/v1/notes/"+id); err != nil {
+		noteID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, "Invalid note ID", http.StatusBadRequest)
+			return
+		}
+		resp, err := app.api.DeleteNoteWithResponse(ctx, noteID)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete note: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if resp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to delete note: %s", resp.Body), http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, "/notes", http.StatusSeeOther)
@@ -683,24 +808,12 @@ func (app *App) handleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := app.api.getRaw(r.Context(), "/media/"+path)
+	resp, err := app.media.getRaw(r.Context(), "/media/"+path)
 	if err != nil {
 		http.Error(w, "Failed to fetch media", http.StatusBadGateway)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "Media not found", resp.StatusCode)
-		return
-	}
-
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		w.Header().Set("Content-Type", ct)
-	}
-	if cl := resp.Header.Get("Content-Length"); cl != "" {
-		w.Header().Set("Content-Length", cl)
-	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	_, _ = io.Copy(w, resp.Body)
+	copyMediaResponse(w, resp)
 }

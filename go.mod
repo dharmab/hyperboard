@@ -13,6 +13,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jaswdr/faker/v2 v2.5.0
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -200,7 +201,6 @@ require (
 	github.com/google/go-github/v39 v39.2.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect

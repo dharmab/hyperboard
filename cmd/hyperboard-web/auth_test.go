@@ -8,8 +8,11 @@ import (
 	"testing"
 )
 
-func newTestAppWithAuth(mock *mockAPIClient) *App {
-	app := newTestApp(mock)
+func newTestAppWithAuth(t *testing.T) *App {
+	t.Helper()
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
 	app.cfg.AdminPassword = "secret123"
 	app.cfg.SessionSecret = "test-session-secret"
 	return app
@@ -17,7 +20,7 @@ func newTestAppWithAuth(mock *mockAPIClient) *App {
 
 func TestHandleLogin_GET(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
@@ -30,7 +33,7 @@ func TestHandleLogin_GET(t *testing.T) {
 
 func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	form := url.Values{"password": {"secret123"}}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(form.Encode()))
@@ -58,7 +61,7 @@ func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
 
 func TestHandleLogin_POST_WrongPassword(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	form := url.Values{"password": {"wrong"}}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(form.Encode()))
@@ -76,7 +79,7 @@ func TestHandleLogin_POST_WrongPassword(t *testing.T) {
 
 func TestHandleLogin_UnsupportedMethod(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/login", nil)
 	w := httptest.NewRecorder()
@@ -89,7 +92,7 @@ func TestHandleLogin_UnsupportedMethod(t *testing.T) {
 
 func TestHandleLogout(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/logout", nil)
 	w := httptest.NewRecorder()
@@ -111,7 +114,7 @@ func TestHandleLogout(t *testing.T) {
 
 func TestSessionMiddleware_NoCookie(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	handler := app.sessionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -128,7 +131,7 @@ func TestSessionMiddleware_NoCookie(t *testing.T) {
 
 func TestSessionMiddleware_InvalidCookie(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	handler := app.sessionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -146,7 +149,7 @@ func TestSessionMiddleware_InvalidCookie(t *testing.T) {
 
 func TestSessionMiddleware_ValidCookie(t *testing.T) {
 	t.Parallel()
-	app := newTestAppWithAuth(&mockAPIClient{})
+	app := newTestAppWithAuth(t)
 
 	handler := app.sessionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

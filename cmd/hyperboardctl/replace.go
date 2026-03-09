@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 
-	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -55,18 +54,22 @@ func replaceContent(id, filePath string) error {
 		return fmt.Errorf("unsupported file type: %s", mimeStr)
 	}
 
-	resp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/posts/%s/content", cfg.APIURL, url.PathEscape(id)), "application/octet-stream", bytes.NewReader(data))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	post, err := decodeJSON[types.Post](resp)
+	postID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.ReplacePostContentWithBodyWithResponse(context.TODO(), postID, "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	post := *resp.JSON200
 	return printResource(post, func() [][2]string {
 		return postTableRows(post)
 	})
@@ -84,19 +87,31 @@ func replaceThumbnail(id, filePath string) error {
 		return fmt.Errorf("unsupported file type (must be image/*): %s", mimeStr)
 	}
 
-	resp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/posts/%s/thumbnail", cfg.APIURL, url.PathEscape(id)), "application/octet-stream", bytes.NewReader(data))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	post, err := decodeJSON[types.Post](resp)
+	postID, err := parseID(id)
 	if err != nil {
 		return err
 	}
+	resp, err := c.ReplacePostThumbnailWithBodyWithResponse(context.TODO(), postID, "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	post := *resp.JSON200
 	return printResource(post, func() [][2]string {
 		return postTableRows(post)
 	})
+}
+
+func parseID(s string) (uuid.UUID, error) {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return id, fmt.Errorf("invalid ID %q: %w", s, err)
+	}
+	return id, nil
 }

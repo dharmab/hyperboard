@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/httplog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -54,7 +55,8 @@ func initConfig() {
 
 type App struct {
 	cfg   *Config
-	api   apiClient
+	api   *client.ClientWithResponses
+	media *mediaClient
 	tmpls map[string]*template.Template
 }
 
@@ -73,9 +75,15 @@ func run() error {
 		return fmt.Errorf("failed to parse templates: %w", err)
 	}
 
+	api, err := newAPIClient(cfg.APIURL, cfg.AdminPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
 	app := &App{
 		cfg:   cfg,
-		api:   newAPIClient(cfg.APIURL, cfg.AdminPassword),
+		api:   api,
+		media: newMediaClient(cfg.APIURL, cfg.AdminPassword),
 		tmpls: tmpls,
 	}
 

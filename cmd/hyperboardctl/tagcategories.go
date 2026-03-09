@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/dharmab/hyperboard/internal/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -75,18 +73,18 @@ func init() {
 }
 
 func getTagCategory(name string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/tagCategories/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	tc, err := decodeJSON[types.TagCategory](resp)
+	resp, err := c.GetTagCategoryWithResponse(context.TODO(), name)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	tc := *resp.JSON200
 	return printResource(tc, func() [][2]string {
 		return [][2]string{
 			{"Name", tc.Name},
@@ -99,7 +97,11 @@ func getTagCategory(name string) error {
 }
 
 func listTagCategories() error {
-	tcs, err := fetchAll[types.TagCategory](cfg, cfg.APIURL+"/api/v1/tagCategories", url.Values{})
+	c, err := newClient(cfg)
+	if err != nil {
+		return err
+	}
+	tcs, err := fetchAllTagCategories(c)
 	if err != nil {
 		return err
 	}
@@ -112,23 +114,43 @@ func listTagCategories() error {
 	})
 }
 
+func fetchAllTagCategories(c *client.ClientWithResponses) ([]types.TagCategory, error) {
+	var all []types.TagCategory
+	var cursor *string
+	for {
+		limit := 1000
+		params := &client.GetTagCategoriesParams{Limit: &limit, Cursor: cursor}
+		resp, err := c.GetTagCategoriesWithResponse(context.TODO(), params)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+			return nil, err
+		}
+		if resp.JSON200.Items != nil {
+			all = append(all, *resp.JSON200.Items...)
+		}
+		if resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			break
+		}
+		cursor = resp.JSON200.Cursor
+	}
+	return all, nil
+}
+
 func createTagCategory(name string, tc types.TagCategory) error {
-	body, err := json.Marshal(tc)
-	if err != nil {
-		return fmt.Errorf("marshal tag category: %w", err)
-	}
-	resp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/tagCategories/%s", cfg.APIURL, url.PathEscape(name)), "application/json", bytes.NewReader(body))
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	created, err := decodeJSON[types.TagCategory](resp)
+	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, tc)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	created := *resp.JSON200
 	return printResource(created, func() [][2]string {
 		return [][2]string{
 			{"Name", created.Name},
@@ -141,18 +163,18 @@ func createTagCategory(name string, tc types.TagCategory) error {
 }
 
 func editTagCategory(name string) error {
-	resp, err := doRequest(cfg, http.MethodGet, fmt.Sprintf("%s/api/v1/tagCategories/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
-		return err
-	}
-	tc, err := decodeJSON[types.TagCategory](resp)
+	resp, err := c.GetTagCategoryWithResponse(context.TODO(), name)
 	if err != nil {
 		return err
 	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+	tc := *resp.JSON200
 
 	editable := editableTagCategory{
 		Name:        tc.Name,
@@ -175,22 +197,14 @@ func editTagCategory(name string) error {
 		Description: edited.Description,
 		Color:       edited.Color,
 	}
-	body, err := json.Marshal(updated)
-	if err != nil {
-		return fmt.Errorf("marshal tag category: %w", err)
-	}
-	putResp, err := doRequest(cfg, http.MethodPut, fmt.Sprintf("%s/api/v1/tagCategories/%s", cfg.APIURL, url.PathEscape(name)), "application/json", bytes.NewReader(body))
+	putResp, err := c.PutTagCategoryWithResponse(context.TODO(), name, updated)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = putResp.Body.Close() }()
-	if err := checkStatus(putResp); err != nil {
+	if err := checkResponse(putResp.StatusCode(), putResp.Body); err != nil {
 		return err
 	}
-	result, err := decodeJSON[types.TagCategory](putResp)
-	if err != nil {
-		return err
-	}
+	result := *putResp.JSON200
 	return printResource(result, func() [][2]string {
 		return [][2]string{
 			{"Name", result.Name},
@@ -203,12 +217,15 @@ func editTagCategory(name string) error {
 }
 
 func deleteTagCategory(name string) error {
-	resp, err := doRequest(cfg, http.MethodDelete, fmt.Sprintf("%s/api/v1/tagCategories/%s", cfg.APIURL, url.PathEscape(name)), "", nil)
+	c, err := newClient(cfg)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if err := checkStatus(resp); err != nil {
+	resp, err := c.DeleteTagCategoryWithResponse(context.TODO(), name)
+	if err != nil {
+		return err
+	}
+	if err := checkResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
 	fmt.Printf("tagcategory/%s deleted\n", name)
