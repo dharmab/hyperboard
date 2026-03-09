@@ -4,27 +4,27 @@
 
 {{define "content"}}
 <div class="flex items-center gap-2 mt-1">
-  <input type="text" id="note-title" name="title" value="{{.Note.Title}}" style="font-size:1.5rem;font-weight:bold;background:transparent;border:none;border-bottom:1px solid var(--base02);border-radius:0;width:auto;flex:1"
-    hx-put="/notes/{{.Note.ID}}/title"
-    hx-trigger="blur"
-    hx-include="this">
+  <input type="text" id="note-title" name="title" value="{{.Note.Title}}" style="font-size:1.5rem;font-weight:bold;background:transparent;border:none;border-bottom:1px solid var(--base02);border-radius:0;width:auto;flex:1">
   <button class="btn btn-danger"
     hx-delete="/notes/{{.Note.ID}}"
     hx-confirm="Delete this note?"
     hx-push-url="/notes"
     hx-target="body">Delete</button>
 </div>
-<div id="note-view" class="note-content mt-2">
+<div id="note-view" class="note-content mt-2"{{if .IsNew}} style="display:none"{{end}}>
   {{.RenderedContent}}
 </div>
-<div id="note-edit" style="display:none" class="mt-2">
+<div id="note-edit" class="mt-2"{{if not .IsNew}} style="display:none"{{end}}>
   <textarea id="note-content" name="content" rows="20" style="width:100%">{{.Note.Content}}</textarea>
-  <button class="btn btn-primary mt-1"
+</div>
+<div class="flex gap-2 mt-1">
+  <button id="note-edit-btn" class="btn"{{if .IsNew}} style="display:none"{{end}}
+    onclick="document.getElementById('note-edit').style.display='';document.getElementById('note-view').style.display='none';document.getElementById('note-edit-btn').style.display='none';document.getElementById('note-save-btn').style.display=''">Edit</button>
+  <button id="note-save-btn" class="btn btn-primary"{{if not .IsNew}} style="display:none"{{end}}
     hx-put="/notes/{{.Note.ID}}"
     hx-include="#note-content,#note-title"
     hx-target="#note-view"
     hx-swap="outerHTML"
-    onclick="document.getElementById('note-edit').style.display='none';document.getElementById('note-view').style.display=''">Save</button>
+    onclick="document.getElementById('note-edit').style.display='none';document.getElementById('note-view').style.display='';document.getElementById('note-edit-btn').style.display='';document.getElementById('note-save-btn').style.display='none'">Save</button>
 </div>
-<button class="btn mt-1" onclick="document.getElementById('note-edit').style.display='';document.getElementById('note-view').style.display='none'">Edit</button>
 {{end}}

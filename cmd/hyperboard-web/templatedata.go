@@ -1,6 +1,10 @@
 package main
 
-import "github.com/dharmab/hyperboard/pkg/types"
+import (
+	"html/template"
+
+	"github.com/dharmab/hyperboard/pkg/types"
+)
 
 type GalleryData struct {
 	Posts      []types.Post
@@ -46,5 +50,6 @@ type NotesData struct {
 
 type NoteData struct {
 	Note            types.Note
-	RenderedContent string // HTML rendered from markdown
+	RenderedContent template.HTML
+	IsNew           bool
 }

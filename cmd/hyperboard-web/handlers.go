@@ -620,7 +620,8 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rendered := renderMarkdown(note.Content)
-		app.renderTemplate(w, r, "note", NoteData{Note: note, RenderedContent: string(rendered)})
+		isNew := note.Content == ""
+		app.renderTemplate(w, r, "note", NoteData{Note: note, RenderedContent: rendered, IsNew: isNew})
 
 	case http.MethodPut:
 		var note types.Note
@@ -631,7 +632,7 @@ func (app *App) handleNote(w http.ResponseWriter, r *http.Request) {
 		// Return rendered markdown for HTMX swap
 		rendered := renderMarkdown(note.Content)
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = fmt.Fprintf(w, `<div id="note-view" class="note-content mt-2">%s</div>`, rendered)
+		_, _ = fmt.Fprintf(w, `<div id="note-view" class="note-content mt-2">%s</div>`, string(rendered))
 
 	case http.MethodDelete:
 		_, _ = app.api.delete(ctx, "/api/v1/notes/"+id)
