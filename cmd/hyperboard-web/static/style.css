@@ -187,8 +187,8 @@ button:hover,
   color: var(--base08);
 }
 
-/* Gallery grid */
-.gallery-controls {
+/* Posts grid */
+.posts-controls {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
@@ -196,18 +196,18 @@ button:hover,
   flex-wrap: wrap;
 }
 
-.gallery-controls input[type="text"] {
+.posts-controls input[type="text"] {
   flex: 1;
   min-width: 200px;
 }
 
-.gallery-grid {
+.posts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
 }
 
-.gallery-item {
+.posts-item {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
@@ -216,20 +216,20 @@ button:hover,
   border: 1px solid var(--base02);
 }
 
-.gallery-item a {
+.posts-item a {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.gallery-item img {
+.posts-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.gallery-item:hover {
+.posts-item:hover {
   border-color: var(--base0D);
 }
 

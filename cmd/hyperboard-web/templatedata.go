@@ -6,7 +6,7 @@ import (
 	"github.com/dharmab/hyperboard/pkg/types"
 )
 
-type GalleryData struct {
+type PostsData struct {
 	Posts      []types.Post
 	NextCursor string
 	Search     string

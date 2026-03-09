@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
+func (app *App) handlePosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	search := r.URL.Query().Get("search")
 	cursor := r.URL.Query().Get("cursor")
@@ -43,7 +43,7 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 		nextCursor = *resp.Cursor
 	}
 
-	data := GalleryData{
+	data := PostsData{
 		Posts:      posts,
 		NextCursor: nextCursor,
 		Search:     search,
@@ -56,11 +56,11 @@ func (app *App) handleGallery(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, loadErr, http.StatusInternalServerError)
 			return
 		}
-		app.renderTemplate(w, r, "gallery-items", data)
+		app.renderTemplate(w, r, "posts-items", data)
 		return
 	}
 
-	app.renderTemplate(w, r, "gallery", data)
+	app.renderTemplate(w, r, "posts", data)
 }
 
 func (app *App) handlePost(w http.ResponseWriter, r *http.Request) {

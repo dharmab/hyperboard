@@ -1,29 +1,29 @@
-{{define "gallery"}}
+{{define "posts"}}
 {{template "base" .}}
 {{end}}
 
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
-<form class="gallery-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#gallery-grid" hx-trigger="submit">
-  <input type="text" name="search" id="gallery-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
+<form class="posts-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#posts-grid" hx-trigger="submit">
+  <input type="text" name="search" id="posts-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
     list="search-suggestions"
     autocomplete="off">
   <datalist id="search-suggestions"></datalist>
   <button type="submit" class="btn btn-primary">Search</button>
   <button type="button" class="btn" id="btn-shuffle" onclick="toggleShuffle()">Shuffle</button>
 </form>
-<div id="gallery-grid" class="gallery-grid">
-  {{template "gallery-items" .}}
+<div id="posts-grid" class="posts-grid">
+  {{template "posts-items" .}}
 </div>
 <script>
 function toggleShuffle() {
-  var input = document.getElementById('gallery-search');
+  var input = document.getElementById('posts-search');
   var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== '' && s !== 'shuffle'; });
   if (!hasShuffleTerm(input.value)) {
     terms.push('shuffle');
   }
   input.value = terms.join(', ');
-  htmx.trigger(document.querySelector('.gallery-controls'), 'submit');
+  htmx.trigger(document.querySelector('.posts-controls'), 'submit');
 }
 
 function hasShuffleTerm(value) {
@@ -31,7 +31,7 @@ function hasShuffleTerm(value) {
 }
 
 function updateShuffleButton() {
-  var input = document.getElementById('gallery-search');
+  var input = document.getElementById('posts-search');
   var btn = document.getElementById('btn-shuffle');
   if (hasShuffleTerm(input.value)) {
     btn.classList.add('btn-primary');
@@ -42,7 +42,7 @@ function updateShuffleButton() {
 updateShuffleButton();
 
 (function() {
-  var searchInput = document.getElementById('gallery-search');
+  var searchInput = document.getElementById('posts-search');
   var datalist = document.getElementById('search-suggestions');
   var debounceTimer;
 
@@ -80,9 +80,9 @@ updateShuffleButton();
 </script>
 {{end}}
 
-{{define "gallery-items"}}
+{{define "posts-items"}}
 {{range .Posts}}
-<div class="gallery-item">
+<div class="posts-item">
   <a href="/posts/{{.ID}}">
     <img src="{{.ThumbnailUrl | mediaUrl}}" alt="Post {{.ID}}" loading="lazy">
   </a>

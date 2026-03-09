@@ -85,9 +85,9 @@ func run() error {
 
 	// Protected routes
 	protected := http.NewServeMux()
-	protected.HandleFunc("/", app.handleGallery)
+	protected.HandleFunc("/", app.handlePosts)
 	protected.HandleFunc("/media/", app.handleMedia)
-	protected.HandleFunc("/posts-partial", app.handleGallery)
+	protected.HandleFunc("/posts-partial", app.handlePosts)
 	protected.HandleFunc("/posts/{id}", app.handlePost)
 	protected.HandleFunc("/posts/{id}/note", app.handlePostNote)
 	protected.HandleFunc("/posts/{id}/tags", app.handlePostTags)
@@ -116,7 +116,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 
 	// Page templates that use the base layout
 	pages := []string{
-		"templates/gallery.html",
+		"templates/posts.html",
 		"templates/post.html",
 		"templates/upload.html",
 		"templates/tags.html",
