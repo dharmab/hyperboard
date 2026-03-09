@@ -10,15 +10,10 @@ const (
 )
 
 const (
-	// FilterIsFavorite is a boolean filter that matches posts which are favorited.
-	FilterIsFavorite = "favorite:"
 	// FilterTagged is a boolean filter that matches posts which have tags other than automatic tags.
-	// It is mostly useful when inverted to find posts which need to be tagged.
+	// tagged:true matches posts with at least one non-automatic tag.
+	// tagged:false matches posts with no non-automatic tags (useful for finding untagged posts).
 	FilterTagged = "tagged:"
-	// FilterCreatedAt is a time or duration filter that matches posts created before or after a specific time, or within a specific duration.
-	FilterCreatedAt = "created:"
-	// FilterUpdatedAt is a time or duration filter that matches posts updated before or after a specific time, or within a specific duration.
-	FilterUpdatedAt = "updated:"
 )
 
 const (

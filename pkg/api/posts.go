@@ -68,6 +68,10 @@ func parseSearch(search string) types.PostSearch {
 			if sortTerms[sortValue] {
 				postSearch.Sort = sortValue
 			}
+		} else if term == "tagged:true" {
+			postSearch.Tagged = types.TaggedFilterTrue
+		} else if term == "tagged:false" {
+			postSearch.Tagged = types.TaggedFilterFalse
 		} else {
 			postSearch.Tags = append(postSearch.Tags, term)
 		}
@@ -118,6 +122,26 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				JOIN tags t ON pt.tag_id = t.id
 				WHERE pt.post_id = posts.id AND t.name = ?
 			)`, resolved,
+		)))
+	}
+
+	// Apply tagged: filter
+	switch searchParams.Tagged {
+	case types.TaggedFilterTrue:
+		mods = append(mods, sm.Where(psql.Raw(
+			`EXISTS (
+				SELECT 1 FROM posts_tags pt
+				JOIN tags t ON pt.tag_id = t.id
+				WHERE pt.post_id = posts.id AND t.name NOT LIKE 'type:%'
+			)`,
+		)))
+	case types.TaggedFilterFalse:
+		mods = append(mods, sm.Where(psql.Raw(
+			`NOT EXISTS (
+				SELECT 1 FROM posts_tags pt
+				JOIN tags t ON pt.tag_id = t.id
+				WHERE pt.post_id = posts.id AND t.name NOT LIKE 'type:%'
+			)`,
 		)))
 	}
 
