@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dm"

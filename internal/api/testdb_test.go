@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
-	"github.com/dharmab/hyperboard/pkg/storage"
+	"github.com/dharmab/hyperboard/internal/storage"
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"

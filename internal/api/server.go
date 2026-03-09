@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dharmab/hyperboard/pkg/storage"
+	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )

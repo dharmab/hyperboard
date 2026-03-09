@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/rs/zerolog/log"
 )
 

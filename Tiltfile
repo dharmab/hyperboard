@@ -1,7 +1,7 @@
 local_resource(
     "generate",
     ['go', 'generate', './...'],
-    deps=['go.mod', 'go.sum', './pkg/api/spec']
+    deps=['go.mod', 'go.sum', './internal/api/spec']
 )
 
 def go_build(name, os, arch):
@@ -12,7 +12,7 @@ def go_build(name, os, arch):
             'GOOS': os,
             'GOARCH': arch,
         },
-        deps=['go.mod', 'go.sum', './cmd/{}'.format(name), './internal', './pkg'],
+        deps=['go.mod', 'go.sum', './cmd/{}'.format(name), './internal'],
         resource_deps=['generate']
     )
 

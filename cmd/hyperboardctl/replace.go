@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/spf13/cobra"
 )

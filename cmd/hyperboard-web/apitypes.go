@@ -1,6 +1,6 @@
 package main
 
-import "github.com/dharmab/hyperboard/pkg/types"
+import "github.com/dharmab/hyperboard/internal/types"
 
 type postsResponse struct {
 	Items  *[]types.Post `json:"items"`

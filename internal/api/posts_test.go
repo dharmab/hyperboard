@@ -3,7 +3,7 @@ package api
 import (
 	"testing"
 
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 )
 
 func TestParseSearch(t *testing.T) {

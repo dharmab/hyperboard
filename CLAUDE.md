@@ -5,10 +5,13 @@ Hyperboard is an image and video hosting web application built with Go, followin
 ## Project Structure
 
 - `cmd/` — Entry points for each binary (`hyperboard-api`, `hyperboard-web`, `hyperboardctl`)
+- `internal/api/` — OpenAPI spec and generated API client/server code
+- `internal/authmw/` — Authentication middleware
 - `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, generated models in `internal/db/models/`)
-- `pkg/api/` — OpenAPI spec and generated API client/server code
-- `pkg/types/` — Shared types (also generated from OpenAPI spec)
-- `pkg/httplog/` — HTTP request logging
+- `internal/httplog/` — HTTP request logging
+- `internal/media/` — Media processing
+- `internal/storage/` — Storage abstraction (S3)
+- `internal/types/` — Shared types (generated from OpenAPI spec)
 - `build/Containerfile` — Multi-stage container build for all three binaries
 - `deploy/tilt/` — Kubernetes manifests for local development
 - `scripts/generate/` — Code generation script (runs embedded Postgres, applies migrations, generates Bob ORM models)
@@ -26,7 +29,7 @@ This installs Go, k3d, and Tilt via Homebrew.
 Run `make generate` to regenerate:
 
 - **Bob ORM models** from database schema — the generate script starts an embedded Postgres instance, runs migrations, and uses `bobgen-psql` to produce `internal/db/models/*.bob.go`
-- **OpenAPI types and server stubs** via `oapi-codegen` from specs in `pkg/api/spec/`
+- **OpenAPI types and server stubs** via `oapi-codegen` from specs in `internal/api/spec/`
 
 Generated files should not be edited by hand. If the database schema changes (new migration in `internal/db/migrations/data/`), re-run generation.
 

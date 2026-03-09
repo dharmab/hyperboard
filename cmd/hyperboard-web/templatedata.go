@@ -3,7 +3,7 @@ package main
 import (
 	"html/template"
 
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 )
 
 type PostsData struct {

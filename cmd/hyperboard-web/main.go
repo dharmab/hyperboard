@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dharmab/hyperboard/pkg/httplog"
+	"github.com/dharmab/hyperboard/internal/httplog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"

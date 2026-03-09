@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/gofrs/uuid/v5"
 )
 

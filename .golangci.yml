@@ -5,5 +5,5 @@ linters:
     - paralleltest
   exclusions:
     paths:
-      - "pkg/api/.*_integration_test\\.go"
+      - "internal/api/.*_integration_test\\.go"
       - "cmd/hyperboardctl/output_test\\.go"
