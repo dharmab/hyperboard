@@ -73,9 +73,9 @@ func parseSearch(query string) search.Query {
 		} else if strings.HasPrefix(term, "sort:") {
 			// Ignore unknown sort values
 		} else if term == search.TagTaggedTrue {
-			postSearch.TaggedTrue = true
+			postSearch.Tagged = new(true)
 		} else if term == search.TagTaggedFalse {
-			postSearch.TaggedFalse = true
+			postSearch.Tagged = new(false)
 		} else if term == search.TagImage {
 			postSearch.TypeImage = true
 		} else if term == search.TagVideo {
@@ -147,8 +147,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Strs("tags", searchParams.IncludedTags).
 		Strs("exclude_tags", searchParams.ExcludedTags).
 		Str("sort", string(searchParams.Sort)).
-		Bool("tagged_true", searchParams.TaggedTrue).
-		Bool("tagged_false", searchParams.TaggedFalse).
+		Interface("tagged", searchParams.Tagged).
 		Bool("type_image", searchParams.TypeImage).
 		Bool("type_video", searchParams.TypeVideo).
 		Bool("type_audio", searchParams.TypeAudio).
@@ -200,27 +199,28 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	// Apply tagged: filter
-	if searchParams.TaggedTrue {
-		logger.Info().Msg("applying tagged:true filter")
-		mods = append(mods, sm.Where(psql.F("EXISTS",
-			psql.Select(
-				sm.Columns(psql.S("1")),
-				sm.From("posts_tags"),
-				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
-			),
-		)))
-	}
-	if searchParams.TaggedFalse {
-		logger.Info().Msg("applying tagged:false filter")
-		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
-			psql.Select(
-				sm.Columns(psql.S("1")),
-				sm.From("posts_tags"),
-				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
-			),
-		))))
+	if searchParams.Tagged != nil {
+		if *searchParams.Tagged {
+			logger.Info().Msg("applying tagged:true filter")
+			mods = append(mods, sm.Where(psql.F("EXISTS",
+				psql.Select(
+					sm.Columns(psql.S("1")),
+					sm.From("posts_tags"),
+					sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+					sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
+				),
+			)))
+		} else {
+			logger.Info().Msg("applying tagged:false filter")
+			mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
+				psql.Select(
+					sm.Columns(psql.S("1")),
+					sm.From("posts_tags"),
+					sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+					sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
+				),
+			))))
+		}
 	}
 
 	// Apply type: virtual tag filters
