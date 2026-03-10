@@ -1,23 +1,23 @@
-package storage
+package memory
 
 import (
 	"io"
 	"testing"
 )
 
-func TestFakeStorage_UploadDownloadRoundTrip(t *testing.T) {
+func TestStorage_UploadDownloadRoundTrip(t *testing.T) {
 	t.Parallel()
-	fs := NewFakeStorage()
+	s := New()
 	ctx := t.Context()
 
 	data := []byte("hello world")
 	contentType := "text/plain"
-	_, err := fs.Upload(ctx, "key1", data, contentType)
+	_, err := s.Upload(ctx, "key1", data, contentType)
 	if err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
 
-	obj, err := fs.Download(ctx, "key1")
+	obj, err := s.Download(ctx, "key1")
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -38,49 +38,49 @@ func TestFakeStorage_UploadDownloadRoundTrip(t *testing.T) {
 	}
 }
 
-func TestFakeStorage_DownloadNonexistent(t *testing.T) {
+func TestStorage_DownloadNonexistent(t *testing.T) {
 	t.Parallel()
-	fs := NewFakeStorage()
+	s := New()
 	ctx := t.Context()
 
-	_, err := fs.Download(ctx, "missing")
+	_, err := s.Download(ctx, "missing")
 	if err == nil {
 		t.Error("expected error for nonexistent key")
 	}
 }
 
-func TestFakeStorage_DeleteThenDownload(t *testing.T) {
+func TestStorage_DeleteThenDownload(t *testing.T) {
 	t.Parallel()
-	fs := NewFakeStorage()
+	s := New()
 	ctx := t.Context()
 
-	_, err := fs.Upload(ctx, "key1", []byte("data"), "text/plain")
+	_, err := s.Upload(ctx, "key1", []byte("data"), "text/plain")
 	if err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
-	if err := fs.Delete(ctx, "key1"); err != nil {
+	if err := s.Delete(ctx, "key1"); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 
-	_, err = fs.Download(ctx, "key1")
+	_, err = s.Download(ctx, "key1")
 	if err == nil {
 		t.Error("expected error after delete")
 	}
 }
 
-func TestFakeStorage_UploadOverwrites(t *testing.T) {
+func TestStorage_UploadOverwrites(t *testing.T) {
 	t.Parallel()
-	fs := NewFakeStorage()
+	s := New()
 	ctx := t.Context()
 
-	if _, err := fs.Upload(ctx, "key1", []byte("first"), "text/plain"); err != nil {
+	if _, err := s.Upload(ctx, "key1", []byte("first"), "text/plain"); err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
-	if _, err := fs.Upload(ctx, "key1", []byte("second"), "application/json"); err != nil {
+	if _, err := s.Upload(ctx, "key1", []byte("second"), "application/json"); err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
 
-	obj, err := fs.Download(ctx, "key1")
+	obj, err := s.Download(ctx, "key1")
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}

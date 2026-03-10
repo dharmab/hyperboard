@@ -5,8 +5,8 @@ import (
 	"io"
 )
 
-// StorageObject holds the data returned from a Download call.
-type StorageObject struct {
+// Object holds the data returned from a Download call.
+type Object struct {
 	Body          io.ReadCloser
 	ContentType   string
 	ContentLength int64
@@ -15,6 +15,6 @@ type StorageObject struct {
 // Storage is the interface for object storage operations.
 type Storage interface {
 	Upload(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
-	Download(ctx context.Context, key string) (*StorageObject, error)
+	Download(ctx context.Context, key string) (*Object, error)
 	Delete(ctx context.Context, key string) error
 }

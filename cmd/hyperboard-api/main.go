@@ -14,7 +14,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/internal/middleware/auth"
 	"github.com/dharmab/hyperboard/internal/middleware/logging"
-	"github.com/dharmab/hyperboard/internal/storage"
+	s3storage "github.com/dharmab/hyperboard/internal/storage/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog"
@@ -92,7 +92,7 @@ func migrateDatabase(dsn string) error {
 }
 
 func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
-	objStorage, err := storage.NewS3Storage(
+	objStorage, err := s3storage.New(
 		ctx,
 		cfg.Storage.Endpoint,
 		cfg.Storage.Bucket,

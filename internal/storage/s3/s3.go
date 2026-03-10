@@ -1,4 +1,4 @@
-package storage
+package s3
 
 import (
 	"bytes"
@@ -11,18 +11,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/rs/zerolog/log"
 )
 
-// S3Storage implements Storage using an S3-compatible object store.
-type S3Storage struct {
+// Storage implements storage.Storage using an S3-compatible object store.
+type Storage struct {
 	client   *s3.Client
 	bucket   string
 	endpoint string
 }
 
-// NewS3Storage creates a new S3Storage.
-func NewS3Storage(ctx context.Context, endpoint, bucket, accessKey, secretKey, region string, usePathStyle bool) (*S3Storage, error) {
+// New creates a new S3 Storage.
+func New(ctx context.Context, endpoint, bucket, accessKey, secretKey, region string, usePathStyle bool) (*Storage, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
@@ -36,22 +37,22 @@ func NewS3Storage(ctx context.Context, endpoint, bucket, accessKey, secretKey, r
 		o.UsePathStyle = usePathStyle
 	})
 
-	storage := &S3Storage{
+	st := &Storage{
 		client:   client,
 		bucket:   bucket,
 		endpoint: endpoint,
 	}
 
-	if err := storage.ensureBucket(ctx); err != nil {
+	if err := st.ensureBucketExists(ctx); err != nil {
 		return nil, fmt.Errorf("ensure bucket %q exists: %w", bucket, err)
 	}
 
-	return storage, nil
+	return st, nil
 }
 
-func (s *S3Storage) ensureBucket(ctx context.Context) error {
-	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
-		Bucket: aws.String(s.bucket),
+func (st *Storage) ensureBucketExists(ctx context.Context) error {
+	_, err := st.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(st.bucket),
 	})
 	if err == nil {
 		return nil
@@ -66,9 +67,9 @@ func (s *S3Storage) ensureBucket(ctx context.Context) error {
 		}
 	}
 
-	log.Info().Str("bucket", s.bucket).Msg("bucket does not exist, creating")
-	_, err = s.client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: aws.String(s.bucket),
+	log.Info().Str("bucket", st.bucket).Msg("bucket does not exist, creating")
+	_, err = st.client.CreateBucket(ctx, &s3.CreateBucketInput{
+		Bucket: aws.String(st.bucket),
 	})
 	if err != nil {
 		return fmt.Errorf("create bucket: %w", err)
@@ -86,9 +87,9 @@ func isNotFoundError(err error) bool {
 }
 
 // Upload uploads data to the given key and returns the public URL.
-func (s *S3Storage) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(s.bucket),
+func (st *Storage) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
+	_, err := st.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(st.bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(data),
 		ContentType: aws.String(contentType),
@@ -96,14 +97,14 @@ func (s *S3Storage) Upload(ctx context.Context, key string, data []byte, content
 	if err != nil {
 		return "", fmt.Errorf("upload %s: %w", key, err)
 	}
-	url := fmt.Sprintf("%s/%s/%s", s.endpoint, s.bucket, key)
+	url := fmt.Sprintf("%s/%s/%s", st.endpoint, st.bucket, key)
 	return url, nil
 }
 
 // Download retrieves an object by key.
-func (s *S3Storage) Download(ctx context.Context, key string) (*StorageObject, error) {
-	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
+func (st *Storage) Download(ctx context.Context, key string) (*storage.Object, error) {
+	out, err := st.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(st.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -117,13 +118,13 @@ func (s *S3Storage) Download(ctx context.Context, key string) (*StorageObject, e
 	if out.ContentLength != nil {
 		cl = *out.ContentLength
 	}
-	return &StorageObject{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
+	return &storage.Object{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
 }
 
 // Delete removes an object at the given key.
-func (s *S3Storage) Delete(ctx context.Context, key string) error {
-	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: aws.String(s.bucket),
+func (st *Storage) Delete(ctx context.Context, key string) error {
+	_, err := st.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(st.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
