@@ -6,17 +6,18 @@ After=hyperboard.network
 Image=docker.io/library/postgres:17
 ContainerName=hyperboard-postgresql
 Network=hyperboard.network
-Volume=hyperboard-postgresql-data.volume:/var/lib/postgresql/data
-Environment=POSTGRES_USER=hyperboard
-Environment=POSTGRES_PASSWORD=hyperboard
-Environment=POSTGRES_DB=hyperboard
+Volume=${HYPERBOARD_POSTGRESQL_DATA_DIR}:/var/lib/postgresql/data
+Environment=POSTGRES_USER=${HYPERBOARD_DB_USER}
+Environment=POSTGRES_PASSWORD=${HYPERBOARD_DB_PASSWORD}
+Environment=POSTGRES_DB=${HYPERBOARD_DB_NAME}
 PublishPort=5432:5432
-HealthCmd=pg_isready -U hyperboard -d hyperboard
+HealthCmd=pg_isready -U ${HYPERBOARD_DB_USER} -d ${HYPERBOARD_DB_NAME}
 HealthInterval=5s
 HealthTimeout=5s
 HealthRetries=5
 
 [Service]
+EnvironmentFile=/etc/hyperboard/hyperboard.env
 Restart=always
 
 [Install]

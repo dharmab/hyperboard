@@ -6,10 +6,10 @@ After=hyperboard.network
 Image=docker.io/rustfs/rustfs:1.0.0-alpha.85
 ContainerName=hyperboard-rustfs
 Network=hyperboard.network
-Volume=hyperboard-rustfs-data.volume:/data
+Volume=${HYPERBOARD_RUSTFS_DATA_DIR}:/data
 Exec=/data
-Environment=RUSTFS_ACCESS_KEY=rustfsadmin
-Environment=RUSTFS_SECRET_KEY=rustfsadmin
+Environment=RUSTFS_ACCESS_KEY=${HYPERBOARD_STORAGE_ACCESS_KEY}
+Environment=RUSTFS_SECRET_KEY=${HYPERBOARD_STORAGE_SECRET_KEY}
 Environment=RUSTFS_CONSOLE_ENABLE=true
 PublishPort=9000:9000
 PublishPort=9001:9001
@@ -19,6 +19,7 @@ HealthTimeout=3s
 HealthRetries=5
 
 [Service]
+EnvironmentFile=/etc/hyperboard/hyperboard.env
 Restart=always
 
 [Install]
