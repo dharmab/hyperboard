@@ -4,12 +4,12 @@ import "encoding/base64"
 
 const MaxLimit = 64
 
-// obfuscateCursor encodes a string into an opaque cursor
+// obfuscateCursor encodes a string into an opaque cursor.
 func obfuscateCursor(name string) Cursor {
 	return base64.URLEncoding.EncodeToString([]byte(name))
 }
 
-// deobfuscateCursor decodes an opaque cursor string back into a tag category name
+// deobfuscateCursor decodes an opaque cursor string back into a string.
 func deobfuscateCursor(cursor Cursor) (string, error) {
 	decoded, err := base64.URLEncoding.DecodeString(cursor)
 	if err != nil {
