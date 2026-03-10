@@ -15,7 +15,7 @@ type entry struct {
 	contentType string
 }
 
-// Storage is an in-memory storage.Storage implementation for testing.
+// Storage is an in-memory storage.MediaStore implementation for testing.
 type Storage struct {
 	mu      sync.Mutex
 	objects map[string]entry
@@ -37,14 +37,14 @@ func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType
 	return "http://fake-storage/" + key, nil
 }
 
-func (s *Storage) Download(_ context.Context, key string) (*storage.Object, error) {
+func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.objects[key]
 	if !ok {
 		return nil, fmt.Errorf("object not found: %s", key)
 	}
-	return &storage.Object{
+	return &storage.Media{
 		Body:          io.NopCloser(strings.NewReader(string(entry.data))),
 		ContentType:   entry.contentType,
 		ContentLength: int64(len(entry.data)),

@@ -10,21 +10,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/media"
 	"github.com/dharmab/hyperboard/internal/search"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
-	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/dialect"
-	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func postFromModel(model *models.Post) types.Post {
@@ -135,8 +130,6 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	ctx := r.Context()
 	logger := *zerolog.Ctx(ctx)
 
-	mods := []bob.Mod[*dialect.SelectQuery]{}
-
 	query := ""
 	if params.Search != nil {
 		query = *params.Search
@@ -153,132 +146,38 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Bool("type_audio", searchParams.TypeAudio).
 		Msg("parsed search params")
 
-	for _, tagName := range searchParams.IncludedTags {
-		// Resolve aliases to canonical tag names
-		resolved, err := s.resolveAlias(ctx, s.db, tagName)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
-			return
-		}
-		if resolved != tagName {
-			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved tag alias")
-		}
-		mods = append(mods, sm.Where(psql.F("EXISTS",
-			psql.Select(
-				sm.Columns(psql.S("1")),
-				sm.From("posts_tags"),
-				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-				sm.Where(psql.And(
-					models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
-					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
-				)),
-			),
-		)))
-	}
-
-	for _, tagName := range searchParams.ExcludedTags {
-		resolved, err := s.resolveAlias(ctx, s.db, tagName)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
-			return
-		}
-		if resolved != tagName {
-			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved exclude tag alias")
-		}
-		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
-			psql.Select(
-				sm.Columns(psql.S("1")),
-				sm.From("posts_tags"),
-				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-				sm.Where(psql.And(
-					models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
-					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
-				)),
-			),
-		))))
-	}
-
-	// Apply tagged: filter
-	if searchParams.Tagged != nil {
-		if *searchParams.Tagged {
-			logger.Info().Msg("applying tagged:true filter")
-			mods = append(mods, sm.Where(psql.F("EXISTS",
-				psql.Select(
-					sm.Columns(psql.S("1")),
-					sm.From("posts_tags"),
-					sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-					sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
-				),
-			)))
-		} else {
-			logger.Info().Msg("applying tagged:false filter")
-			mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
-				psql.Select(
-					sm.Columns(psql.S("1")),
-					sm.From("posts_tags"),
-					sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
-					sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
-				),
-			))))
-		}
-	}
-
-	// Apply type: virtual tag filters
-	if searchParams.TypeImage {
-		logger.Info().Msg("applying type:image filter")
-		mods = append(mods, sm.Where(models.Posts.Columns.MimeType.Like(psql.Arg("image/%"))))
-	}
-	if searchParams.TypeVideo {
-		logger.Info().Msg("applying type:video filter")
-		mods = append(mods, sm.Where(models.Posts.Columns.MimeType.Like(psql.Arg("video/%"))))
-	}
-	if searchParams.TypeAudio {
-		logger.Info().Msg("applying type:audio filter")
-		mods = append(mods, sm.Where(models.Posts.Columns.HasAudio.EQ(psql.Arg(true))))
-	}
-
 	limit := parseLimit(params.Limit)
+
+	listParams := store.ListPostsParams{
+		Query: searchParams,
+		Limit: limit,
+	}
 
 	if searchParams.Sort == search.SortRandom {
 		currentSeed := time.Now().Unix() / 21600
-		offset := 0
+		listParams.RandomSeed = &currentSeed
 
 		if params.Cursor != nil && *params.Cursor != "" {
 			var rc randomCursor
 			if err := decodeRandomCursor(*params.Cursor, &rc); err == nil {
 				if rc.Seed == currentSeed {
-					offset = rc.Offset
-					logger.Info().Int64("seed", currentSeed).Int("offset", offset).Msg("resuming random cursor")
+					listParams.RandomOffset = rc.Offset
+					logger.Info().Int64("seed", currentSeed).Int("offset", rc.Offset).Msg("resuming random cursor")
 				} else {
 					logger.Info().Int64("old_seed", rc.Seed).Int64("new_seed", currentSeed).Msg("random window rolled, restarting from offset 0")
 				}
-				// if seed differs, use currentSeed with offset=0 (window rolled)
 			}
 		}
 
-		mods = append(mods,
-			sm.OrderBy(dialect.NewFunction("md5",
-				psql.Cast(models.Posts.Columns.ID, "text").Concat(psql.Arg(strconv.FormatInt(currentSeed, 10))),
-			)),
-			sm.Limit(int64(limit+1)),
-			sm.Offset(int64(offset)),
-		)
-
-		posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+		posts, hasMore, err := s.sqlStore.ListPosts(ctx, listParams)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve posts")
 			return
 		}
 
-		if err := posts.LoadTags(ctx, s.db); err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
-			return
-		}
-
 		var nextCursor *string
-		if len(posts) > limit {
-			posts = posts[:limit]
-			rc := randomCursor{Seed: currentSeed, Offset: offset + limit}
+		if hasMore {
+			rc := randomCursor{Seed: currentSeed, Offset: listParams.RandomOffset + limit}
 			encoded := encodeRandomCursor(rc)
 			nextCursor = &encoded
 		}
@@ -291,16 +190,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		return
 	}
 
-	// Determine sort column (default: created_at, newest first)
-	sortCol := models.Posts.Columns.CreatedAt
-	if searchParams.Sort == search.SortUpdatedAt {
-		sortCol = models.Posts.Columns.UpdatedAt
-	}
-	mods = append(mods,
-		sm.OrderBy(sortCol).Desc(),
-		sm.OrderBy(models.Posts.Columns.ID).Desc(),
-	)
-
+	// Deterministic sort with cursor
 	if params.Cursor != nil && *params.Cursor != "" {
 		pc, err := decodePostCursor(*params.Cursor)
 		if err != nil {
@@ -317,32 +207,19 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(psql.Or(
-			sortCol.LT(psql.Arg(ts)),
-			psql.And(
-				sortCol.EQ(psql.Arg(ts)),
-				models.Posts.Columns.ID.LT(psql.Arg(cursorID)),
-			),
-		)))
+		listParams.CursorTime = &ts
+		listParams.CursorID = &cursorID
 	}
 
-	mods = append(mods, sm.Limit(int64(limit+1)))
-
-	posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+	posts, hasMore, err := s.sqlStore.ListPosts(ctx, listParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve posts")
 		return
 	}
 
-	if err := posts.LoadTags(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
-		return
-	}
-
 	var nextCursor *string
-	if len(posts) > limit {
-		posts = posts[:limit]
-		last := posts[limit-1]
+	if hasMore {
+		last := posts[len(posts)-1]
 		var ts string
 		if searchParams.Sort == search.SortUpdatedAt {
 			ts = last.UpdatedAt.Format(time.RFC3339Nano)
@@ -363,22 +240,13 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 
-	postID := uuid.UUID(id)
-
-	model, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).One(ctx, s.db)
+	model, err := s.sqlStore.GetPost(ctx, uuid.UUID(id))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
-		return
-	}
-
-	if err := model.LoadTags(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
 		return
 	}
 
@@ -443,14 +311,12 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	hash := sha256.Sum256(contentData)
 	hashHex := hex.EncodeToString(hash[:])
 
-	existing, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.Sha256.EQ(psql.Arg(hashHex))),
-	).One(ctx, s.db)
+	existing, err := s.sqlStore.FindPostBySha256(ctx, hashHex)
 	if err == nil {
 		logger.Info().Stringer("existing_id", existing.ID).Msg("duplicate post detected by sha256")
 		respondWithError(w, http.StatusConflict, "Duplicate of existing post %s", existing.ID)
 		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, store.ErrNotFound) {
 		logger.Error().Err(err).Msg("failed to check for duplicate post")
 		respondWithError(w, http.StatusInternalServerError, "Failed to check for duplicate")
 		return
@@ -465,9 +331,9 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
 
 		// Check for visually similar posts (unless force is set).
-		if !force && s.similarityThreshold > 0 {
-			logger.Info().Int("threshold", s.similarityThreshold).Msg("checking for visually similar posts")
-			similar, err := s.findSimilarPosts(ctx, uuid.Nil, pHash, 5)
+		if !force {
+			logger.Info().Msg("checking for visually similar posts")
+			similar, err := s.sqlStore.FindSimilarPosts(ctx, uuid.Nil, pHash, 5)
 			if err != nil {
 				logger.Error().Err(err).Msg("failed to check for similar posts")
 			} else if len(similar) > 0 {
@@ -483,7 +349,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 				return
 			}
 			logger.Info().Msg("no similar posts found")
-		} else if force {
+		} else {
 			logger.Info().Msg("skipping similarity check (force=true)")
 		}
 	}
@@ -500,14 +366,14 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	contentKey := fmt.Sprintf("posts/%s/content.%s", postID, ext)
 	thumbnailKey := fmt.Sprintf("posts/%s/thumbnail.webp", postID)
 
-	contentURL, err := s.storage.Upload(ctx, contentKey, contentData, contentMIME)
+	contentURL, err := s.mediaStore.Upload(ctx, contentKey, contentData, contentMIME)
 	if err != nil {
 		logger.Error().Err(err).Str("key", contentKey).Msg("failed to upload content to storage")
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload content: %v", err)
 		return
 	}
 
-	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
 		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload thumbnail to storage")
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail: %v", err)
@@ -516,19 +382,17 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 
 	id := postID
 	now := new(time.Now().UTC())
-	model, err := models.Posts.Insert(
-		&models.PostSetter{
-			ID:           &id,
-			MimeType:     &contentMIME,
-			ContentURL:   &contentURL,
-			ThumbnailURL: &thumbnailURL,
-			HasAudio:     &hasAudioVal,
-			Sha256:       &hashHex,
-			Phash:        phashVal,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		},
-	).One(ctx, s.db)
+	model, err := s.sqlStore.CreatePost(ctx, &models.PostSetter{
+		ID:           &id,
+		MimeType:     &contentMIME,
+		ContentURL:   &contentURL,
+		ThumbnailURL: &thumbnailURL,
+		HasAudio:     &hasAudioVal,
+		Sha256:       &hashHex,
+		Phash:        phashVal,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to insert post into database")
 		respondWithError(w, http.StatusInternalServerError, "Failed to store post: %v", err)
@@ -588,93 +452,20 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	existingPost, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).One(ctx, s.db)
+	now := time.Now().UTC()
+	model, err := s.sqlStore.UpdatePost(ctx, postID, post.Note, post.Tags, now)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
-		return
-	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to begin transaction")
-		return
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// Only update mutable metadata — storage-controlled fields (MimeType,
-	// ContentURL, ThumbnailURL) are managed by UploadPost/ReplacePostContent.
-	putNow := new(time.Now().UTC())
-	err = existingPost.Update(ctx, tx, &models.PostSetter{
-		Note:      &post.Note,
-		UpdatedAt: putNow,
-	})
-	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
 		return
 	}
 
-	_, err = models.PostsTags.Delete(
-		dm.Where(models.PostsTags.Columns.PostID.EQ(psql.Arg(postID))),
-	).Exec(ctx, tx)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to update post tags")
-		return
-	}
-
 	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
-	for _, tagName := range post.Tags {
-		// Resolve aliases to canonical tag names
-		resolvedName, resolveErr := s.resolveAlias(ctx, tx, tagName)
-		if resolveErr != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
-			return
-		}
-		if resolvedName != tagName {
-			logger.Info().Str("alias", tagName).Str("canonical", resolvedName).Msg("resolved tag alias")
-		}
-		// Upsert the tag to avoid TOCTOU race
-		_, err = tx.ExecContext(ctx,
-			"INSERT INTO tags (name, created_at, updated_at) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
-			resolvedName, putNow, putNow,
-		)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to upsert tag %q", tagName)
-			return
-		}
-		tag, err := models.Tags.Query(
-			sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(resolvedName))),
-		).One(ctx, tx)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag %q", tagName)
-			return
-		}
-
-		logger.Info().Str("tag", resolvedName).Msg("attaching tag to post")
-		err = existingPost.AttachTags(ctx, tx, tag)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to attach tag")
-			return
-		}
-	}
-
-	if err := existingPost.LoadTags(ctx, tx); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
-		return
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
-		return
-	}
-
 	logger.Info().Int("tag_count", len(post.Tags)).Msg("post updated")
-	respond(w, http.StatusOK, postFromModel(existingPost))
+	respond(w, http.StatusOK, postFromModel(model))
 }
 
 func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id) {
@@ -682,11 +473,10 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 
 	postID := uuid.UUID(id)
 
-	existingPost, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).One(ctx, s.db)
+	// Get existing post to determine old storage keys
+	existingPost, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
@@ -739,27 +529,27 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	if oldContentKey != newContentKey {
 		logger.Info().Str("old_key", oldContentKey).Str("new_key", newContentKey).Msg("mime type changed, deleting old content object")
-		if err := s.storage.Delete(ctx, oldContentKey); err != nil {
+		if err := s.mediaStore.Delete(ctx, oldContentKey); err != nil {
 			logger.Error().Err(err).Str("key", oldContentKey).Msg("failed to delete old content object")
 		}
 	}
 
 	thumbnailKey := storageKeyForThumbnail(postID)
 
-	contentURL, err := s.storage.Upload(ctx, newContentKey, contentData, contentMIME)
+	contentURL, err := s.mediaStore.Upload(ctx, newContentKey, contentData, contentMIME)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
 		return
 	}
 
-	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
 		return
 	}
 
-	hash := sha256.Sum256(contentData)
-	hashHex := hex.EncodeToString(hash[:])
+	hashArr := sha256.Sum256(contentData)
+	hashHex := hex.EncodeToString(hashArr[:])
 
 	var phashVal *sql.Null[int64]
 	pHash, phashErr := media.DhashFromBytes(thumbnailData)
@@ -769,26 +559,26 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
 	}
 
-	err = existingPost.Update(ctx, s.db, &models.PostSetter{
+	now := new(time.Now().UTC())
+	model, err := s.sqlStore.UpdatePostContent(ctx, postID, &models.PostSetter{
 		MimeType:     &contentMIME,
 		ContentURL:   &contentURL,
 		ThumbnailURL: &thumbnailURL,
 		HasAudio:     &hasAudioVal,
 		Sha256:       &hashHex,
 		Phash:        phashVal,
-		UpdatedAt:    new(time.Now().UTC()),
+		UpdatedAt:    now,
 	})
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
 		return
 	}
 
-	if err = existingPost.LoadTags(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
-		return
-	}
-
-	respond(w, http.StatusOK, postFromModel(existingPost))
+	respond(w, http.StatusOK, postFromModel(model))
 }
 
 func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id) {
@@ -796,11 +586,9 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 
 	postID := uuid.UUID(id)
 
-	existingPost, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).One(ctx, s.db)
+	_, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
@@ -835,27 +623,24 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 	}
 
 	thumbnailKey := storageKeyForThumbnail(postID)
-	thumbnailURL, err := s.storage.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
 		return
 	}
 
-	err = existingPost.Update(ctx, s.db, &models.PostSetter{
-		ThumbnailURL: &thumbnailURL,
-		UpdatedAt:    new(time.Now().UTC()),
-	})
+	now := time.Now().UTC()
+	model, err := s.sqlStore.UpdatePostThumbnail(ctx, postID, thumbnailURL, now)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
 		return
 	}
 
-	if err := existingPost.LoadTags(ctx, s.db); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
-		return
-	}
-
-	respond(w, http.StatusOK, postFromModel(existingPost))
+	respond(w, http.StatusOK, postFromModel(model))
 }
 
 func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
@@ -864,11 +649,9 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	postID := uuid.UUID(id)
 
 	// Fetch the post first to get storage keys for cleanup.
-	post, err := models.Posts.Query(
-		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).One(ctx, s.db)
+	post, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
@@ -879,20 +662,18 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	contentKey := storageKeyForContent(postID, post.MimeType)
 	thumbnailKey := storageKeyForThumbnail(postID)
-	if err := s.storage.Delete(ctx, contentKey); err != nil {
+	if err := s.mediaStore.Delete(ctx, contentKey); err != nil {
 		logger.Error().Err(err).Str("key", contentKey).Msg("failed to delete content object")
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post content from storage")
 		return
 	}
-	if err := s.storage.Delete(ctx, thumbnailKey); err != nil {
+	if err := s.mediaStore.Delete(ctx, thumbnailKey); err != nil {
 		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object")
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post thumbnail from storage")
 		return
 	}
 
-	_, err = models.Posts.Delete(
-		dm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
-	).Exec(ctx, s.db)
+	_, err = s.sqlStore.DeletePost(ctx, postID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return

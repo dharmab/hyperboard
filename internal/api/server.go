@@ -6,24 +6,22 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/rs/zerolog/log"
-	"github.com/stephenafamo/bob"
 )
 
 type Server struct {
-	db                  bob.DB
-	storage             storage.Storage
-	similarityThreshold int
+	sqlStore   store.SQLStore
+	mediaStore storage.MediaStore
 }
 
 var _ ServerInterface = &Server{}
 
-func NewServer(db bob.DB, storage storage.Storage, similarityThreshold int) *Server {
+func NewServer(sqlStore store.SQLStore, mediaStore storage.MediaStore) *Server {
 	return &Server{
-		db:                  db,
-		storage:             storage,
-		similarityThreshold: similarityThreshold,
+		sqlStore:   sqlStore,
+		mediaStore: mediaStore,
 	}
 }
 
@@ -39,7 +37,7 @@ func (s *Server) HandleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	obj, err := s.storage.Download(r.Context(), key)
+	obj, err := s.mediaStore.Download(r.Context(), key)
 	if err != nil {
 		log.Error().Err(err).Str("key", key).Msg("failed to download media")
 		http.Error(w, "Media not found", http.StatusNotFound)

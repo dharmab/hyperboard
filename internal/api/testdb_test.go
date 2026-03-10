@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/storage/memory"
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -68,5 +69,6 @@ func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	// No cleanup needed: tests use unique random data (UUIDs, random tag names)
 	// and query by specific IDs/names, so they don't interfere with each other.
-	return NewServer(testDB, memory.New(), 5)
+	s := store.NewPostgresSQLStore(testDB, 5)
+	return NewServer(s, memory.New())
 }

@@ -14,12 +14,12 @@ func (s *Server) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	if err := s.db.PingContext(ctx); err != nil {
+	if err := s.sqlStore.Ping(ctx); err != nil {
 		respondWithError(w, http.StatusServiceUnavailable, "Database is not ready: %v", err)
 		return
 	}
 
-	if err := s.storage.Ping(ctx); err != nil {
+	if err := s.mediaStore.Ping(ctx); err != nil {
 		respondWithError(w, http.StatusServiceUnavailable, "Object store is not ready: %v", err)
 		return
 	}
