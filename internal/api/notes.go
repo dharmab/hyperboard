@@ -125,23 +125,19 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	now := new(time.Now().UTC())
 	err = model.Update(ctx, s.db, &models.NoteSetter{
 		Title:     &body.Title,
 		Content:   &body.Content,
-		UpdatedAt: new(time.Now().UTC()),
+		UpdatedAt: now,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update note")
 		return
 	}
-
-	model, err = models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
-	).One(ctx, s.db)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated note")
-		return
-	}
+	model.Title = body.Title
+	model.Content = body.Content
+	model.UpdatedAt = *now
 
 	zerolog.Ctx(ctx).Info().Stringer("note_id", noteID).Msg("note updated")
 	respond(w, http.StatusOK, noteFromModel(model))

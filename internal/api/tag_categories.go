@@ -179,25 +179,23 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 	if existing != nil {
 		logger.Info().Str("new_name", req.Name).Msg("updating existing tag category")
 		// Update (supports rename)
+		now := new(time.Now().UTC())
 		err = existing.Update(ctx, s.db, &models.TagCategorySetter{
 			Name:        &req.Name,
 			Description: &req.Description,
 			Color:       &req.Color,
-			UpdatedAt:   new(time.Now().UTC()),
+			UpdatedAt:   now,
 		})
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update tag category")
 			return
 		}
-		updated, err := models.TagCategories.Query(
-			sm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(req.Name))),
-		).One(ctx, s.db)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated tag category")
-			return
-		}
+		existing.Name = req.Name
+		existing.Description = req.Description
+		existing.Color = req.Color
+		existing.UpdatedAt = *now
 		logger.Info().Msg("tag category updated")
-		respond(w, http.StatusOK, tagCategoryFromModel(updated))
+		respond(w, http.StatusOK, tagCategoryFromModel(existing))
 	} else {
 		if req.Name != name {
 			respondWithError(w, http.StatusBadRequest, "Tag category name mismatch: got %q in body but %q in URL", req.Name, name)

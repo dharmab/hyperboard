@@ -96,25 +96,33 @@ func (s *Server) getTagAliases(ctx context.Context, tagIDs ...uuid.UUID) (map[uu
 
 // setTagAliases replaces all aliases for a tag with the given list.
 // Returns an error if any alias conflicts with an existing tag name.
-func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []string) error {
+func (s *Server) setTagAliases(ctx context.Context, exec bob.Executor, tagID uuid.UUID, aliases []string) error {
 	// Check that no alias conflicts with an existing tag name
 	for _, alias := range aliases {
 		if alias == "" {
 			continue
 		}
-		var count int
-		err := s.db.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM tags WHERE name = $1", alias,
-		).Scan(&count)
+		rows, err := exec.QueryContext(ctx, "SELECT COUNT(*) FROM tags WHERE name = $1", alias)
 		if err != nil {
 			return err
+		}
+		var count int
+		if rows.Next() {
+			err = rows.Scan(&count)
+		}
+		closeErr := rows.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
 		}
 		if count > 0 {
 			return fmt.Errorf("alias %q conflicts with an existing tag name", alias)
 		}
 	}
 
-	_, err := s.db.ExecContext(ctx, "DELETE FROM tag_aliases WHERE tag_id = $1", tagID)
+	_, err := exec.ExecContext(ctx, "DELETE FROM tag_aliases WHERE tag_id = $1", tagID)
 	if err != nil {
 		return err
 	}
@@ -122,7 +130,7 @@ func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []s
 		if alias == "" {
 			continue
 		}
-		_, err := s.db.ExecContext(ctx,
+		_, err := exec.ExecContext(ctx,
 			"INSERT INTO tag_aliases (tag_id, alias_name) VALUES ($1, $2)",
 			tagID, alias,
 		)
@@ -135,19 +143,23 @@ func (s *Server) setTagAliases(ctx context.Context, tagID uuid.UUID, aliases []s
 
 // resolveAlias looks up an alias and returns the canonical tag name.
 // If the name is not an alias, it is returned as-is.
-func (s *Server) resolveAlias(ctx context.Context, name string) (string, error) {
-	var canonical string
-	err := s.db.QueryRowContext(ctx,
+func (s *Server) resolveAlias(ctx context.Context, exec bob.Executor, name string) (string, error) {
+	rows, err := exec.QueryContext(ctx,
 		"SELECT t.name FROM tags t JOIN tag_aliases ta ON t.id = ta.tag_id WHERE ta.alias_name = $1",
 		name,
-	).Scan(&canonical)
+	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return name, nil
-		}
 		return "", err
 	}
-	return canonical, nil
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		var canonical string
+		if err := rows.Scan(&canonical); err != nil {
+			return "", err
+		}
+		return canonical, rows.Err()
+	}
+	return name, rows.Err()
 }
 
 func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsParams) {
@@ -312,9 +324,16 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		tagCategoryID = sql.Null[uuid.UUID]{V: category.ID, Valid: true}
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to begin transaction")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	existing, err := models.Tags.Query(
 		sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
 		return
@@ -325,7 +344,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	if existing != nil {
 		logger.Info().Str("new_name", tag.Name).Msg("updating existing tag")
 		// Update (supports rename)
-		err = existing.Update(ctx, s.db, &models.TagSetter{
+		err = existing.Update(ctx, tx, &models.TagSetter{
 			Name:          &tag.Name,
 			Description:   &tag.Description,
 			TagCategoryID: &tagCategoryID,
@@ -354,7 +373,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			},
-		).One(ctx, s.db)
+		).One(ctx, tx)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create tag")
 			return
@@ -367,8 +386,13 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	if tag.Aliases != nil {
 		aliases = *tag.Aliases
 	}
-	if err := s.setTagAliases(ctx, resultModel.ID, aliases); err != nil {
+	if err := s.setTagAliases(ctx, tx, resultModel.ID, aliases); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update tag aliases")
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
 		return
 	}
 

@@ -157,7 +157,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	for _, tagName := range searchParams.IncludedTags {
 		// Resolve aliases to canonical tag names
-		resolved, err := s.resolveAlias(ctx, tagName)
+		resolved, err := s.resolveAlias(ctx, s.db, tagName)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
@@ -179,7 +179,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	for _, tagName := range searchParams.ExcludedTags {
-		resolved, err := s.resolveAlias(ctx, tagName)
+		resolved, err := s.resolveAlias(ctx, s.db, tagName)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
@@ -603,10 +603,17 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to begin transaction")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	// Only update mutable metadata — storage-controlled fields (MimeType,
 	// ContentURL, ThumbnailURL) are managed by UploadPost/ReplacePostContent.
 	putNow := new(time.Now().UTC())
-	err = existingPost.Update(ctx, s.db, &models.PostSetter{
+	err = existingPost.Update(ctx, tx, &models.PostSetter{
 		Note:      &post.Note,
 		UpdatedAt: putNow,
 	})
@@ -617,7 +624,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	_, err = models.PostsTags.Delete(
 		dm.Where(models.PostsTags.Columns.PostID.EQ(psql.Arg(postID))),
-	).Exec(ctx, s.db)
+	).Exec(ctx, tx)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post tags")
 		return
@@ -626,7 +633,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	for _, tagName := range post.Tags {
 		// Resolve aliases to canonical tag names
-		resolvedName, resolveErr := s.resolveAlias(ctx, tagName)
+		resolvedName, resolveErr := s.resolveAlias(ctx, tx, tagName)
 		if resolveErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
 			return
@@ -635,7 +642,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 			logger.Info().Str("alias", tagName).Str("canonical", resolvedName).Msg("resolved tag alias")
 		}
 		// Upsert the tag to avoid TOCTOU race
-		_, err = s.db.ExecContext(ctx,
+		_, err = tx.ExecContext(ctx,
 			"INSERT INTO tags (name, created_at, updated_at) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
 			resolvedName, putNow, putNow,
 		)
@@ -645,22 +652,27 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		}
 		tag, err := models.Tags.Query(
 			sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(resolvedName))),
-		).One(ctx, s.db)
+		).One(ctx, tx)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag %q", tagName)
 			return
 		}
 
 		logger.Info().Str("tag", resolvedName).Msg("attaching tag to post")
-		err = existingPost.AttachTags(ctx, s.db, tag)
+		err = existingPost.AttachTags(ctx, tx, tag)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to attach tag")
 			return
 		}
 	}
 
-	if err := existingPost.LoadTags(ctx, s.db); err != nil {
+	if err := existingPost.LoadTags(ctx, tx); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tags")
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to commit transaction")
 		return
 	}
 
