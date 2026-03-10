@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dharmab/hyperboard/internal/client"
+	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/spf13/cobra"
 )

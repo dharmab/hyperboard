@@ -5,6 +5,6 @@ import-mapping:
 generate:
   models: true
   client: true
-output: gen.go
+output: ../../../pkg/client/gen.go
 output-options:
   skip-prune: true

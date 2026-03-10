@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dharmab/hyperboard/internal/client"
+	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/internal/types"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
