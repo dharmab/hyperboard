@@ -11,9 +11,8 @@ Exec=/data
 Environment=RUSTFS_ACCESS_KEY=${HYPERBOARD_STORAGE_ACCESS_KEY}
 Environment=RUSTFS_SECRET_KEY=${HYPERBOARD_STORAGE_SECRET_KEY}
 Environment=RUSTFS_CONSOLE_ENABLE=true
-PublishPort=9000:9000
-PublishPort=9001:9001
-HealthCmd=curl -f http://localhost:9000/health/ready || exit 1
+PublishPort=${HYPERBOARD_STORAGE_PORT}:9000
+HealthCmd=curl -f http://localhost:9000/health || exit 1
 HealthInterval=5s
 HealthTimeout=3s
 HealthRetries=5

@@ -10,7 +10,6 @@ Volume=${HYPERBOARD_POSTGRESQL_DATA_DIR}:/var/lib/postgresql/data
 Environment=POSTGRES_USER=${HYPERBOARD_DB_USER}
 Environment=POSTGRES_PASSWORD=${HYPERBOARD_DB_PASSWORD}
 Environment=POSTGRES_DB=${HYPERBOARD_DB_NAME}
-PublishPort=5432:5432
 HealthCmd=pg_isready -U ${HYPERBOARD_DB_USER} -d ${HYPERBOARD_DB_NAME}
 HealthInterval=5s
 HealthTimeout=5s
