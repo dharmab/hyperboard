@@ -6,15 +6,12 @@ Requires=hyperboard-api.service
 [Container]
 Image=ghcr.io/dharmab/hyperboard-web:main
 ContainerName=hyperboard-web
-Network=hyperboard.network
+Pod=hyperboard.pod
 Environment=HYPERBOARD_WEB_ADMIN_PASSWORD=${HYPERBOARD_ADMIN_PASSWORD}
-Environment=HYPERBOARD_WEB_API_URL=http://hyperboard-api:8080
+Environment=HYPERBOARD_WEB_SESSION_SECRET=${HYPERBOARD_SESSION_SECRET}
+Environment=HYPERBOARD_WEB_API_URL=http://localhost:8081
 Environment=HYPERBOARD_WEB_LOG_LEVEL=info
-PublishPort=${HYPERBOARD_WEB_PORT}:8080
 
 [Service]
 EnvironmentFile=/etc/hyperboard/hyperboard.env
 Restart=always
-
-[Install]
-WantedBy=multi-user.target default.target
