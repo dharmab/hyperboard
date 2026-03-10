@@ -55,9 +55,9 @@ var sortTerms = map[string]bool{
 	search.SortUpdatedAt: true,
 }
 
-func parseSearch(query string) search.PostSearch {
-	postSearch := search.PostSearch{
-		Tags: []types.TagName{},
+func parseSearch(query string) search.Query {
+	postSearch := search.Query{
+		IncludedTags: []types.TagName{},
 	}
 
 	if query == "" {
@@ -85,9 +85,9 @@ func parseSearch(query string) search.PostSearch {
 		} else if term == search.TagAudio {
 			postSearch.TypeAudio = true
 		} else if excluded, ok := strings.CutPrefix(term, "-"); ok && excluded != "" {
-			postSearch.ExcludeTags = append(postSearch.ExcludeTags, excluded)
+			postSearch.ExcludedTags = append(postSearch.ExcludedTags, excluded)
 		} else {
-			postSearch.Tags = append(postSearch.Tags, term)
+			postSearch.IncludedTags = append(postSearch.IncludedTags, term)
 		}
 	}
 
@@ -146,8 +146,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	searchParams := parseSearch(query)
 	logger.Info().
 		Str("search", query).
-		Strs("tags", searchParams.Tags).
-		Strs("exclude_tags", searchParams.ExcludeTags).
+		Strs("tags", searchParams.IncludedTags).
+		Strs("exclude_tags", searchParams.ExcludedTags).
 		Str("sort", searchParams.Sort).
 		Int("tagged", int(searchParams.Tagged)).
 		Bool("type_image", searchParams.TypeImage).
@@ -155,7 +155,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Bool("type_audio", searchParams.TypeAudio).
 		Msg("parsed search params")
 
-	for _, tagName := range searchParams.Tags {
+	for _, tagName := range searchParams.IncludedTags {
 		// Resolve aliases to canonical tag names
 		resolved, err := s.resolveAlias(ctx, tagName)
 		if err != nil {
@@ -178,7 +178,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		)))
 	}
 
-	for _, tagName := range searchParams.ExcludeTags {
+	for _, tagName := range searchParams.ExcludedTags {
 		resolved, err := s.resolveAlias(ctx, tagName)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to resolve tag alias")
@@ -261,8 +261,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 		mods = append(mods,
 			sm.OrderBy(dialect.NewFunction("md5",
-			psql.Cast(models.Posts.Columns.ID, "text").Concat(psql.Arg(strconv.FormatInt(currentSeed, 10))),
-		)),
+				psql.Cast(models.Posts.Columns.ID, "text").Concat(psql.Arg(strconv.FormatInt(currentSeed, 10))),
+			)),
 			sm.Limit(int64(limit+1)),
 			sm.Offset(int64(offset)),
 		)

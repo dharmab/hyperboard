@@ -12,131 +12,131 @@ func TestParseSearch(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
-		expect search.PostSearch
+		expect search.Query
 	}{
 		{
 			name:  "empty string",
 			input: "",
-			expect: search.PostSearch{
-				Tags: []types.TagName{},
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
 			},
 		},
 		{
 			name:  "single tag",
 			input: "landscape",
-			expect: search.PostSearch{
-				Tags: []types.TagName{"landscape"},
+			expect: search.Query{
+				IncludedTags: []types.TagName{"landscape"},
 			},
 		},
 		{
 			name:  "multiple tags",
 			input: "landscape,portrait",
-			expect: search.PostSearch{
-				Tags: []types.TagName{"landscape", "portrait"},
+			expect: search.Query{
+				IncludedTags: []types.TagName{"landscape", "portrait"},
 			},
 		},
 		{
 			name:  "tags with whitespace",
 			input: " landscape , portrait ",
-			expect: search.PostSearch{
-				Tags: []types.TagName{"landscape", "portrait"},
+			expect: search.Query{
+				IncludedTags: []types.TagName{"landscape", "portrait"},
 			},
 		},
 		{
 			name:  "sort created",
 			input: "sort:created",
-			expect: search.PostSearch{
-				Tags: []types.TagName{},
-				Sort: search.SortCreatedAt,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Sort:         search.SortCreatedAt,
 			},
 		},
 		{
 			name:  "sort updated",
 			input: "sort:updated",
-			expect: search.PostSearch{
-				Tags: []types.TagName{},
-				Sort: search.SortUpdatedAt,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Sort:         search.SortUpdatedAt,
 			},
 		},
 		{
 			name:  "sort random",
 			input: "sort:random",
-			expect: search.PostSearch{
-				Tags: []types.TagName{},
-				Sort: search.SortRandom,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Sort:         search.SortRandom,
 			},
 		},
 		{
 			name:  "invalid sort ignored",
 			input: "sort:invalid",
-			expect: search.PostSearch{
-				Tags: []types.TagName{},
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
 			},
 		},
 		{
 			name:  "tagged true",
 			input: "tagged:true",
-			expect: search.PostSearch{
-				Tags:   []types.TagName{},
-				Tagged: search.TaggedFilterTrue,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Tagged:       search.TaggedFilterTrue,
 			},
 		},
 		{
 			name:  "tagged false",
 			input: "tagged:false",
-			expect: search.PostSearch{
-				Tags:   []types.TagName{},
-				Tagged: search.TaggedFilterFalse,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Tagged:       search.TaggedFilterFalse,
 			},
 		},
 		{
 			name:  "type image",
 			input: "type:image",
-			expect: search.PostSearch{
-				Tags:      []types.TagName{},
-				TypeImage: true,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				TypeImage:    true,
 			},
 		},
 		{
 			name:  "type video",
 			input: "type:video",
-			expect: search.PostSearch{
-				Tags:      []types.TagName{},
-				TypeVideo: true,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				TypeVideo:    true,
 			},
 		},
 		{
 			name:  "type audio",
 			input: "type:audio",
-			expect: search.PostSearch{
-				Tags:      []types.TagName{},
-				TypeAudio: true,
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				TypeAudio:    true,
 			},
 		},
 		{
 			name:  "excluded tag",
 			input: "-nsfw",
-			expect: search.PostSearch{
-				Tags:        []types.TagName{},
-				ExcludeTags: []string{"nsfw"},
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				ExcludedTags: []string{"nsfw"},
 			},
 		},
 		{
 			name:  "mixed input",
 			input: "landscape,-nsfw,sort:random,tagged:true,type:image",
-			expect: search.PostSearch{
-				Tags:        []types.TagName{"landscape"},
-				ExcludeTags: []string{"nsfw"},
-				Sort:        search.SortRandom,
-				Tagged:      search.TaggedFilterTrue,
-				TypeImage:   true,
+			expect: search.Query{
+				IncludedTags: []types.TagName{"landscape"},
+				ExcludedTags: []string{"nsfw"},
+				Sort:         search.SortRandom,
+				Tagged:       search.TaggedFilterTrue,
+				TypeImage:    true,
 			},
 		},
 		{
 			name:  "empty terms ignored",
 			input: "landscape,,portrait,",
-			expect: search.PostSearch{
-				Tags: []types.TagName{"landscape", "portrait"},
+			expect: search.Query{
+				IncludedTags: []types.TagName{"landscape", "portrait"},
 			},
 		},
 	}
@@ -160,20 +160,20 @@ func TestParseSearch(t *testing.T) {
 			if got.TypeAudio != tt.expect.TypeAudio {
 				t.Errorf("TypeAudio = %v, want %v", got.TypeAudio, tt.expect.TypeAudio)
 			}
-			if len(got.Tags) != len(tt.expect.Tags) {
-				t.Fatalf("len(Tags) = %d, want %d", len(got.Tags), len(tt.expect.Tags))
+			if len(got.IncludedTags) != len(tt.expect.IncludedTags) {
+				t.Fatalf("len(Tags) = %d, want %d", len(got.IncludedTags), len(tt.expect.IncludedTags))
 			}
-			for i, tag := range got.Tags {
-				if tag != tt.expect.Tags[i] {
-					t.Errorf("Tags[%d] = %q, want %q", i, tag, tt.expect.Tags[i])
+			for i, tag := range got.IncludedTags {
+				if tag != tt.expect.IncludedTags[i] {
+					t.Errorf("Tags[%d] = %q, want %q", i, tag, tt.expect.IncludedTags[i])
 				}
 			}
-			if len(got.ExcludeTags) != len(tt.expect.ExcludeTags) {
-				t.Fatalf("len(ExcludeTags) = %d, want %d", len(got.ExcludeTags), len(tt.expect.ExcludeTags))
+			if len(got.ExcludedTags) != len(tt.expect.ExcludedTags) {
+				t.Fatalf("len(ExcludeTags) = %d, want %d", len(got.ExcludedTags), len(tt.expect.ExcludedTags))
 			}
-			for i, tag := range got.ExcludeTags {
-				if tag != tt.expect.ExcludeTags[i] {
-					t.Errorf("ExcludeTags[%d] = %q, want %q", i, tag, tt.expect.ExcludeTags[i])
+			for i, tag := range got.ExcludedTags {
+				if tag != tt.expect.ExcludedTags[i] {
+					t.Errorf("ExcludeTags[%d] = %q, want %q", i, tag, tt.expect.ExcludedTags[i])
 				}
 			}
 		})

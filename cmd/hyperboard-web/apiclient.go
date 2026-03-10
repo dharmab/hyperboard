@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/internal/middleware/auth"
+	"github.com/dharmab/hyperboard/pkg/client"
 )
 
 func newAPIClient(baseURL, password string) (*client.ClientWithResponses, error) {

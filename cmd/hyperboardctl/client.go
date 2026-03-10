@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/internal/middleware/auth"
+	"github.com/dharmab/hyperboard/pkg/client"
 )
 
 func newClient(cfg *Config) (*client.ClientWithResponses, error) {

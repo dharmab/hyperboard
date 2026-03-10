@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/internal/middleware/logging"
+	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
