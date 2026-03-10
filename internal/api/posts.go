@@ -74,10 +74,10 @@ func parseSearch(query string) search.Query {
 			if sortTerms[sortValue] {
 				postSearch.Sort = sortValue
 			}
-		} else if term == "tagged:true" {
-			postSearch.Tagged = search.TaggedFilterTrue
-		} else if term == "tagged:false" {
-			postSearch.Tagged = search.TaggedFilterFalse
+		} else if term == search.TagTaggedTrue {
+			postSearch.TaggedTrue = true
+		} else if term == search.TagTaggedFalse {
+			postSearch.TaggedFalse = true
 		} else if term == search.TagImage {
 			postSearch.TypeImage = true
 		} else if term == search.TagVideo {
@@ -149,7 +149,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Strs("tags", searchParams.IncludedTags).
 		Strs("exclude_tags", searchParams.ExcludedTags).
 		Str("sort", searchParams.Sort).
-		Int("tagged", int(searchParams.Tagged)).
+		Bool("tagged_true", searchParams.TaggedTrue).
+		Bool("tagged_false", searchParams.TaggedFalse).
 		Bool("type_image", searchParams.TypeImage).
 		Bool("type_video", searchParams.TypeVideo).
 		Bool("type_audio", searchParams.TypeAudio).
@@ -201,8 +202,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	// Apply tagged: filter
-	switch searchParams.Tagged {
-	case search.TaggedFilterTrue:
+	if searchParams.TaggedTrue {
 		logger.Info().Msg("applying tagged:true filter")
 		mods = append(mods, sm.Where(psql.F("EXISTS",
 			psql.Select(
@@ -212,7 +212,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
 			),
 		)))
-	case search.TaggedFilterFalse:
+	}
+	if searchParams.TaggedFalse {
 		logger.Info().Msg("applying tagged:false filter")
 		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
 			psql.Select(
@@ -222,8 +223,6 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
 			),
 		))))
-	case search.TaggedFilterNone:
-		// No filter applied
 	}
 
 	// Apply type: virtual tag filters

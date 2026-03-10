@@ -78,7 +78,7 @@ func TestParseSearch(t *testing.T) {
 			input: "tagged:true",
 			expect: search.Query{
 				IncludedTags: []types.TagName{},
-				Tagged:       search.TaggedFilterTrue,
+				TaggedTrue:   true,
 			},
 		},
 		{
@@ -86,7 +86,16 @@ func TestParseSearch(t *testing.T) {
 			input: "tagged:false",
 			expect: search.Query{
 				IncludedTags: []types.TagName{},
-				Tagged:       search.TaggedFilterFalse,
+				TaggedFalse:  true,
+			},
+		},
+		{
+			name:  "tagged true and false yields contradictory filters",
+			input: "tagged:true,tagged:false",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				TaggedTrue:   true,
+				TaggedFalse:  true,
 			},
 		},
 		{
@@ -128,7 +137,7 @@ func TestParseSearch(t *testing.T) {
 				IncludedTags: []types.TagName{"landscape"},
 				ExcludedTags: []string{"nsfw"},
 				Sort:         search.SortRandom,
-				Tagged:       search.TaggedFilterTrue,
+				TaggedTrue:   true,
 				TypeImage:    true,
 			},
 		},
@@ -148,8 +157,11 @@ func TestParseSearch(t *testing.T) {
 			if got.Sort != tt.expect.Sort {
 				t.Errorf("Sort = %q, want %q", got.Sort, tt.expect.Sort)
 			}
-			if got.Tagged != tt.expect.Tagged {
-				t.Errorf("Tagged = %v, want %v", got.Tagged, tt.expect.Tagged)
+			if got.TaggedTrue != tt.expect.TaggedTrue {
+				t.Errorf("TaggedTrue = %v, want %v", got.TaggedTrue, tt.expect.TaggedTrue)
+			}
+			if got.TaggedFalse != tt.expect.TaggedFalse {
+				t.Errorf("TaggedFalse = %v, want %v", got.TaggedFalse, tt.expect.TaggedFalse)
 			}
 			if got.TypeImage != tt.expect.TypeImage {
 				t.Errorf("TypeImage = %v, want %v", got.TypeImage, tt.expect.TypeImage)

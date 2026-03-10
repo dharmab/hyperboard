@@ -10,10 +10,10 @@ const (
 )
 
 const (
-	// FilterTagged is a boolean filter that matches posts which have tags other than automatic tags.
-	// tagged:true matches posts with at least one non-automatic tag.
-	// tagged:false matches posts with no non-automatic tags (useful for finding untagged posts).
-	FilterTagged = "tagged:"
+	// TagTaggedTrue is an autotag filter that matches posts with at least one non-automatic tag.
+	TagTaggedTrue = "tagged:true"
+	// TagTaggedFalse is an autotag filter that matches posts with no non-automatic tags (useful for finding untagged posts).
+	TagTaggedFalse = "tagged:false"
 )
 
 const (
