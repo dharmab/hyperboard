@@ -37,3 +37,47 @@ jobs:
         with:
           go-version-file: go.mod
       - uses: golangci/golangci-lint-action@v9
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [style, test, lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      matrix:
+        image:
+          - hyperboard-api
+          - hyperboard-web
+          - hyperboardctl
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ghcr.io/dharmab/${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/Containerfile
+          target: ${{ matrix.image }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
