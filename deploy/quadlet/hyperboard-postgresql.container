@@ -1,11 +1,10 @@
 [Unit]
 Description=Hyperboard PostgreSQL
-After=hyperboard.network
 
 [Container]
 Image=docker.io/library/postgres:17
 ContainerName=hyperboard-postgresql
-Network=hyperboard.network
+Pod=hyperboard.pod
 Volume=${HYPERBOARD_POSTGRESQL_DATA_DIR}:/var/lib/postgresql/data
 Environment=POSTGRES_USER=${HYPERBOARD_DB_USER}
 Environment=POSTGRES_PASSWORD=${HYPERBOARD_DB_PASSWORD}
@@ -18,6 +17,3 @@ HealthRetries=5
 [Service]
 EnvironmentFile=/etc/hyperboard/hyperboard.env
 Restart=always
-
-[Install]
-WantedBy=multi-user.target default.target
