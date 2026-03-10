@@ -49,12 +49,6 @@ func postFromModel(model *models.Post) types.Post {
 	return post
 }
 
-var sortTerms = map[string]bool{
-	search.SortRandom:    true,
-	search.SortCreatedAt: true,
-	search.SortUpdatedAt: true,
-}
-
 func parseSearch(query string) search.Query {
 	postSearch := search.Query{
 		IncludedTags: []types.TagName{},
@@ -70,10 +64,14 @@ func parseSearch(query string) search.Query {
 		if term == "" {
 			continue
 		}
-		if sortValue, ok := strings.CutPrefix(term, "sort:"); ok {
-			if sortTerms[sortValue] {
-				postSearch.Sort = sortValue
-			}
+		if term == string(search.SortRandom) {
+			postSearch.Sort = search.SortRandom
+		} else if term == string(search.SortCreatedAt) {
+			postSearch.Sort = search.SortCreatedAt
+		} else if term == string(search.SortUpdatedAt) {
+			postSearch.Sort = search.SortUpdatedAt
+		} else if strings.HasPrefix(term, "sort:") {
+			// Ignore unknown sort values
 		} else if term == search.TagTaggedTrue {
 			postSearch.TaggedTrue = true
 		} else if term == search.TagTaggedFalse {
@@ -148,7 +146,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Str("search", query).
 		Strs("tags", searchParams.IncludedTags).
 		Strs("exclude_tags", searchParams.ExcludedTags).
-		Str("sort", searchParams.Sort).
+		Str("sort", string(searchParams.Sort)).
 		Bool("tagged_true", searchParams.TaggedTrue).
 		Bool("tagged_false", searchParams.TaggedFalse).
 		Bool("type_image", searchParams.TypeImage).

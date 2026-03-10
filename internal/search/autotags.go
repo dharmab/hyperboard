@@ -15,12 +15,3 @@ const (
 	// TagTaggedFalse is an autotag filter that matches posts with no non-automatic tags (useful for finding untagged posts).
 	TagTaggedFalse = "tagged:false"
 )
-
-const (
-	// SortRandom is a shuffled ordering. It is not randomized every query, but rather is a pre-shuffled ordering which is periodically reshuffled.
-	SortRandom = "random"
-	// SortCreatedAt orders posts by their creation..
-	SortCreatedAt = "created"
-	// SortUpdatedAt orders posts by their last update.
-	SortUpdatedAt = "updated"
-)
