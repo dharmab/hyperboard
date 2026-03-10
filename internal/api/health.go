@@ -19,5 +19,10 @@ func (s *Server) GetReadiness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.storage.Ping(ctx); err != nil {
+		respondWithError(w, http.StatusServiceUnavailable, "Object store is not ready: %v", err)
+		return
+	}
+
 	respond(w, http.StatusOK, "OK")
 }

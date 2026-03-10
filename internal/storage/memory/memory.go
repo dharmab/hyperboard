@@ -26,6 +26,10 @@ func New() *Storage {
 	return &Storage{objects: make(map[string]entry)}
 }
 
+func (s *Storage) Ping(_ context.Context) error {
+	return nil
+}
+
 func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

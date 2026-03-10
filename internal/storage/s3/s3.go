@@ -86,6 +86,17 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
+// Ping checks connectivity to the S3-compatible object store.
+func (st *Storage) Ping(ctx context.Context) error {
+	_, err := st.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(st.bucket),
+	})
+	if err != nil {
+		return fmt.Errorf("head bucket %q: %w", st.bucket, err)
+	}
+	return nil
+}
+
 // Upload uploads data to the given key and returns the public URL.
 func (st *Storage) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
 	_, err := st.client.PutObject(ctx, &s3.PutObjectInput{

@@ -14,6 +14,7 @@ type Object struct {
 
 // Storage is the interface for object storage operations.
 type Storage interface {
+	Ping(ctx context.Context) error
 	Upload(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
 	Download(ctx context.Context, key string) (*Object, error)
 	Delete(ctx context.Context, key string) error
