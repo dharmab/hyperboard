@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	externalRef0 "github.com/dharmab/hyperboard/internal/types"
+	externalRef0 "github.com/dharmab/hyperboard/pkg/types"
 	"github.com/oapi-codegen/runtime"
 )
 

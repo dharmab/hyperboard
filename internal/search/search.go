@@ -1,4 +1,6 @@
-package types
+package search
+
+import "github.com/dharmab/hyperboard/pkg/types"
 
 // TaggedFilter represents the state of the tagged: filter.
 type TaggedFilter int
@@ -13,8 +15,8 @@ const (
 )
 
 type PostSearch struct {
-	Tags        []TagName
-	ExcludeTags []TagName
+	Tags        []types.TagName
+	ExcludeTags []types.TagName
 	Sort        string
 	Tagged      TaggedFilter
 	TypeImage   bool // Filter to image posts (type:image)

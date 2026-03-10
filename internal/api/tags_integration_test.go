@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 )
 

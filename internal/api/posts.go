@@ -16,7 +16,8 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/media"
-	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/dharmab/hyperboard/internal/search"
+	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 	"github.com/stephenafamo/bob"
@@ -49,22 +50,22 @@ func postFromModel(model *models.Post) types.Post {
 }
 
 var sortTerms = map[string]bool{
-	types.SortRandom:    true,
-	types.SortCreatedAt: true,
-	types.SortUpdatedAt: true,
+	search.SortRandom:    true,
+	search.SortCreatedAt: true,
+	search.SortUpdatedAt: true,
 }
 
-func parseSearch(search string) types.PostSearch {
-	postSearch := types.PostSearch{
+func parseSearch(query string) search.PostSearch {
+	postSearch := search.PostSearch{
 		Tags: []types.TagName{},
 	}
 
-	if search == "" {
+	if query == "" {
 		return postSearch
 	}
 
 	// Split search string by commas and trim whitespace from each term
-	for part := range strings.SplitSeq(search, ",") {
+	for part := range strings.SplitSeq(query, ",") {
 		term := strings.TrimSpace(part)
 		if term == "" {
 			continue
@@ -74,14 +75,14 @@ func parseSearch(search string) types.PostSearch {
 				postSearch.Sort = sortValue
 			}
 		} else if term == "tagged:true" {
-			postSearch.Tagged = types.TaggedFilterTrue
+			postSearch.Tagged = search.TaggedFilterTrue
 		} else if term == "tagged:false" {
-			postSearch.Tagged = types.TaggedFilterFalse
-		} else if term == types.TagImage {
+			postSearch.Tagged = search.TaggedFilterFalse
+		} else if term == search.TagImage {
 			postSearch.TypeImage = true
-		} else if term == types.TagVideo {
+		} else if term == search.TagVideo {
 			postSearch.TypeVideo = true
-		} else if term == types.TagAudio {
+		} else if term == search.TagAudio {
 			postSearch.TypeAudio = true
 		} else if excluded, ok := strings.CutPrefix(term, "-"); ok && excluded != "" {
 			postSearch.ExcludeTags = append(postSearch.ExcludeTags, excluded)
@@ -138,13 +139,13 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	mods := []bob.Mod[*dialect.SelectQuery]{}
 
-	search := ""
+	query := ""
 	if params.Search != nil {
-		search = *params.Search
+		query = *params.Search
 	}
-	searchParams := parseSearch(search)
+	searchParams := parseSearch(query)
 	logger.Info().
-		Str("search", search).
+		Str("search", query).
 		Strs("tags", searchParams.Tags).
 		Strs("exclude_tags", searchParams.ExcludeTags).
 		Str("sort", searchParams.Sort).
@@ -201,7 +202,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	// Apply tagged: filter
 	switch searchParams.Tagged {
-	case types.TaggedFilterTrue:
+	case search.TaggedFilterTrue:
 		logger.Info().Msg("applying tagged:true filter")
 		mods = append(mods, sm.Where(psql.F("EXISTS",
 			psql.Select(
@@ -211,7 +212,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
 			),
 		)))
-	case types.TaggedFilterFalse:
+	case search.TaggedFilterFalse:
 		logger.Info().Msg("applying tagged:false filter")
 		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
 			psql.Select(
@@ -221,7 +222,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
 			),
 		))))
-	case types.TaggedFilterNone:
+	case search.TaggedFilterNone:
 		// No filter applied
 	}
 
@@ -241,7 +242,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	limit := parseLimit(params.Limit)
 
-	if searchParams.Sort == types.SortRandom {
+	if searchParams.Sort == search.SortRandom {
 		currentSeed := time.Now().Unix() / 21600
 		offset := 0
 
@@ -295,7 +296,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	// Determine sort column (default: created_at, newest first)
 	sortCol := models.Posts.Columns.CreatedAt
-	if searchParams.Sort == types.SortUpdatedAt {
+	if searchParams.Sort == search.SortUpdatedAt {
 		sortCol = models.Posts.Columns.UpdatedAt
 	}
 	mods = append(mods,
@@ -346,7 +347,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		posts = posts[:limit]
 		last := posts[limit-1]
 		var ts string
-		if searchParams.Sort == types.SortUpdatedAt {
+		if searchParams.Sort == search.SortUpdatedAt {
 			ts = last.UpdatedAt.Format(time.RFC3339Nano)
 		} else {
 			ts = last.CreatedAt.Format(time.RFC3339Nano)

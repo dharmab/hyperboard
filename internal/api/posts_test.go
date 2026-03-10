@@ -3,7 +3,8 @@ package api
 import (
 	"testing"
 
-	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/dharmab/hyperboard/internal/search"
+	"github.com/dharmab/hyperboard/pkg/types"
 )
 
 func TestParseSearch(t *testing.T) {
@@ -11,87 +12,87 @@ func TestParseSearch(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
-		expect types.PostSearch
+		expect search.PostSearch
 	}{
 		{
 			name:  "empty string",
 			input: "",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{},
 			},
 		},
 		{
 			name:  "single tag",
 			input: "landscape",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{"landscape"},
 			},
 		},
 		{
 			name:  "multiple tags",
 			input: "landscape,portrait",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{"landscape", "portrait"},
 			},
 		},
 		{
 			name:  "tags with whitespace",
 			input: " landscape , portrait ",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{"landscape", "portrait"},
 			},
 		},
 		{
 			name:  "sort created",
 			input: "sort:created",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{},
-				Sort: types.SortCreatedAt,
+				Sort: search.SortCreatedAt,
 			},
 		},
 		{
 			name:  "sort updated",
 			input: "sort:updated",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{},
-				Sort: types.SortUpdatedAt,
+				Sort: search.SortUpdatedAt,
 			},
 		},
 		{
 			name:  "sort random",
 			input: "sort:random",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{},
-				Sort: types.SortRandom,
+				Sort: search.SortRandom,
 			},
 		},
 		{
 			name:  "invalid sort ignored",
 			input: "sort:invalid",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{},
 			},
 		},
 		{
 			name:  "tagged true",
 			input: "tagged:true",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:   []types.TagName{},
-				Tagged: types.TaggedFilterTrue,
+				Tagged: search.TaggedFilterTrue,
 			},
 		},
 		{
 			name:  "tagged false",
 			input: "tagged:false",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:   []types.TagName{},
-				Tagged: types.TaggedFilterFalse,
+				Tagged: search.TaggedFilterFalse,
 			},
 		},
 		{
 			name:  "type image",
 			input: "type:image",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:      []types.TagName{},
 				TypeImage: true,
 			},
@@ -99,7 +100,7 @@ func TestParseSearch(t *testing.T) {
 		{
 			name:  "type video",
 			input: "type:video",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:      []types.TagName{},
 				TypeVideo: true,
 			},
@@ -107,7 +108,7 @@ func TestParseSearch(t *testing.T) {
 		{
 			name:  "type audio",
 			input: "type:audio",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:      []types.TagName{},
 				TypeAudio: true,
 			},
@@ -115,7 +116,7 @@ func TestParseSearch(t *testing.T) {
 		{
 			name:  "excluded tag",
 			input: "-nsfw",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:        []types.TagName{},
 				ExcludeTags: []string{"nsfw"},
 			},
@@ -123,18 +124,18 @@ func TestParseSearch(t *testing.T) {
 		{
 			name:  "mixed input",
 			input: "landscape,-nsfw,sort:random,tagged:true,type:image",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags:        []types.TagName{"landscape"},
 				ExcludeTags: []string{"nsfw"},
-				Sort:        types.SortRandom,
-				Tagged:      types.TaggedFilterTrue,
+				Sort:        search.SortRandom,
+				Tagged:      search.TaggedFilterTrue,
 				TypeImage:   true,
 			},
 		},
 		{
 			name:  "empty terms ignored",
 			input: "landscape,,portrait,",
-			expect: types.PostSearch{
+			expect: search.PostSearch{
 				Tags: []types.TagName{"landscape", "portrait"},
 			},
 		},

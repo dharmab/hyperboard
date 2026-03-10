@@ -3,7 +3,7 @@ package main
 import (
 	"html/template"
 
-	"github.com/dharmab/hyperboard/internal/types"
+	"github.com/dharmab/hyperboard/pkg/types"
 )
 
 type TagFilter struct {

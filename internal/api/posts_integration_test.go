@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
-	"github.com/dharmab/hyperboard/internal/types"
+	pkgtypes "github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -51,13 +51,13 @@ func TestGetPost(t *testing.T) {
 	t.Run("existing post", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
 		w := httptest.NewRecorder()
-		srv.GetPost(w, req, types.ID(post.ID))
+		srv.GetPost(w, req, pkgtypes.ID(post.ID))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
 		}
 
-		var got types.Post
+		var got pkgtypes.Post
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("failed to decode: %v", err)
 		}
@@ -67,7 +67,7 @@ func TestGetPost(t *testing.T) {
 	})
 
 	t.Run("nonexistent post", func(t *testing.T) {
-		fakeID := types.ID(uuid.Must(uuid.NewV4()))
+		fakeID := pkgtypes.ID(uuid.Must(uuid.NewV4()))
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetPost(w, req, fakeID)
@@ -82,17 +82,17 @@ func TestPutPost(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
-	postID := types.ID(post.ID)
+	postID := pkgtypes.ID(post.ID)
 
 	tagName := "put-test-tag-" + uuid.Must(uuid.NewV4()).String()[:8]
 
-	body := types.Post{
+	body := pkgtypes.Post{
 		ID:           postID,
 		MimeType:     post.MimeType,
 		ContentUrl:   post.ContentURL,
 		ThumbnailUrl: post.ThumbnailURL,
 		Note:         "Updated note",
-		Tags:         []types.TagName{tagName},
+		Tags:         []pkgtypes.TagName{tagName},
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -107,7 +107,7 @@ func TestPutPost(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
 	}
 
-	var got types.Post
+	var got pkgtypes.Post
 	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestDeletePost(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
-	postID := types.ID(post.ID)
+	postID := pkgtypes.ID(post.ID)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/posts/"+post.ID.String(), nil)
 	w := httptest.NewRecorder()

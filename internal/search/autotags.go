@@ -1,4 +1,4 @@
-package types
+package search
 
 const (
 	// TagImage is an automatic tag applied to all image posts.
