@@ -4,7 +4,7 @@ After=hyperboard-postgresql.service hyperboard-rustfs.service
 Requires=hyperboard-postgresql.service hyperboard-rustfs.service
 
 [Container]
-Image=localhost/hyperboard-api:latest
+Image=ghcr.io/dharmab/hyperboard-api:main
 ContainerName=hyperboard-api
 Network=hyperboard.network
 Environment=HYPERBOARD_API_POSTGRESQL_HOST=hyperboard-postgresql

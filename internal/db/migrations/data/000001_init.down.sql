@@ -2,6 +2,7 @@ DROP TRIGGER IF EXISTS trg_check_tag_name_not_alias ON tags;
 DROP FUNCTION IF EXISTS check_tag_name_not_alias();
 DROP TRIGGER IF EXISTS trg_check_alias_not_tag_name ON tag_aliases;
 DROP FUNCTION IF EXISTS check_alias_not_tag_name();
+DROP INDEX IF EXISTS idx_posts_tags_tag_id;
 DROP TABLE IF EXISTS posts_tags;
 DROP TABLE IF EXISTS notes;
 DROP TABLE IF EXISTS posts;
