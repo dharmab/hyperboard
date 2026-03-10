@@ -4,7 +4,7 @@ After=hyperboard-api.service
 Requires=hyperboard-api.service
 
 [Container]
-Image=localhost/hyperboard-web:latest
+Image=ghcr.io/dharmab/hyperboard-web:main
 ContainerName=hyperboard-web
 Network=hyperboard.network
 Environment=HYPERBOARD_WEB_ADMIN_PASSWORD=${HYPERBOARD_ADMIN_PASSWORD}
