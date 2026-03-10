@@ -15,7 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Storage implements storage.Storage using an S3-compatible object store.
+// Storage implements storage.MediaStore using an S3-compatible object store.
 type Storage struct {
 	client   *s3.Client
 	bucket   string
@@ -113,7 +113,7 @@ func (st *Storage) Upload(ctx context.Context, key string, data []byte, contentT
 }
 
 // Download retrieves an object by key.
-func (st *Storage) Download(ctx context.Context, key string) (*storage.Object, error) {
+func (st *Storage) Download(ctx context.Context, key string) (*storage.Media, error) {
 	out, err := st.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(st.bucket),
 		Key:    aws.String(key),
@@ -129,7 +129,7 @@ func (st *Storage) Download(ctx context.Context, key string) (*storage.Object, e
 	if out.ContentLength != nil {
 		cl = *out.ContentLength
 	}
-	return &storage.Object{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
+	return &storage.Media{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
 }
 
 // Delete removes an object at the given key.

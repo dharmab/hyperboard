@@ -12,6 +12,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/api"
 	"github.com/dharmab/hyperboard/internal/db/migrations"
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/middleware/auth"
 	"github.com/dharmab/hyperboard/internal/middleware/logging"
 	s3storage "github.com/dharmab/hyperboard/internal/storage/s3"
@@ -112,7 +113,8 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	defer pool.Close()
 
 	db := bob.NewDB(stdlib.OpenDBFromPool(pool))
-	apiServer := api.NewServer(db, objStorage, cfg.SimilarityThreshold)
+	s := store.NewPostgresSQLStore(db, cfg.SimilarityThreshold)
+	apiServer := api.NewServer(s, objStorage)
 	mux := http.NewServeMux()
 	api.HandlerFromMux(apiServer, mux)
 	mux.HandleFunc("/media/", apiServer.HandleMedia)
