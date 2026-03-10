@@ -6,6 +6,8 @@ import (
 	"image"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
 // probeHasAudio uses ffprobe to check if a video file contains an audio stream.
@@ -23,6 +25,56 @@ func probeHasAudio(path string) (bool, error) {
 		return false, fmt.Errorf("ffprobe: %w", err)
 	}
 	return len(bytes.TrimSpace(out)) > 0, nil
+}
+
+// probeDuration uses ffprobe to return the duration of a video in seconds.
+func probeDuration(path string) (float64, error) {
+	cmd := exec.Command("ffprobe",
+		"-v", "quiet",
+		"-show_entries", "format=duration",
+		"-of", "csv=p=0",
+		path,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe duration: %w", err)
+	}
+	s := strings.TrimSpace(string(out))
+	d, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse duration %q: %w", s, err)
+	}
+	return d, nil
+}
+
+// extractThumbnail extracts a frame at the given offset (in seconds) from the
+// video at path, scales it to fit within 512x512, and returns WebP-encoded bytes.
+func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
+	cmd := exec.Command("ffmpeg",
+		"-ss", strconv.FormatFloat(offsetSeconds, 'f', 3, 64),
+		"-i", path,
+		"-vframes", "1",
+		"-f", "image2pipe",
+		"-vcodec", "png",
+		"pipe:1",
+	)
+	pngData, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg extract frame: %w", err)
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(pngData))
+	if err != nil {
+		return nil, fmt.Errorf("decode frame: %w", err)
+	}
+
+	thumb := FitImage(img, 512, 512)
+	thumbBytes, err := EncodeWebP(thumb, 80)
+	if err != nil {
+		return nil, fmt.Errorf("encode thumbnail: %w", err)
+	}
+
+	return thumbBytes, nil
 }
 
 // ProcessVideo extracts a thumbnail from a video file and probes for audio.
@@ -48,29 +100,16 @@ func ProcessVideo(data []byte) ([]byte, bool, error) {
 		hasAudio = false
 	}
 
-	// Extract a single frame as PNG.
-	cmd := exec.Command("ffmpeg",
-		"-i", tmpFile.Name(),
-		"-ss", "00:00:01",
-		"-vframes", "1",
-		"-f", "image2pipe",
-		"-vcodec", "png",
-		"pipe:1",
-	)
-	pngData, err := cmd.Output()
-	if err != nil {
-		return nil, false, fmt.Errorf("ffmpeg extract frame: %w", err)
+	// Extract a frame at Wadsworth's constant (30%) into the video to hopefully
+	// get a visually interesting thumbnail
+	const wadsworthConstant = 0.30
+	offset := 1.0
+	if duration, err := probeDuration(tmpFile.Name()); err == nil && duration > 0 {
+		offset = duration * wadsworthConstant
 	}
-
-	img, _, err := image.Decode(bytes.NewReader(pngData))
+	thumbBytes, err := extractThumbnail(tmpFile.Name(), offset)
 	if err != nil {
-		return nil, false, fmt.Errorf("decode frame: %w", err)
-	}
-
-	thumb := FitImage(img, 512, 512)
-	thumbBytes, err := EncodeWebP(thumb, 80)
-	if err != nil {
-		return nil, false, fmt.Errorf("encode thumbnail: %w", err)
+		return nil, false, err
 	}
 
 	return thumbBytes, hasAudio, nil
