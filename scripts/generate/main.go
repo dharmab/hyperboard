@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"net"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
@@ -12,6 +11,7 @@ import (
 	bobgen "github.com/stephenafamo/bob/gen"
 	helpers "github.com/stephenafamo/bob/gen/bobgen-helpers"
 	"github.com/stephenafamo/bob/gen/bobgen-psql/driver"
+	"github.com/stephenafamo/bob/gen/plugins"
 )
 
 //go:generate go run main.go
@@ -59,15 +59,29 @@ func generate(ctx context.Context) error {
 		return err
 	}
 
-	packageName := "models"
-	state := bobgen.State[any]{
-		Config: bobgen.Config[any]{},
-		Outputs: helpers.DefaultOutputs(
-			"../../internal/db/"+packageName,
-			packageName,
-			false,
-			&helpers.Templates{Models: []fs.FS{bobgen.PSQLModelTemplates}},
-		),
+	pluginsConfig := plugins.Config{
+		Models: plugins.OutputConfig{
+			Destination: "../../internal/db/models",
+			Pkgname:     "models",
+		},
+		Factory: plugins.OutputConfig{
+			Destination: "../../internal/db/factory",
+			Pkgname:     "factory",
+		},
+		DBErrors: plugins.OutputConfig{
+			Destination: "../../internal/db/errors",
+			Pkgname:     "errors",
+		},
+		DBInfo: plugins.OutputConfig{
+			Destination: "../../internal/db/schema",
+			Pkgname:     "schema",
+		},
+	}
+	outputPlugins := plugins.Setup[any, any, driver.IndexExtra](pluginsConfig, bobgen.PSQLTemplates)
+	state := &bobgen.State[any]{
+		Config: bobgen.Config[any]{
+			TypeSystem: "database/sql",
+		},
 	}
 	d := driver.New(driver.Config{
 		Config: helpers.Config{
@@ -79,9 +93,5 @@ func generate(ctx context.Context) error {
 		},
 	})
 	log.Info().Msg("generating code...")
-	if err := bobgen.Run(ctx, &state, d); err != nil {
-		return err
-	}
-
-	return nil
+	return bobgen.Run(ctx, state, d, outputPlugins...)
 }

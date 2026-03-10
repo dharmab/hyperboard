@@ -30,7 +30,7 @@ func (s *Server) GetNotes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	notes, err := models.Notes.Query(
-		sm.OrderBy(models.NoteColumns.CreatedAt).Desc(),
+		sm.OrderBy(models.Notes.Columns.CreatedAt).Desc(),
 	).All(ctx, s.db)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve notes")
@@ -88,7 +88,7 @@ func (s *Server) GetNote(w http.ResponseWriter, r *http.Request, id Id) {
 	noteID := uuid.UUID(id)
 
 	model, err := models.Notes.Query(
-		sm.Where(models.NoteColumns.ID.EQ(psql.Arg(noteID))),
+		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -114,7 +114,7 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	model, err := models.Notes.Query(
-		sm.Where(models.NoteColumns.ID.EQ(psql.Arg(noteID))),
+		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -136,7 +136,7 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	model, err = models.Notes.Query(
-		sm.Where(models.NoteColumns.ID.EQ(psql.Arg(noteID))),
+		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
 	).One(ctx, s.db)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve updated note")
@@ -153,7 +153,7 @@ func (s *Server) DeleteNote(w http.ResponseWriter, r *http.Request, id Id) {
 	noteID := uuid.UUID(id)
 
 	_, err := models.Notes.Query(
-		sm.Where(models.NoteColumns.ID.EQ(psql.Arg(noteID))),
+		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -165,7 +165,7 @@ func (s *Server) DeleteNote(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	_, err = models.Notes.Delete(
-		dm.Where(models.NoteColumns.ID.EQ(psql.Arg(noteID))),
+		dm.Where(models.Notes.Columns.ID.EQ(psql.Arg(noteID))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete note")

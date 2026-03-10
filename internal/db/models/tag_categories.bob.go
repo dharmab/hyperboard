@@ -40,7 +40,7 @@ type TagCategory struct {
 type TagCategorySlice []*TagCategory
 
 // TagCategories contains methods to work with the tag_categories table
-var TagCategories = psql.NewTablex[*TagCategory, TagCategorySlice, *TagCategorySetter]("", "tag_categories")
+var TagCategories = psql.NewTablex[*TagCategory, TagCategorySlice, *TagCategorySetter]("", "tag_categories", buildTagCategoryColumns("tag_categories"))
 
 // TagCategoriesQuery is a query on the tag_categories table
 type TagCategoriesQuery = *psql.ViewQuery[*TagCategory, TagCategorySlice]
@@ -50,18 +50,23 @@ type tagCategoryR struct {
 	Tags TagSlice // tags.tags_tag_category_id_fkey
 }
 
-type tagCategoryColumnNames struct {
-	ID          string
-	Name        string
-	Description string
-	Color       string
-	CreatedAt   string
-	UpdatedAt   string
+func buildTagCategoryColumns(alias string) tagCategoryColumns {
+	return tagCategoryColumns{
+		ColumnsExpr: expr.NewColumnsExpr(
+			"id", "name", "description", "color", "created_at", "updated_at",
+		).WithParent("tag_categories"),
+		tableAlias:  alias,
+		ID:          psql.Quote(alias, "id"),
+		Name:        psql.Quote(alias, "name"),
+		Description: psql.Quote(alias, "description"),
+		Color:       psql.Quote(alias, "color"),
+		CreatedAt:   psql.Quote(alias, "created_at"),
+		UpdatedAt:   psql.Quote(alias, "updated_at"),
+	}
 }
 
-var TagCategoryColumns = buildTagCategoryColumns("tag_categories")
-
 type tagCategoryColumns struct {
+	expr.ColumnsExpr
 	tableAlias  string
 	ID          psql.Expression
 	Name        psql.Expression
@@ -77,64 +82,6 @@ func (c tagCategoryColumns) Alias() string {
 
 func (tagCategoryColumns) AliasedAs(alias string) tagCategoryColumns {
 	return buildTagCategoryColumns(alias)
-}
-
-func buildTagCategoryColumns(alias string) tagCategoryColumns {
-	return tagCategoryColumns{
-		tableAlias:  alias,
-		ID:          psql.Quote(alias, "id"),
-		Name:        psql.Quote(alias, "name"),
-		Description: psql.Quote(alias, "description"),
-		Color:       psql.Quote(alias, "color"),
-		CreatedAt:   psql.Quote(alias, "created_at"),
-		UpdatedAt:   psql.Quote(alias, "updated_at"),
-	}
-}
-
-type tagCategoryWhere[Q psql.Filterable] struct {
-	ID          psql.WhereMod[Q, uuid.UUID]
-	Name        psql.WhereMod[Q, string]
-	Description psql.WhereMod[Q, string]
-	Color       psql.WhereMod[Q, string]
-	CreatedAt   psql.WhereMod[Q, time.Time]
-	UpdatedAt   psql.WhereMod[Q, time.Time]
-}
-
-func (tagCategoryWhere[Q]) AliasedAs(alias string) tagCategoryWhere[Q] {
-	return buildTagCategoryWhere[Q](buildTagCategoryColumns(alias))
-}
-
-func buildTagCategoryWhere[Q psql.Filterable](cols tagCategoryColumns) tagCategoryWhere[Q] {
-	return tagCategoryWhere[Q]{
-		ID:          psql.Where[Q, uuid.UUID](cols.ID),
-		Name:        psql.Where[Q, string](cols.Name),
-		Description: psql.Where[Q, string](cols.Description),
-		Color:       psql.Where[Q, string](cols.Color),
-		CreatedAt:   psql.Where[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:   psql.Where[Q, time.Time](cols.UpdatedAt),
-	}
-}
-
-var TagCategoryErrors = &tagCategoryErrors{
-	ErrUniqueTagCategoriesPkey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tag_categories",
-		columns: []string{"id"},
-		s:       "tag_categories_pkey",
-	},
-
-	ErrUniqueTagCategoriesNameKey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tag_categories",
-		columns: []string{"name"},
-		s:       "tag_categories_name_key",
-	},
-}
-
-type tagCategoryErrors struct {
-	ErrUniqueTagCategoriesPkey *UniqueConstraintError
-
-	ErrUniqueTagCategoriesNameKey *UniqueConstraintError
 }
 
 // TagCategorySetter is used for insert/upsert/update operations
@@ -154,48 +101,72 @@ func (s TagCategorySetter) SetColumns() []string {
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
-
 	if s.Name != nil {
 		vals = append(vals, "name")
 	}
-
 	if s.Description != nil {
 		vals = append(vals, "description")
 	}
-
 	if s.Color != nil {
 		vals = append(vals, "color")
 	}
-
 	if s.CreatedAt != nil {
 		vals = append(vals, "created_at")
 	}
-
 	if s.UpdatedAt != nil {
 		vals = append(vals, "updated_at")
 	}
-
 	return vals
 }
 
 func (s TagCategorySetter) Overwrite(t *TagCategory) {
 	if s.ID != nil {
-		t.ID = *s.ID
+		t.ID = func() uuid.UUID {
+			if s.ID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.ID
+		}()
 	}
 	if s.Name != nil {
-		t.Name = *s.Name
+		t.Name = func() string {
+			if s.Name == nil {
+				return *new(string)
+			}
+			return *s.Name
+		}()
 	}
 	if s.Description != nil {
-		t.Description = *s.Description
+		t.Description = func() string {
+			if s.Description == nil {
+				return *new(string)
+			}
+			return *s.Description
+		}()
 	}
 	if s.Color != nil {
-		t.Color = *s.Color
+		t.Color = func() string {
+			if s.Color == nil {
+				return *new(string)
+			}
+			return *s.Color
+		}()
 	}
 	if s.CreatedAt != nil {
-		t.CreatedAt = *s.CreatedAt
+		t.CreatedAt = func() time.Time {
+			if s.CreatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.CreatedAt
+		}()
 	}
 	if s.UpdatedAt != nil {
-		t.UpdatedAt = *s.UpdatedAt
+		t.UpdatedAt = func() time.Time {
+			if s.UpdatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.UpdatedAt
+		}()
 	}
 }
 
@@ -204,40 +175,70 @@ func (s *TagCategorySetter) Apply(q *dialect.InsertQuery) {
 		return TagCategories.BeforeInsertHooks.RunHooks(ctx, exec, s)
 	})
 
-	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		vals := make([]bob.Expression, 6)
 		if s.ID != nil {
-			vals[0] = psql.Arg(*s.ID)
+			vals[0] = psql.Arg(func() uuid.UUID {
+				if s.ID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.ID
+			}())
 		} else {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
 		if s.Name != nil {
-			vals[1] = psql.Arg(*s.Name)
+			vals[1] = psql.Arg(func() string {
+				if s.Name == nil {
+					return *new(string)
+				}
+				return *s.Name
+			}())
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
 		if s.Description != nil {
-			vals[2] = psql.Arg(*s.Description)
+			vals[2] = psql.Arg(func() string {
+				if s.Description == nil {
+					return *new(string)
+				}
+				return *s.Description
+			}())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
 		if s.Color != nil {
-			vals[3] = psql.Arg(*s.Color)
+			vals[3] = psql.Arg(func() string {
+				if s.Color == nil {
+					return *new(string)
+				}
+				return *s.Color
+			}())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
 		if s.CreatedAt != nil {
-			vals[4] = psql.Arg(*s.CreatedAt)
+			vals[4] = psql.Arg(func() time.Time {
+				if s.CreatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.CreatedAt
+			}())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
 		if s.UpdatedAt != nil {
-			vals[5] = psql.Arg(*s.UpdatedAt)
+			vals[5] = psql.Arg(func() time.Time {
+				if s.UpdatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.UpdatedAt
+			}())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
@@ -303,20 +304,20 @@ func (s TagCategorySetter) Expressions(prefix ...string) []bob.Expression {
 func FindTagCategory(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*TagCategory, error) {
 	if len(cols) == 0 {
 		return TagCategories.Query(
-			SelectWhere.TagCategories.ID.EQ(IDPK),
+			sm.Where(TagCategories.Columns.ID.EQ(psql.Arg(IDPK))),
 		).One(ctx, exec)
 	}
 
 	return TagCategories.Query(
-		SelectWhere.TagCategories.ID.EQ(IDPK),
-		sm.Columns(TagCategories.Columns().Only(cols...)),
+		sm.Where(TagCategories.Columns.ID.EQ(psql.Arg(IDPK))),
+		sm.Columns(TagCategories.Columns.Only(cols...)),
 	).One(ctx, exec)
 }
 
 // TagCategoryExists checks the presence of a single record by primary key
 func TagCategoryExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return TagCategories.Query(
-		SelectWhere.TagCategories.ID.EQ(IDPK),
+		sm.Where(TagCategories.Columns.ID.EQ(psql.Arg(IDPK))),
 	).Exists(ctx, exec)
 }
 
@@ -344,7 +345,7 @@ func (o *TagCategory) primaryKeyVals() bob.Expression {
 }
 
 func (o *TagCategory) pkEQ() dialect.Expression {
-	return psql.Quote("tag_categories", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tag_categories", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		return o.primaryKeyVals().WriteSQL(ctx, w, d, start)
 	}))
 }
@@ -371,7 +372,7 @@ func (o *TagCategory) Delete(ctx context.Context, exec bob.Executor) error {
 // Reload refreshes the TagCategory using the executor
 func (o *TagCategory) Reload(ctx context.Context, exec bob.Executor) error {
 	o2, err := TagCategories.Query(
-		SelectWhere.TagCategories.ID.EQ(o.ID),
+		sm.Where(TagCategories.Columns.ID.EQ(psql.Arg(o.ID))),
 	).One(ctx, exec)
 	if err != nil {
 		return err
@@ -405,7 +406,7 @@ func (o TagCategorySlice) pkIN() dialect.Expression {
 		return psql.Raw("NULL")
 	}
 
-	return psql.Quote("tag_categories", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tag_categories", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		pkPairs := make([]bob.Expression, len(o))
 		for i, row := range o {
 			pkPairs[i] = row.primaryKeyVals()
@@ -521,54 +522,120 @@ func (o TagCategorySlice) ReloadAll(ctx context.Context, exec bob.Executor) erro
 	return nil
 }
 
-type tagCategoryJoins[Q dialect.Joinable] struct {
-	typ  string
-	Tags modAs[Q, tagColumns]
-}
-
-func (j tagCategoryJoins[Q]) aliasedAs(alias string) tagCategoryJoins[Q] {
-	return buildTagCategoryJoins[Q](buildTagCategoryColumns(alias), j.typ)
-}
-
-func buildTagCategoryJoins[Q dialect.Joinable](cols tagCategoryColumns, typ string) tagCategoryJoins[Q] {
-	return tagCategoryJoins[Q]{
-		typ: typ,
-		Tags: modAs[Q, tagColumns]{
-			c: TagColumns,
-			f: func(to tagColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
-						to.TagCategoryID.EQ(cols.ID),
-					))
-				}
-
-				return mods
-			},
-		},
-	}
-}
-
 // Tags starts a query for related objects on tags
 func (o *TagCategory) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 	return Tags.Query(append(mods,
-		sm.Where(TagColumns.TagCategoryID.EQ(psql.Arg(o.ID))),
+		sm.Where(Tags.Columns.TagCategoryID.EQ(psql.Arg(o.ID))),
 	)...)
 }
 
 func (os TagCategorySlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkID := make(pgtypes.Array[uuid.UUID], len(os))
-	for i, o := range os {
-		pkID[i] = o.ID
+	pkID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
 	))
 
 	return Tags.Query(append(mods,
-		sm.Where(psql.Group(TagColumns.TagCategoryID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(Tags.Columns.TagCategoryID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func insertTagCategoryTags0(ctx context.Context, exec bob.Executor, tags1 []*TagSetter, tagCategory0 *TagCategory) (TagSlice, error) {
+	for i := range tags1 {
+		tags1[i].TagCategoryID = func() *sql.Null[uuid.UUID] { v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}; return &v }()
+	}
+
+	ret, err := Tags.Insert(bob.ToMods(tags1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertTagCategoryTags0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachTagCategoryTags0(ctx context.Context, exec bob.Executor, count int, tags1 TagSlice, tagCategory0 *TagCategory) (TagSlice, error) {
+	setter := &TagSetter{
+		TagCategoryID: func() *sql.Null[uuid.UUID] { v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}; return &v }(),
+	}
+
+	err := tags1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagCategoryTags0: %w", err)
+	}
+
+	return tags1, nil
+}
+
+func (tagCategory0 *TagCategory) InsertTags(ctx context.Context, exec bob.Executor, related ...*TagSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	tags1, err := insertTagCategoryTags0(ctx, exec, related, tagCategory0)
+	if err != nil {
+		return err
+	}
+
+	tagCategory0.R.Tags = append(tagCategory0.R.Tags, tags1...)
+
+	for _, rel := range tags1 {
+		rel.R.TagCategory = tagCategory0
+	}
+	return nil
+}
+
+func (tagCategory0 *TagCategory) AttachTags(ctx context.Context, exec bob.Executor, related ...*Tag) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	tags1 := TagSlice(related)
+
+	_, err = attachTagCategoryTags0(ctx, exec, len(related), tags1, tagCategory0)
+	if err != nil {
+		return err
+	}
+
+	tagCategory0.R.Tags = append(tagCategory0.R.Tags, tags1...)
+
+	for _, rel := range related {
+		rel.R.TagCategory = tagCategory0
+	}
+
+	return nil
+}
+
+type tagCategoryWhere[Q psql.Filterable] struct {
+	ID          psql.WhereMod[Q, uuid.UUID]
+	Name        psql.WhereMod[Q, string]
+	Description psql.WhereMod[Q, string]
+	Color       psql.WhereMod[Q, string]
+	CreatedAt   psql.WhereMod[Q, time.Time]
+	UpdatedAt   psql.WhereMod[Q, time.Time]
+}
+
+func (tagCategoryWhere[Q]) AliasedAs(alias string) tagCategoryWhere[Q] {
+	return buildTagCategoryWhere[Q](buildTagCategoryColumns(alias))
+}
+
+func buildTagCategoryWhere[Q psql.Filterable](cols tagCategoryColumns) tagCategoryWhere[Q] {
+	return tagCategoryWhere[Q]{
+		ID:          psql.Where[Q, uuid.UUID](cols.ID),
+		Name:        psql.Where[Q, string](cols.Name),
+		Description: psql.Where[Q, string](cols.Description),
+		Color:       psql.Where[Q, string](cols.Color),
+		CreatedAt:   psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:   psql.Where[Q, time.Time](cols.UpdatedAt),
+	}
 }
 
 func (o *TagCategory) Preload(name string, retrieved any) error {
@@ -655,12 +722,24 @@ func (os TagCategorySlice) LoadTags(ctx context.Context, exec bob.Executor, mods
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		o.R.Tags = nil
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		for _, rel := range tags {
-			if o.ID != rel.TagCategoryID.V {
+
+			if !rel.TagCategoryID.Valid {
+				continue
+			}
+			if !(rel.TagCategoryID.Valid && o.ID == rel.TagCategoryID.V) {
 				continue
 			}
 
@@ -673,76 +752,31 @@ func (os TagCategorySlice) LoadTags(ctx context.Context, exec bob.Executor, mods
 	return nil
 }
 
-func insertTagCategoryTags0(ctx context.Context, exec bob.Executor, tags1 []*TagSetter, tagCategory0 *TagCategory) (TagSlice, error) {
-	for i := range tags1 {
-		tags1[i].TagCategoryID = func() *sql.Null[uuid.UUID] {
-			v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}
-			return &v
-		}()
-	}
-
-	ret, err := Tags.Insert(bob.ToMods(tags1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertTagCategoryTags0: %w", err)
-	}
-
-	return ret, nil
+type tagCategoryJoins[Q dialect.Joinable] struct {
+	typ  string
+	Tags modAs[Q, tagColumns]
 }
 
-func attachTagCategoryTags0(ctx context.Context, exec bob.Executor, count int, tags1 TagSlice, tagCategory0 *TagCategory) (TagSlice, error) {
-	setter := &TagSetter{
-		TagCategoryID: func() *sql.Null[uuid.UUID] {
-			v := sql.Null[uuid.UUID]{V: tagCategory0.ID, Valid: true}
-			return &v
-		}(),
-	}
-
-	err := tags1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachTagCategoryTags0: %w", err)
-	}
-
-	return tags1, nil
+func (j tagCategoryJoins[Q]) aliasedAs(alias string) tagCategoryJoins[Q] {
+	return buildTagCategoryJoins[Q](buildTagCategoryColumns(alias), j.typ)
 }
 
-func (tagCategory0 *TagCategory) InsertTags(ctx context.Context, exec bob.Executor, related ...*TagSetter) error {
-	if len(related) == 0 {
-		return nil
+func buildTagCategoryJoins[Q dialect.Joinable](cols tagCategoryColumns, typ string) tagCategoryJoins[Q] {
+	return tagCategoryJoins[Q]{
+		typ: typ,
+		Tags: modAs[Q, tagColumns]{
+			c: Tags.Columns,
+			f: func(to tagColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
+						to.TagCategoryID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
 	}
-
-	var err error
-
-	tags1, err := insertTagCategoryTags0(ctx, exec, related, tagCategory0)
-	if err != nil {
-		return err
-	}
-
-	tagCategory0.R.Tags = append(tagCategory0.R.Tags, tags1...)
-
-	for _, rel := range tags1 {
-		rel.R.TagCategory = tagCategory0
-	}
-	return nil
-}
-
-func (tagCategory0 *TagCategory) AttachTags(ctx context.Context, exec bob.Executor, related ...*Tag) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	tags1 := TagSlice(related)
-
-	_, err = attachTagCategoryTags0(ctx, exec, len(related), tags1, tagCategory0)
-	if err != nil {
-		return err
-	}
-
-	tagCategory0.R.Tags = append(tagCategory0.R.Tags, tags1...)
-
-	for _, rel := range related {
-		rel.R.TagCategory = tagCategory0
-	}
-
-	return nil
 }

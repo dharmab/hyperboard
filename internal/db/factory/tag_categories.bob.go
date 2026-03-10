@@ -45,6 +45,8 @@ type TagCategoryTemplate struct {
 
 	r tagCategoryR
 	f *Factory
+
+	alreadyPersisted bool
 }
 
 type tagCategoryR struct {
@@ -87,27 +89,27 @@ func (o TagCategoryTemplate) BuildSetter() *models.TagCategorySetter {
 
 	if o.ID != nil {
 		val := o.ID()
-		m.ID = &val
+		m.ID = func() *uuid.UUID { return &val }()
 	}
 	if o.Name != nil {
 		val := o.Name()
-		m.Name = &val
+		m.Name = func() *string { return &val }()
 	}
 	if o.Description != nil {
 		val := o.Description()
-		m.Description = &val
+		m.Description = func() *string { return &val }()
 	}
 	if o.Color != nil {
 		val := o.Color()
-		m.Color = &val
+		m.Color = func() *string { return &val }()
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
-		m.CreatedAt = &val
+		m.CreatedAt = func() *time.Time { return &val }()
 	}
 	if o.UpdatedAt != nil {
 		val := o.UpdatedAt()
-		m.UpdatedAt = &val
+		m.UpdatedAt = func() *time.Time { return &val }()
 	}
 
 	return m
@@ -169,42 +171,56 @@ func (o TagCategoryTemplate) BuildMany(number int) models.TagCategorySlice {
 }
 
 func ensureCreatableTagCategory(m *models.TagCategorySetter) {
-	if m.Name == nil {
+	if !(m.Name != nil) {
 		val := random_string(nil)
-		m.Name = &val
+		m.Name = func() *string { return &val }()
 	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.TagCategory
 // according to the relationships in the template.
 // any required relationship should have already exist on the model
-func (o *TagCategoryTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.TagCategory) (context.Context, error) {
+func (o *TagCategoryTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.TagCategory) error {
 	var err error
 
 	isTagsDone, _ := tagCategoryRelTagsCtx.Value(ctx)
 	if !isTagsDone && o.r.Tags != nil {
 		ctx = tagCategoryRelTagsCtx.WithValue(ctx, true)
 		for _, r := range o.r.Tags {
-			var rel0 models.TagSlice
-			ctx, rel0, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
+			if r.o.alreadyPersisted {
+				m.R.Tags = append(m.R.Tags, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
 
-			err = m.AttachTags(ctx, exec, rel0...)
-			if err != nil {
-				return ctx, err
+				err = m.AttachTags(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	return ctx, err
+	return err
 }
 
 // Create builds a tagCategory and inserts it into the database
 // Relations objects are also inserted and placed in the .R field
 func (o *TagCategoryTemplate) Create(ctx context.Context, exec bob.Executor) (*models.TagCategory, error) {
-	_, m, err := o.create(ctx, exec)
+	var err error
+	opt := o.BuildSetter()
+	ensureCreatableTagCategory(opt)
+
+	m, err := models.TagCategories.Insert(opt).One(ctx, exec)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := o.insertOptRels(ctx, exec, m); err != nil {
+		return nil, err
+	}
 	return m, err
 }
 
@@ -212,7 +228,7 @@ func (o *TagCategoryTemplate) Create(ctx context.Context, exec bob.Executor) (*m
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o *TagCategoryTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models.TagCategory {
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		panic(err)
 	}
@@ -224,7 +240,7 @@ func (o *TagCategoryTemplate) MustCreate(ctx context.Context, exec bob.Executor)
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o *TagCategoryTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.Executor) *models.TagCategory {
 	tb.Helper()
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
@@ -232,36 +248,27 @@ func (o *TagCategoryTemplate) CreateOrFail(ctx context.Context, tb testing.TB, e
 	return m
 }
 
-// create builds a tagCategory and inserts it into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted model
-func (o *TagCategoryTemplate) create(ctx context.Context, exec bob.Executor) (context.Context, *models.TagCategory, error) {
-	var err error
-	opt := o.BuildSetter()
-	ensureCreatableTagCategory(opt)
-
-	m, err := models.TagCategories.Insert(opt).One(ctx, exec)
-	if err != nil {
-		return ctx, nil, err
-	}
-	ctx = tagCategoryCtx.WithValue(ctx, m)
-
-	ctx, err = o.insertOptRels(ctx, exec, m)
-	return ctx, m, err
-}
-
 // CreateMany builds multiple tagCategories and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 func (o TagCategoryTemplate) CreateMany(ctx context.Context, exec bob.Executor, number int) (models.TagCategorySlice, error) {
-	_, m, err := o.createMany(ctx, exec, number)
-	return m, err
+	var err error
+	m := make(models.TagCategorySlice, number)
+
+	for i := range m {
+		m[i], err = o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // MustCreateMany builds multiple tagCategories and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o TagCategoryTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, number int) models.TagCategorySlice {
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		panic(err)
 	}
@@ -273,29 +280,12 @@ func (o TagCategoryTemplate) MustCreateMany(ctx context.Context, exec bob.Execut
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o TagCategoryTemplate) CreateManyOrFail(ctx context.Context, tb testing.TB, exec bob.Executor, number int) models.TagCategorySlice {
 	tb.Helper()
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
 	}
 	return m
-}
-
-// createMany builds multiple tagCategories and inserts them into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted models
-func (o TagCategoryTemplate) createMany(ctx context.Context, exec bob.Executor, number int) (context.Context, models.TagCategorySlice, error) {
-	var err error
-	m := make(models.TagCategorySlice, number)
-
-	for i := range m {
-		ctx, m[i], err = o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	return ctx, m, nil
 }
 
 // TagCategory has methods that act as mods for the TagCategoryTemplate
@@ -520,7 +510,7 @@ func (m tagCategoryMods) WithTags(number int, related *TagTemplate) TagCategoryM
 
 func (m tagCategoryMods) WithNewTags(number int, mods ...TagMod) TagCategoryMod {
 	return TagCategoryModFunc(func(ctx context.Context, o *TagCategoryTemplate) {
-		related := o.f.NewTag(ctx, mods...)
+		related := o.f.NewTagWithContext(ctx, mods...)
 		m.WithTags(number, related).Apply(ctx, o)
 	})
 }
@@ -536,8 +526,18 @@ func (m tagCategoryMods) AddTags(number int, related *TagTemplate) TagCategoryMo
 
 func (m tagCategoryMods) AddNewTags(number int, mods ...TagMod) TagCategoryMod {
 	return TagCategoryModFunc(func(ctx context.Context, o *TagCategoryTemplate) {
-		related := o.f.NewTag(ctx, mods...)
+		related := o.f.NewTagWithContext(ctx, mods...)
 		m.AddTags(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagCategoryMods) AddExistingTags(existingModels ...*models.Tag) TagCategoryMod {
+	return TagCategoryModFunc(func(ctx context.Context, o *TagCategoryTemplate) {
+		for _, em := range existingModels {
+			o.r.Tags = append(o.r.Tags, &tagCategoryRTagsR{
+				o: o.f.FromExistingTag(em),
+			})
+		}
 	})
 }
 

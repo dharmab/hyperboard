@@ -42,6 +42,8 @@ type TagAliasTemplate struct {
 
 	r tagAliasR
 	f *Factory
+
+	alreadyPersisted bool
 }
 
 type tagAliasR struct {
@@ -77,19 +79,19 @@ func (o TagAliasTemplate) BuildSetter() *models.TagAliasSetter {
 
 	if o.ID != nil {
 		val := o.ID()
-		m.ID = &val
+		m.ID = func() *uuid.UUID { return &val }()
 	}
 	if o.TagID != nil {
 		val := o.TagID()
-		m.TagID = &val
+		m.TagID = func() *uuid.UUID { return &val }()
 	}
 	if o.AliasName != nil {
 		val := o.AliasName()
-		m.AliasName = &val
+		m.AliasName = func() *string { return &val }()
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
-		m.CreatedAt = &val
+		m.CreatedAt = func() *time.Time { return &val }()
 	}
 
 	return m
@@ -145,29 +147,59 @@ func (o TagAliasTemplate) BuildMany(number int) models.TagAliasSlice {
 }
 
 func ensureCreatableTagAlias(m *models.TagAliasSetter) {
-	if m.TagID == nil {
+	if !(m.TagID != nil) {
 		val := random_uuid_UUID(nil)
-		m.TagID = &val
+		m.TagID = func() *uuid.UUID { return &val }()
 	}
-	if m.AliasName == nil {
+	if !(m.AliasName != nil) {
 		val := random_string(nil)
-		m.AliasName = &val
+		m.AliasName = func() *string { return &val }()
 	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.TagAlias
 // according to the relationships in the template.
 // any required relationship should have already exist on the model
-func (o *TagAliasTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.TagAlias) (context.Context, error) {
+func (o *TagAliasTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.TagAlias) error {
 	var err error
 
-	return ctx, err
+	return err
 }
 
 // Create builds a tagAlias and inserts it into the database
 // Relations objects are also inserted and placed in the .R field
 func (o *TagAliasTemplate) Create(ctx context.Context, exec bob.Executor) (*models.TagAlias, error) {
-	_, m, err := o.create(ctx, exec)
+	var err error
+	opt := o.BuildSetter()
+	ensureCreatableTagAlias(opt)
+
+	if o.r.Tag == nil {
+		TagAliasMods.WithNewTag().Apply(ctx, o)
+	}
+
+	var rel0 *models.Tag
+
+	if o.r.Tag.o.alreadyPersisted {
+		rel0 = o.r.Tag.o.Build()
+	} else {
+		rel0, err = o.r.Tag.o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	opt.TagID = func() *uuid.UUID { return &rel0.ID }()
+
+	m, err := models.TagAliases.Insert(opt).One(ctx, exec)
+	if err != nil {
+		return nil, err
+	}
+
+	m.R.Tag = rel0
+
+	if err := o.insertOptRels(ctx, exec, m); err != nil {
+		return nil, err
+	}
 	return m, err
 }
 
@@ -175,7 +207,7 @@ func (o *TagAliasTemplate) Create(ctx context.Context, exec bob.Executor) (*mode
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o *TagAliasTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models.TagAlias {
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		panic(err)
 	}
@@ -187,7 +219,7 @@ func (o *TagAliasTemplate) MustCreate(ctx context.Context, exec bob.Executor) *m
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o *TagAliasTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.Executor) *models.TagAlias {
 	tb.Helper()
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
@@ -195,52 +227,27 @@ func (o *TagAliasTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec
 	return m
 }
 
-// create builds a tagAlias and inserts it into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted model
-func (o *TagAliasTemplate) create(ctx context.Context, exec bob.Executor) (context.Context, *models.TagAlias, error) {
-	var err error
-	opt := o.BuildSetter()
-	ensureCreatableTagAlias(opt)
-
-	if o.r.Tag == nil {
-		TagAliasMods.WithNewTag().Apply(ctx, o)
-	}
-
-	rel0, ok := tagCtx.Value(ctx)
-	if !ok {
-		ctx, rel0, err = o.r.Tag.o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	opt.TagID = &rel0.ID
-
-	m, err := models.TagAliases.Insert(opt).One(ctx, exec)
-	if err != nil {
-		return ctx, nil, err
-	}
-	ctx = tagAliasCtx.WithValue(ctx, m)
-
-	m.R.Tag = rel0
-
-	ctx, err = o.insertOptRels(ctx, exec, m)
-	return ctx, m, err
-}
-
 // CreateMany builds multiple tagAliases and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 func (o TagAliasTemplate) CreateMany(ctx context.Context, exec bob.Executor, number int) (models.TagAliasSlice, error) {
-	_, m, err := o.createMany(ctx, exec, number)
-	return m, err
+	var err error
+	m := make(models.TagAliasSlice, number)
+
+	for i := range m {
+		m[i], err = o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // MustCreateMany builds multiple tagAliases and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o TagAliasTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, number int) models.TagAliasSlice {
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		panic(err)
 	}
@@ -252,29 +259,12 @@ func (o TagAliasTemplate) MustCreateMany(ctx context.Context, exec bob.Executor,
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o TagAliasTemplate) CreateManyOrFail(ctx context.Context, tb testing.TB, exec bob.Executor, number int) models.TagAliasSlice {
 	tb.Helper()
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
 	}
 	return m
-}
-
-// createMany builds multiple tagAliases and inserts them into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted models
-func (o TagAliasTemplate) createMany(ctx context.Context, exec bob.Executor, number int) (context.Context, models.TagAliasSlice, error) {
-	var err error
-	m := make(models.TagAliasSlice, number)
-
-	for i := range m {
-		ctx, m[i], err = o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	return ctx, m, nil
 }
 
 // TagAlias has methods that act as mods for the TagAliasTemplate
@@ -423,7 +413,7 @@ func (m tagAliasMods) WithParentsCascading() TagAliasMod {
 		ctx = tagAliasWithParentsCascadingCtx.WithValue(ctx, true)
 		{
 
-			related := o.f.NewTag(ctx, TagMods.WithParentsCascading())
+			related := o.f.NewTagWithContext(ctx, TagMods.WithParentsCascading())
 			m.WithTag(related).Apply(ctx, o)
 		}
 	})
@@ -439,9 +429,17 @@ func (m tagAliasMods) WithTag(rel *TagTemplate) TagAliasMod {
 
 func (m tagAliasMods) WithNewTag(mods ...TagMod) TagAliasMod {
 	return TagAliasModFunc(func(ctx context.Context, o *TagAliasTemplate) {
-		related := o.f.NewTag(ctx, mods...)
+		related := o.f.NewTagWithContext(ctx, mods...)
 
 		m.WithTag(related).Apply(ctx, o)
+	})
+}
+
+func (m tagAliasMods) WithExistingTag(em *models.Tag) TagAliasMod {
+	return TagAliasModFunc(func(ctx context.Context, o *TagAliasTemplate) {
+		o.r.Tag = &tagAliasRTagR{
+			o: o.f.FromExistingTag(em),
+		}
 	})
 }
 

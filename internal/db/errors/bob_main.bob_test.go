@@ -1,0 +1,9 @@
+// Code generated . DO NOT EDIT.
+// This file is meant to be re-generated in place and/or deleted at any time.
+
+package errors
+
+import "github.com/stephenafamo/bob"
+
+// Set the testDB to enable tests that use the database
+var testDB bob.Transactor[bob.Tx]

@@ -42,7 +42,7 @@ type Tag struct {
 type TagSlice []*Tag
 
 // Tags contains methods to work with the tags table
-var Tags = psql.NewTablex[*Tag, TagSlice, *TagSetter]("", "tags")
+var Tags = psql.NewTablex[*Tag, TagSlice, *TagSetter]("", "tags", buildTagColumns("tags"))
 
 // TagsQuery is a query on the tags table
 type TagsQuery = *psql.ViewQuery[*Tag, TagSlice]
@@ -54,18 +54,23 @@ type tagR struct {
 	TagCategory *TagCategory  // tags.tags_tag_category_id_fkey
 }
 
-type tagColumnNames struct {
-	ID            string
-	Name          string
-	Description   string
-	TagCategoryID string
-	CreatedAt     string
-	UpdatedAt     string
+func buildTagColumns(alias string) tagColumns {
+	return tagColumns{
+		ColumnsExpr: expr.NewColumnsExpr(
+			"id", "name", "description", "tag_category_id", "created_at", "updated_at",
+		).WithParent("tags"),
+		tableAlias:    alias,
+		ID:            psql.Quote(alias, "id"),
+		Name:          psql.Quote(alias, "name"),
+		Description:   psql.Quote(alias, "description"),
+		TagCategoryID: psql.Quote(alias, "tag_category_id"),
+		CreatedAt:     psql.Quote(alias, "created_at"),
+		UpdatedAt:     psql.Quote(alias, "updated_at"),
+	}
 }
 
-var TagColumns = buildTagColumns("tags")
-
 type tagColumns struct {
+	expr.ColumnsExpr
 	tableAlias    string
 	ID            psql.Expression
 	Name          psql.Expression
@@ -81,64 +86,6 @@ func (c tagColumns) Alias() string {
 
 func (tagColumns) AliasedAs(alias string) tagColumns {
 	return buildTagColumns(alias)
-}
-
-func buildTagColumns(alias string) tagColumns {
-	return tagColumns{
-		tableAlias:    alias,
-		ID:            psql.Quote(alias, "id"),
-		Name:          psql.Quote(alias, "name"),
-		Description:   psql.Quote(alias, "description"),
-		TagCategoryID: psql.Quote(alias, "tag_category_id"),
-		CreatedAt:     psql.Quote(alias, "created_at"),
-		UpdatedAt:     psql.Quote(alias, "updated_at"),
-	}
-}
-
-type tagWhere[Q psql.Filterable] struct {
-	ID            psql.WhereMod[Q, uuid.UUID]
-	Name          psql.WhereMod[Q, string]
-	Description   psql.WhereMod[Q, string]
-	TagCategoryID psql.WhereNullMod[Q, uuid.UUID]
-	CreatedAt     psql.WhereMod[Q, time.Time]
-	UpdatedAt     psql.WhereMod[Q, time.Time]
-}
-
-func (tagWhere[Q]) AliasedAs(alias string) tagWhere[Q] {
-	return buildTagWhere[Q](buildTagColumns(alias))
-}
-
-func buildTagWhere[Q psql.Filterable](cols tagColumns) tagWhere[Q] {
-	return tagWhere[Q]{
-		ID:            psql.Where[Q, uuid.UUID](cols.ID),
-		Name:          psql.Where[Q, string](cols.Name),
-		Description:   psql.Where[Q, string](cols.Description),
-		TagCategoryID: psql.WhereNull[Q, uuid.UUID](cols.TagCategoryID),
-		CreatedAt:     psql.Where[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:     psql.Where[Q, time.Time](cols.UpdatedAt),
-	}
-}
-
-var TagErrors = &tagErrors{
-	ErrUniqueTagsPkey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tags",
-		columns: []string{"id"},
-		s:       "tags_pkey",
-	},
-
-	ErrUniqueTagsNameKey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tags",
-		columns: []string{"name"},
-		s:       "tags_name_key",
-	},
-}
-
-type tagErrors struct {
-	ErrUniqueTagsPkey *UniqueConstraintError
-
-	ErrUniqueTagsNameKey *UniqueConstraintError
 }
 
 // TagSetter is used for insert/upsert/update operations
@@ -158,48 +105,73 @@ func (s TagSetter) SetColumns() []string {
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
-
 	if s.Name != nil {
 		vals = append(vals, "name")
 	}
-
 	if s.Description != nil {
 		vals = append(vals, "description")
 	}
-
 	if s.TagCategoryID != nil {
 		vals = append(vals, "tag_category_id")
 	}
-
 	if s.CreatedAt != nil {
 		vals = append(vals, "created_at")
 	}
-
 	if s.UpdatedAt != nil {
 		vals = append(vals, "updated_at")
 	}
-
 	return vals
 }
 
 func (s TagSetter) Overwrite(t *Tag) {
 	if s.ID != nil {
-		t.ID = *s.ID
+		t.ID = func() uuid.UUID {
+			if s.ID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.ID
+		}()
 	}
 	if s.Name != nil {
-		t.Name = *s.Name
+		t.Name = func() string {
+			if s.Name == nil {
+				return *new(string)
+			}
+			return *s.Name
+		}()
 	}
 	if s.Description != nil {
-		t.Description = *s.Description
+		t.Description = func() string {
+			if s.Description == nil {
+				return *new(string)
+			}
+			return *s.Description
+		}()
 	}
 	if s.TagCategoryID != nil {
-		t.TagCategoryID = *s.TagCategoryID
+		t.TagCategoryID = func() sql.Null[uuid.UUID] {
+			if s.TagCategoryID == nil {
+				return *new(sql.Null[uuid.UUID])
+			}
+			v := s.TagCategoryID
+			return *v
+		}()
 	}
 	if s.CreatedAt != nil {
-		t.CreatedAt = *s.CreatedAt
+		t.CreatedAt = func() time.Time {
+			if s.CreatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.CreatedAt
+		}()
 	}
 	if s.UpdatedAt != nil {
-		t.UpdatedAt = *s.UpdatedAt
+		t.UpdatedAt = func() time.Time {
+			if s.UpdatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.UpdatedAt
+		}()
 	}
 }
 
@@ -208,40 +180,71 @@ func (s *TagSetter) Apply(q *dialect.InsertQuery) {
 		return Tags.BeforeInsertHooks.RunHooks(ctx, exec, s)
 	})
 
-	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		vals := make([]bob.Expression, 6)
 		if s.ID != nil {
-			vals[0] = psql.Arg(*s.ID)
+			vals[0] = psql.Arg(func() uuid.UUID {
+				if s.ID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.ID
+			}())
 		} else {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
 		if s.Name != nil {
-			vals[1] = psql.Arg(*s.Name)
+			vals[1] = psql.Arg(func() string {
+				if s.Name == nil {
+					return *new(string)
+				}
+				return *s.Name
+			}())
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
 		if s.Description != nil {
-			vals[2] = psql.Arg(*s.Description)
+			vals[2] = psql.Arg(func() string {
+				if s.Description == nil {
+					return *new(string)
+				}
+				return *s.Description
+			}())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
 		if s.TagCategoryID != nil {
-			vals[3] = psql.Arg(*s.TagCategoryID)
+			vals[3] = psql.Arg(func() sql.Null[uuid.UUID] {
+				if s.TagCategoryID == nil {
+					return *new(sql.Null[uuid.UUID])
+				}
+				v := s.TagCategoryID
+				return *v
+			}())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
 		if s.CreatedAt != nil {
-			vals[4] = psql.Arg(*s.CreatedAt)
+			vals[4] = psql.Arg(func() time.Time {
+				if s.CreatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.CreatedAt
+			}())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
 		if s.UpdatedAt != nil {
-			vals[5] = psql.Arg(*s.UpdatedAt)
+			vals[5] = psql.Arg(func() time.Time {
+				if s.UpdatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.UpdatedAt
+			}())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
@@ -307,20 +310,20 @@ func (s TagSetter) Expressions(prefix ...string) []bob.Expression {
 func FindTag(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*Tag, error) {
 	if len(cols) == 0 {
 		return Tags.Query(
-			SelectWhere.Tags.ID.EQ(IDPK),
+			sm.Where(Tags.Columns.ID.EQ(psql.Arg(IDPK))),
 		).One(ctx, exec)
 	}
 
 	return Tags.Query(
-		SelectWhere.Tags.ID.EQ(IDPK),
-		sm.Columns(Tags.Columns().Only(cols...)),
+		sm.Where(Tags.Columns.ID.EQ(psql.Arg(IDPK))),
+		sm.Columns(Tags.Columns.Only(cols...)),
 	).One(ctx, exec)
 }
 
 // TagExists checks the presence of a single record by primary key
 func TagExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return Tags.Query(
-		SelectWhere.Tags.ID.EQ(IDPK),
+		sm.Where(Tags.Columns.ID.EQ(psql.Arg(IDPK))),
 	).Exists(ctx, exec)
 }
 
@@ -348,7 +351,7 @@ func (o *Tag) primaryKeyVals() bob.Expression {
 }
 
 func (o *Tag) pkEQ() dialect.Expression {
-	return psql.Quote("tags", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tags", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		return o.primaryKeyVals().WriteSQL(ctx, w, d, start)
 	}))
 }
@@ -375,7 +378,7 @@ func (o *Tag) Delete(ctx context.Context, exec bob.Executor) error {
 // Reload refreshes the Tag using the executor
 func (o *Tag) Reload(ctx context.Context, exec bob.Executor) error {
 	o2, err := Tags.Query(
-		SelectWhere.Tags.ID.EQ(o.ID),
+		sm.Where(Tags.Columns.ID.EQ(psql.Arg(o.ID))),
 	).One(ctx, exec)
 	if err != nil {
 		return err
@@ -409,7 +412,7 @@ func (o TagSlice) pkIN() dialect.Expression {
 		return psql.Raw("NULL")
 	}
 
-	return psql.Quote("tags", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tags", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		pkPairs := make([]bob.Expression, len(o))
 		for i, row := range o {
 			pkPairs[i] = row.primaryKeyVals()
@@ -525,86 +528,22 @@ func (o TagSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
-type tagJoins[Q dialect.Joinable] struct {
-	typ         string
-	Posts       modAs[Q, postColumns]
-	TagAliases  modAs[Q, tagAliasColumns]
-	TagCategory modAs[Q, tagCategoryColumns]
-}
-
-func (j tagJoins[Q]) aliasedAs(alias string) tagJoins[Q] {
-	return buildTagJoins[Q](buildTagColumns(alias), j.typ)
-}
-
-func buildTagJoins[Q dialect.Joinable](cols tagColumns, typ string) tagJoins[Q] {
-	return tagJoins[Q]{
-		typ: typ,
-		Posts: modAs[Q, postColumns]{
-			c: PostColumns,
-			f: func(to postColumns) bob.Mod[Q] {
-				random := strconv.FormatInt(randInt(), 10)
-				mods := make(mods.QueryMods[Q], 0, 2)
-
-				{
-					to := PostsTagColumns.AliasedAs(PostsTagColumns.Alias() + random)
-					mods = append(mods, dialect.Join[Q](typ, PostsTags.Name().As(to.Alias())).On(
-						to.TagID.EQ(cols.ID),
-					))
-				}
-				{
-					cols := PostsTagColumns.AliasedAs(PostsTagColumns.Alias() + random)
-					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.PostID),
-					))
-				}
-
-				return mods
-			},
-		},
-		TagAliases: modAs[Q, tagAliasColumns]{
-			c: TagAliasColumns,
-			f: func(to tagAliasColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, TagAliases.Name().As(to.Alias())).On(
-						to.TagID.EQ(cols.ID),
-					))
-				}
-
-				return mods
-			},
-		},
-		TagCategory: modAs[Q, tagCategoryColumns]{
-			c: TagCategoryColumns,
-			f: func(to tagCategoryColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, TagCategories.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.TagCategoryID),
-					))
-				}
-
-				return mods
-			},
-		},
-	}
-}
-
 // Posts starts a query for related objects on posts
 func (o *Tag) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
 	return Posts.Query(append(mods,
 		sm.InnerJoin(PostsTags.NameAs()).On(
-			PostColumns.ID.EQ(PostsTagColumns.PostID)),
-		sm.Where(PostsTagColumns.TagID.EQ(psql.Arg(o.ID))),
+			Posts.Columns.ID.EQ(PostsTags.Columns.PostID)),
+		sm.Where(PostsTags.Columns.TagID.EQ(psql.Arg(o.ID))),
 	)...)
 }
 
 func (os TagSlice) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
-	pkID := make(pgtypes.Array[uuid.UUID], len(os))
-	for i, o := range os {
-		pkID[i] = o.ID
+	pkID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
@@ -612,52 +551,263 @@ func (os TagSlice) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
 
 	return Posts.Query(append(mods,
 		sm.InnerJoin(PostsTags.NameAs()).On(
-			PostColumns.ID.EQ(PostsTagColumns.PostID),
+			Posts.Columns.ID.EQ(PostsTags.Columns.PostID),
 		),
-		sm.Where(psql.Group(PostsTagColumns.TagID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(PostsTags.Columns.TagID).OP("IN", PKArgExpr)),
 	)...)
 }
 
 // TagAliases starts a query for related objects on tag_aliases
 func (o *Tag) TagAliases(mods ...bob.Mod[*dialect.SelectQuery]) TagAliasesQuery {
 	return TagAliases.Query(append(mods,
-		sm.Where(TagAliasColumns.TagID.EQ(psql.Arg(o.ID))),
+		sm.Where(TagAliases.Columns.TagID.EQ(psql.Arg(o.ID))),
 	)...)
 }
 
 func (os TagSlice) TagAliases(mods ...bob.Mod[*dialect.SelectQuery]) TagAliasesQuery {
-	pkID := make(pgtypes.Array[uuid.UUID], len(os))
-	for i, o := range os {
-		pkID[i] = o.ID
+	pkID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
 	))
 
 	return TagAliases.Query(append(mods,
-		sm.Where(psql.Group(TagAliasColumns.TagID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(TagAliases.Columns.TagID).OP("IN", PKArgExpr)),
 	)...)
 }
 
 // TagCategory starts a query for related objects on tag_categories
 func (o *Tag) TagCategory(mods ...bob.Mod[*dialect.SelectQuery]) TagCategoriesQuery {
 	return TagCategories.Query(append(mods,
-		sm.Where(TagCategoryColumns.ID.EQ(psql.Arg(o.TagCategoryID))),
+		sm.Where(TagCategories.Columns.ID.EQ(psql.Arg(o.TagCategoryID))),
 	)...)
 }
 
 func (os TagSlice) TagCategory(mods ...bob.Mod[*dialect.SelectQuery]) TagCategoriesQuery {
-	pkTagCategoryID := make(pgtypes.Array[sql.Null[uuid.UUID]], len(os))
-	for i, o := range os {
-		pkTagCategoryID[i] = o.TagCategoryID
+	pkTagCategoryID := make(pgtypes.Array[sql.Null[uuid.UUID]], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkTagCategoryID = append(pkTagCategoryID, o.TagCategoryID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkTagCategoryID), "uuid[]")),
 	))
 
 	return TagCategories.Query(append(mods,
-		sm.Where(psql.Group(TagCategoryColumns.ID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(TagCategories.Columns.ID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func attachTagPosts0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, posts2 PostSlice) (PostsTagSlice, error) {
+	setters := make([]*PostsTagSetter, count)
+	for i := range count {
+		setters[i] = &PostsTagSetter{
+			TagID:  func() *uuid.UUID { return &tag0.ID }(),
+			PostID: func() *uuid.UUID { return &posts2[i].ID }(),
+		}
+	}
+
+	postsTags1, err := PostsTags.Insert(bob.ToMods(setters...)).All(ctx, exec)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagPosts0: %w", err)
+	}
+
+	return postsTags1, nil
+}
+
+func (tag0 *Tag) InsertPosts(ctx context.Context, exec bob.Executor, related ...*PostSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	inserted, err := Posts.Insert(bob.ToMods(related...)).All(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+	posts2 := PostSlice(inserted)
+
+	_, err = attachTagPosts0(ctx, exec, len(related), tag0, posts2)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.Posts = append(tag0.R.Posts, posts2...)
+
+	for _, rel := range posts2 {
+		rel.R.Tags = append(rel.R.Tags, tag0)
+	}
+	return nil
+}
+
+func (tag0 *Tag) AttachPosts(ctx context.Context, exec bob.Executor, related ...*Post) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	posts2 := PostSlice(related)
+
+	_, err = attachTagPosts0(ctx, exec, len(related), tag0, posts2)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.Posts = append(tag0.R.Posts, posts2...)
+
+	for _, rel := range related {
+		rel.R.Tags = append(rel.R.Tags, tag0)
+	}
+
+	return nil
+}
+
+func insertTagTagAliases0(ctx context.Context, exec bob.Executor, tagAliases1 []*TagAliasSetter, tag0 *Tag) (TagAliasSlice, error) {
+	for i := range tagAliases1 {
+		tagAliases1[i].TagID = func() *uuid.UUID { return &tag0.ID }()
+	}
+
+	ret, err := TagAliases.Insert(bob.ToMods(tagAliases1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertTagTagAliases0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachTagTagAliases0(ctx context.Context, exec bob.Executor, count int, tagAliases1 TagAliasSlice, tag0 *Tag) (TagAliasSlice, error) {
+	setter := &TagAliasSetter{
+		TagID: func() *uuid.UUID { return &tag0.ID }(),
+	}
+
+	err := tagAliases1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagTagAliases0: %w", err)
+	}
+
+	return tagAliases1, nil
+}
+
+func (tag0 *Tag) InsertTagAliases(ctx context.Context, exec bob.Executor, related ...*TagAliasSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	tagAliases1, err := insertTagTagAliases0(ctx, exec, related, tag0)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.TagAliases = append(tag0.R.TagAliases, tagAliases1...)
+
+	for _, rel := range tagAliases1 {
+		rel.R.Tag = tag0
+	}
+	return nil
+}
+
+func (tag0 *Tag) AttachTagAliases(ctx context.Context, exec bob.Executor, related ...*TagAlias) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	tagAliases1 := TagAliasSlice(related)
+
+	_, err = attachTagTagAliases0(ctx, exec, len(related), tagAliases1, tag0)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.TagAliases = append(tag0.R.TagAliases, tagAliases1...)
+
+	for _, rel := range related {
+		rel.R.Tag = tag0
+	}
+
+	return nil
+}
+
+func attachTagTagCategory0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, tagCategory1 *TagCategory) (*Tag, error) {
+	setter := &TagSetter{
+		TagCategoryID: func() *sql.Null[uuid.UUID] { v := sql.Null[uuid.UUID]{V: tagCategory1.ID, Valid: true}; return &v }(),
+	}
+
+	err := tag0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagTagCategory0: %w", err)
+	}
+
+	return tag0, nil
+}
+
+func (tag0 *Tag) InsertTagCategory(ctx context.Context, exec bob.Executor, related *TagCategorySetter) error {
+	var err error
+
+	tagCategory1, err := TagCategories.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachTagTagCategory0(ctx, exec, 1, tag0, tagCategory1)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.TagCategory = tagCategory1
+
+	tagCategory1.R.Tags = append(tagCategory1.R.Tags, tag0)
+
+	return nil
+}
+
+func (tag0 *Tag) AttachTagCategory(ctx context.Context, exec bob.Executor, tagCategory1 *TagCategory) error {
+	var err error
+
+	_, err = attachTagTagCategory0(ctx, exec, 1, tag0, tagCategory1)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.TagCategory = tagCategory1
+
+	tagCategory1.R.Tags = append(tagCategory1.R.Tags, tag0)
+
+	return nil
+}
+
+type tagWhere[Q psql.Filterable] struct {
+	ID            psql.WhereMod[Q, uuid.UUID]
+	Name          psql.WhereMod[Q, string]
+	Description   psql.WhereMod[Q, string]
+	TagCategoryID psql.WhereNullMod[Q, uuid.UUID]
+	CreatedAt     psql.WhereMod[Q, time.Time]
+	UpdatedAt     psql.WhereMod[Q, time.Time]
+}
+
+func (tagWhere[Q]) AliasedAs(alias string) tagWhere[Q] {
+	return buildTagWhere[Q](buildTagColumns(alias))
+}
+
+func buildTagWhere[Q psql.Filterable](cols tagColumns) tagWhere[Q] {
+	return tagWhere[Q]{
+		ID:            psql.Where[Q, uuid.UUID](cols.ID),
+		Name:          psql.Where[Q, string](cols.Name),
+		Description:   psql.Where[Q, string](cols.Description),
+		TagCategoryID: psql.WhereNull[Q, uuid.UUID](cols.TagCategoryID),
+		CreatedAt:     psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:     psql.Where[Q, time.Time](cols.UpdatedAt),
+	}
 }
 
 func (o *Tag) Preload(name string, retrieved any) error {
@@ -718,21 +868,17 @@ type tagPreloader struct {
 func buildTagPreloader() tagPreloader {
 	return tagPreloader{
 		TagCategory: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*TagCategory, TagCategorySlice](orm.Relationship{
+			return psql.Preload[*TagCategory, TagCategorySlice](psql.PreloadRel{
 				Name: "TagCategory",
-				Sides: []orm.RelSide{
+				Sides: []psql.PreloadSide{
 					{
-						From: TableNames.Tags,
-						To:   TableNames.TagCategories,
-						FromColumns: []string{
-							ColumnNames.Tags.TagCategoryID,
-						},
-						ToColumns: []string{
-							ColumnNames.TagCategories.ID,
-						},
+						From:        Tags,
+						To:          TagCategories,
+						FromColumns: []string{"tag_category_id"},
+						ToColumns:   []string{"id"},
 					},
 				},
-			}, TagCategories.Columns().Names(), opts...)
+			}, TagCategories.Columns.Names(), opts...)
 		},
 	}
 }
@@ -811,12 +957,12 @@ func (os TagSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods ...bob
 	}
 
 	if len(sq.SelectList.Columns) == 0 {
-		mods = append(mods, sm.Columns(Posts.Columns()))
+		mods = append(mods, sm.Columns(Posts.Columns))
 	}
 
 	q := os.Posts(append(
 		mods,
-		sm.Columns(PostsTagColumns.TagID.As("related_tags.ID")),
+		sm.Columns(PostsTags.Columns.TagID.As("related_tags.ID")),
 	)...)
 
 	IDSlice := []uuid.UUID{}
@@ -824,7 +970,7 @@ func (os TagSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods ...bob
 	mapper := scan.Mod(scan.StructMapper[*Post](), func(ctx context.Context, cols []string) (scan.BeforeFunc, func(any, any) error) {
 		return func(row *scan.Row) (any, error) {
 				IDSlice = append(IDSlice, *new(uuid.UUID))
-				row.ScheduleScan("related_tags.ID", &IDSlice[len(IDSlice)-1])
+				row.ScheduleScanByName("related_tags.ID", &IDSlice[len(IDSlice)-1])
 
 				return nil, nil
 			},
@@ -833,7 +979,7 @@ func (os TagSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods ...bob
 			}
 	})
 
-	posts, err := bob.Allx[*Post, PostSlice](ctx, exec, q, mapper)
+	posts, err := bob.Allx[bob.SliceTransformer[*Post, PostSlice]](ctx, exec, q, mapper)
 	if err != nil {
 		return err
 	}
@@ -844,7 +990,7 @@ func (os TagSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods ...bob
 
 	for _, o := range os {
 		for i, rel := range posts {
-			if o.ID != IDSlice[i] {
+			if !(o.ID == IDSlice[i]) {
 				continue
 			}
 
@@ -891,12 +1037,21 @@ func (os TagSlice) LoadTagAliases(ctx context.Context, exec bob.Executor, mods .
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		o.R.TagAliases = nil
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		for _, rel := range tagAliases {
-			if o.ID != rel.TagID {
+
+			if !(o.ID == rel.TagID) {
 				continue
 			}
 
@@ -941,8 +1096,16 @@ func (os TagSlice) LoadTagCategory(ctx context.Context, exec bob.Executor, mods 
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		for _, rel := range tagCategories {
-			if o.TagCategoryID.V != rel.ID {
+			if !o.TagCategoryID.Valid {
+				continue
+			}
+
+			if !(o.TagCategoryID.Valid && o.TagCategoryID.V == rel.ID) {
 				continue
 			}
 
@@ -956,184 +1119,69 @@ func (os TagSlice) LoadTagCategory(ctx context.Context, exec bob.Executor, mods 
 	return nil
 }
 
-func attachTagPosts0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, posts2 PostSlice) (PostsTagSlice, error) {
-	setters := make([]*PostsTagSetter, count)
-	for i := 0; i < count; i++ {
-		setters[i] = &PostsTagSetter{
-			TagID:  &tag0.ID,
-			PostID: &posts2[i].ID,
-		}
-	}
-
-	postsTags1, err := PostsTags.Insert(bob.ToMods(setters...)).All(ctx, exec)
-	if err != nil {
-		return nil, fmt.Errorf("attachTagPosts0: %w", err)
-	}
-
-	return postsTags1, nil
+type tagJoins[Q dialect.Joinable] struct {
+	typ         string
+	Posts       modAs[Q, postColumns]
+	TagAliases  modAs[Q, tagAliasColumns]
+	TagCategory modAs[Q, tagCategoryColumns]
 }
 
-func (tag0 *Tag) InsertPosts(ctx context.Context, exec bob.Executor, related ...*PostSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	inserted, err := Posts.Insert(bob.ToMods(related...)).All(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-	posts2 := PostSlice(inserted)
-
-	_, err = attachTagPosts0(ctx, exec, len(related), tag0, posts2)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.Posts = append(tag0.R.Posts, posts2...)
-
-	for _, rel := range posts2 {
-		rel.R.Tags = append(rel.R.Tags, tag0)
-	}
-	return nil
+func (j tagJoins[Q]) aliasedAs(alias string) tagJoins[Q] {
+	return buildTagJoins[Q](buildTagColumns(alias), j.typ)
 }
 
-func (tag0 *Tag) AttachPosts(ctx context.Context, exec bob.Executor, related ...*Post) error {
-	if len(related) == 0 {
-		return nil
+func buildTagJoins[Q dialect.Joinable](cols tagColumns, typ string) tagJoins[Q] {
+	return tagJoins[Q]{
+		typ: typ,
+		Posts: modAs[Q, postColumns]{
+			c: Posts.Columns,
+			f: func(to postColumns) bob.Mod[Q] {
+				random := strconv.FormatInt(randInt(), 10)
+				mods := make(mods.QueryMods[Q], 0, 2)
+
+				{
+					to := PostsTags.Columns.AliasedAs(PostsTags.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, PostsTags.Name().As(to.Alias())).On(
+						to.TagID.EQ(cols.ID),
+					))
+				}
+				{
+					cols := PostsTags.Columns.AliasedAs(PostsTags.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
+						to.ID.EQ(cols.PostID),
+					))
+				}
+
+				return mods
+			},
+		},
+		TagAliases: modAs[Q, tagAliasColumns]{
+			c: TagAliases.Columns,
+			f: func(to tagAliasColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, TagAliases.Name().As(to.Alias())).On(
+						to.TagID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
+		TagCategory: modAs[Q, tagCategoryColumns]{
+			c: TagCategories.Columns,
+			f: func(to tagCategoryColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, TagCategories.Name().As(to.Alias())).On(
+						to.ID.EQ(cols.TagCategoryID),
+					))
+				}
+
+				return mods
+			},
+		},
 	}
-
-	var err error
-	posts2 := PostSlice(related)
-
-	_, err = attachTagPosts0(ctx, exec, len(related), tag0, posts2)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.Posts = append(tag0.R.Posts, posts2...)
-
-	for _, rel := range related {
-		rel.R.Tags = append(rel.R.Tags, tag0)
-	}
-
-	return nil
-}
-
-func insertTagTagAliases0(ctx context.Context, exec bob.Executor, tagAliases1 []*TagAliasSetter, tag0 *Tag) (TagAliasSlice, error) {
-	for i := range tagAliases1 {
-		tagAliases1[i].TagID = &tag0.ID
-	}
-
-	ret, err := TagAliases.Insert(bob.ToMods(tagAliases1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertTagTagAliases0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachTagTagAliases0(ctx context.Context, exec bob.Executor, count int, tagAliases1 TagAliasSlice, tag0 *Tag) (TagAliasSlice, error) {
-	setter := &TagAliasSetter{
-		TagID: &tag0.ID,
-	}
-
-	err := tagAliases1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachTagTagAliases0: %w", err)
-	}
-
-	return tagAliases1, nil
-}
-
-func (tag0 *Tag) InsertTagAliases(ctx context.Context, exec bob.Executor, related ...*TagAliasSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	tagAliases1, err := insertTagTagAliases0(ctx, exec, related, tag0)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.TagAliases = append(tag0.R.TagAliases, tagAliases1...)
-
-	for _, rel := range tagAliases1 {
-		rel.R.Tag = tag0
-	}
-	return nil
-}
-
-func (tag0 *Tag) AttachTagAliases(ctx context.Context, exec bob.Executor, related ...*TagAlias) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	tagAliases1 := TagAliasSlice(related)
-
-	_, err = attachTagTagAliases0(ctx, exec, len(related), tagAliases1, tag0)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.TagAliases = append(tag0.R.TagAliases, tagAliases1...)
-
-	for _, rel := range related {
-		rel.R.Tag = tag0
-	}
-
-	return nil
-}
-
-func attachTagTagCategory0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, tagCategory1 *TagCategory) (*Tag, error) {
-	setter := &TagSetter{
-		TagCategoryID: func() *sql.Null[uuid.UUID] {
-			v := sql.Null[uuid.UUID]{V: tagCategory1.ID, Valid: true}
-			return &v
-		}(),
-	}
-
-	err := tag0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachTagTagCategory0: %w", err)
-	}
-
-	return tag0, nil
-}
-
-func (tag0 *Tag) InsertTagCategory(ctx context.Context, exec bob.Executor, related *TagCategorySetter) error {
-	tagCategory1, err := TagCategories.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachTagTagCategory0(ctx, exec, 1, tag0, tagCategory1)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.TagCategory = tagCategory1
-
-	tagCategory1.R.Tags = append(tagCategory1.R.Tags, tag0)
-
-	return nil
-}
-
-func (tag0 *Tag) AttachTagCategory(ctx context.Context, exec bob.Executor, tagCategory1 *TagCategory) error {
-	var err error
-
-	_, err = attachTagTagCategory0(ctx, exec, 1, tag0, tagCategory1)
-	if err != nil {
-		return err
-	}
-
-	tag0.R.TagCategory = tagCategory1
-
-	tagCategory1.R.Tags = append(tagCategory1.R.Tags, tag0)
-
-	return nil
 }

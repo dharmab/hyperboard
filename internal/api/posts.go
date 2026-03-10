@@ -164,12 +164,16 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		if resolved != tagName {
 			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved tag alias")
 		}
-		mods = append(mods, sm.Where(psql.Raw(
-			`EXISTS (
-				SELECT 1 FROM posts_tags pt
-				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id AND t.name = ?
-			)`, resolved,
+		mods = append(mods, sm.Where(psql.F("EXISTS",
+			psql.Select(
+				sm.Columns(psql.S("1")),
+				sm.From("posts_tags"),
+				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+				sm.Where(psql.And(
+					models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
+					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
+				)),
+			),
 		)))
 	}
 
@@ -182,35 +186,41 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		if resolved != tagName {
 			logger.Info().Str("alias", tagName).Str("canonical", resolved).Msg("resolved exclude tag alias")
 		}
-		mods = append(mods, sm.Where(psql.Raw(
-			`NOT EXISTS (
-				SELECT 1 FROM posts_tags pt
-				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id AND t.name = ?
-			)`, resolved,
-		)))
+		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
+			psql.Select(
+				sm.Columns(psql.S("1")),
+				sm.From("posts_tags"),
+				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+				sm.Where(psql.And(
+					models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
+					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
+				)),
+			),
+		))))
 	}
 
 	// Apply tagged: filter
 	switch searchParams.Tagged {
 	case types.TaggedFilterTrue:
 		logger.Info().Msg("applying tagged:true filter")
-		mods = append(mods, sm.Where(psql.Raw(
-			`EXISTS (
-				SELECT 1 FROM posts_tags pt
-				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id
-			)`,
+		mods = append(mods, sm.Where(psql.F("EXISTS",
+			psql.Select(
+				sm.Columns(psql.S("1")),
+				sm.From("posts_tags"),
+				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
+			),
 		)))
 	case types.TaggedFilterFalse:
 		logger.Info().Msg("applying tagged:false filter")
-		mods = append(mods, sm.Where(psql.Raw(
-			`NOT EXISTS (
-				SELECT 1 FROM posts_tags pt
-				JOIN tags t ON pt.tag_id = t.id
-				WHERE pt.post_id = posts.id
-			)`,
-		)))
+		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
+			psql.Select(
+				sm.Columns(psql.S("1")),
+				sm.From("posts_tags"),
+				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+				sm.Where(models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID)),
+			),
+		))))
 	case types.TaggedFilterNone:
 		// No filter applied
 	}
@@ -218,15 +228,15 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	// Apply type: virtual tag filters
 	if searchParams.TypeImage {
 		logger.Info().Msg("applying type:image filter")
-		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("image/%"))))
+		mods = append(mods, sm.Where(models.Posts.Columns.MimeType.Like(psql.Arg("image/%"))))
 	}
 	if searchParams.TypeVideo {
 		logger.Info().Msg("applying type:video filter")
-		mods = append(mods, sm.Where(models.PostColumns.MimeType.Like(psql.Arg("video/%"))))
+		mods = append(mods, sm.Where(models.Posts.Columns.MimeType.Like(psql.Arg("video/%"))))
 	}
 	if searchParams.TypeAudio {
 		logger.Info().Msg("applying type:audio filter")
-		mods = append(mods, sm.Where(models.PostColumns.HasAudio.EQ(psql.Arg(true))))
+		mods = append(mods, sm.Where(models.Posts.Columns.HasAudio.EQ(psql.Arg(true))))
 	}
 
 	limit := parseLimit(params.Limit)
@@ -249,7 +259,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		}
 
 		mods = append(mods,
-			sm.OrderBy(psql.Raw("md5(posts.id::text || ?)", strconv.FormatInt(currentSeed, 10))),
+			sm.OrderBy(dialect.NewFunction("md5",
+			psql.Cast(models.Posts.Columns.ID, "text").Concat(psql.Arg(strconv.FormatInt(currentSeed, 10))),
+		)),
 			sm.Limit(int64(limit+1)),
 			sm.Offset(int64(offset)),
 		)
@@ -282,15 +294,13 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	}
 
 	// Determine sort column (default: created_at, newest first)
-	sortColName := "created_at"
-	sortCol := models.PostColumns.CreatedAt
+	sortCol := models.Posts.Columns.CreatedAt
 	if searchParams.Sort == types.SortUpdatedAt {
-		sortColName = "updated_at"
-		sortCol = models.PostColumns.UpdatedAt
+		sortCol = models.Posts.Columns.UpdatedAt
 	}
 	mods = append(mods,
 		sm.OrderBy(sortCol).Desc(),
-		sm.OrderBy(models.PostColumns.ID).Desc(),
+		sm.OrderBy(models.Posts.Columns.ID).Desc(),
 	)
 
 	if params.Cursor != nil && *params.Cursor != "" {
@@ -299,8 +309,22 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(psql.Raw(
-			fmt.Sprintf("(%s, id) < (?, ?)", sortColName), pc.Timestamp, pc.ID,
+		ts, err := time.Parse(time.RFC3339Nano, pc.Timestamp)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+			return
+		}
+		cursorID, err := uuid.FromString(pc.ID)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+			return
+		}
+		mods = append(mods, sm.Where(psql.Or(
+			sortCol.LT(psql.Arg(ts)),
+			psql.And(
+				sortCol.EQ(psql.Arg(ts)),
+				models.Posts.Columns.ID.LT(psql.Arg(cursorID)),
+			),
 		)))
 	}
 
@@ -344,7 +368,7 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 	postID := uuid.UUID(id)
 
 	model, err := models.Posts.Query(
-		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -422,7 +446,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	hashHex := hex.EncodeToString(hash[:])
 
 	existing, err := models.Posts.Query(
-		sm.Where(models.PostColumns.Sha256.EQ(psql.Arg(hashHex))),
+		sm.Where(models.Posts.Columns.Sha256.EQ(psql.Arg(hashHex))),
 	).One(ctx, s.db)
 	if err == nil {
 		logger.Info().Stringer("existing_id", existing.ID).Msg("duplicate post detected by sha256")
@@ -567,7 +591,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	existingPost, err := models.Posts.Query(
-		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -591,7 +615,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	_, err = models.PostsTags.Delete(
-		dm.Where(models.PostsTagColumns.PostID.EQ(psql.Arg(postID))),
+		dm.Where(models.PostsTags.Columns.PostID.EQ(psql.Arg(postID))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update post tags")
@@ -619,7 +643,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 			return
 		}
 		tag, err := models.Tags.Query(
-			sm.Where(models.TagColumns.Name.EQ(psql.Arg(resolvedName))),
+			sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(resolvedName))),
 		).One(ctx, s.db)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag %q", tagName)
@@ -649,7 +673,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	postID := uuid.UUID(id)
 
 	existingPost, err := models.Posts.Query(
-		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -763,7 +787,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 	postID := uuid.UUID(id)
 
 	existingPost, err := models.Posts.Query(
-		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -831,7 +855,7 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	// Fetch the post first to get storage keys for cleanup.
 	post, err := models.Posts.Query(
-		sm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -857,7 +881,7 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	_, err = models.Posts.Delete(
-		dm.Where(models.PostColumns.ID.EQ(psql.Arg(postID))),
+		dm.Where(models.Posts.Columns.ID.EQ(psql.Arg(postID))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")

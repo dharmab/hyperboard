@@ -21,8 +21,8 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/stephenafamo/bob v0.38.0
-	github.com/stephenafamo/scan v0.6.2
+	github.com/stephenafamo/bob v0.42.0
+	github.com/stephenafamo/scan v0.7.0
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/image v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -76,8 +76,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/MirrexOne/unqueryvet v1.5.4 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
-	github.com/aarondl/json v0.0.0-20221020222930-8b0db17ef1bf // indirect
-	github.com/aarondl/opt v0.0.0-20230114172057-b91f370c41f0 // indirect
+	github.com/aarondl/opt v0.0.0-20250607033636-982744e1bd65 // indirect
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/alecthomas/go-check-sumtype v0.3.1 // indirect
 	github.com/alexkohler/nakedret/v2 v2.0.6 // indirect

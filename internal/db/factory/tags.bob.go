@@ -45,6 +45,8 @@ type TagTemplate struct {
 
 	r tagR
 	f *Factory
+
+	alreadyPersisted bool
 }
 
 type tagR struct {
@@ -115,27 +117,27 @@ func (o TagTemplate) BuildSetter() *models.TagSetter {
 
 	if o.ID != nil {
 		val := o.ID()
-		m.ID = &val
+		m.ID = func() *uuid.UUID { return &val }()
 	}
 	if o.Name != nil {
 		val := o.Name()
-		m.Name = &val
+		m.Name = func() *string { return &val }()
 	}
 	if o.Description != nil {
 		val := o.Description()
-		m.Description = &val
+		m.Description = func() *string { return &val }()
 	}
 	if o.TagCategoryID != nil {
 		val := o.TagCategoryID()
-		m.TagCategoryID = &val
+		m.TagCategoryID = func() *sql.Null[uuid.UUID] { v := val; return &v }()
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
-		m.CreatedAt = &val
+		m.CreatedAt = func() *time.Time { return &val }()
 	}
 	if o.UpdatedAt != nil {
 		val := o.UpdatedAt()
-		m.UpdatedAt = &val
+		m.UpdatedAt = func() *time.Time { return &val }()
 	}
 
 	return m
@@ -197,31 +199,34 @@ func (o TagTemplate) BuildMany(number int) models.TagSlice {
 }
 
 func ensureCreatableTag(m *models.TagSetter) {
-	if m.Name == nil {
+	if !(m.Name != nil) {
 		val := random_string(nil)
-		m.Name = &val
+		m.Name = func() *string { return &val }()
 	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.Tag
 // according to the relationships in the template.
 // any required relationship should have already exist on the model
-func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Tag) (context.Context, error) {
+func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Tag) error {
 	var err error
 
 	isPostsDone, _ := tagRelPostsCtx.Value(ctx)
 	if !isPostsDone && o.r.Posts != nil {
 		ctx = tagRelPostsCtx.WithValue(ctx, true)
 		for _, r := range o.r.Posts {
-			var rel0 models.PostSlice
-			ctx, rel0, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
+			if r.o.alreadyPersisted {
+				m.R.Posts = append(m.R.Posts, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
 
-			err = m.AttachPosts(ctx, exec, rel0...)
-			if err != nil {
-				return ctx, err
+				err = m.AttachPosts(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -230,15 +235,18 @@ func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *m
 	if !isTagAliasesDone && o.r.TagAliases != nil {
 		ctx = tagRelTagAliasesCtx.WithValue(ctx, true)
 		for _, r := range o.r.TagAliases {
-			var rel1 models.TagAliasSlice
-			ctx, rel1, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
+			if r.o.alreadyPersisted {
+				m.R.TagAliases = append(m.R.TagAliases, r.o.Build())
+			} else {
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
 
-			err = m.AttachTagAliases(ctx, exec, rel1...)
-			if err != nil {
-				return ctx, err
+				err = m.AttachTagAliases(ctx, exec, rel1...)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -246,25 +254,40 @@ func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *m
 	isTagCategoryDone, _ := tagRelTagCategoryCtx.Value(ctx)
 	if !isTagCategoryDone && o.r.TagCategory != nil {
 		ctx = tagRelTagCategoryCtx.WithValue(ctx, true)
-		var rel2 *models.TagCategory
-		ctx, rel2, err = o.r.TagCategory.o.create(ctx, exec)
-		if err != nil {
-			return ctx, err
-		}
-		err = m.AttachTagCategory(ctx, exec, rel2)
-		if err != nil {
-			return ctx, err
+		if o.r.TagCategory.o.alreadyPersisted {
+			m.R.TagCategory = o.r.TagCategory.o.Build()
+		} else {
+			var rel2 *models.TagCategory
+			rel2, err = o.r.TagCategory.o.Create(ctx, exec)
+			if err != nil {
+				return err
+			}
+			err = m.AttachTagCategory(ctx, exec, rel2)
+			if err != nil {
+				return err
+			}
 		}
 
 	}
 
-	return ctx, err
+	return err
 }
 
 // Create builds a tag and inserts it into the database
 // Relations objects are also inserted and placed in the .R field
 func (o *TagTemplate) Create(ctx context.Context, exec bob.Executor) (*models.Tag, error) {
-	_, m, err := o.create(ctx, exec)
+	var err error
+	opt := o.BuildSetter()
+	ensureCreatableTag(opt)
+
+	m, err := models.Tags.Insert(opt).One(ctx, exec)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := o.insertOptRels(ctx, exec, m); err != nil {
+		return nil, err
+	}
 	return m, err
 }
 
@@ -272,7 +295,7 @@ func (o *TagTemplate) Create(ctx context.Context, exec bob.Executor) (*models.Ta
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o *TagTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models.Tag {
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		panic(err)
 	}
@@ -284,7 +307,7 @@ func (o *TagTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o *TagTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.Executor) *models.Tag {
 	tb.Helper()
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
@@ -292,36 +315,27 @@ func (o *TagTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.
 	return m
 }
 
-// create builds a tag and inserts it into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted model
-func (o *TagTemplate) create(ctx context.Context, exec bob.Executor) (context.Context, *models.Tag, error) {
-	var err error
-	opt := o.BuildSetter()
-	ensureCreatableTag(opt)
-
-	m, err := models.Tags.Insert(opt).One(ctx, exec)
-	if err != nil {
-		return ctx, nil, err
-	}
-	ctx = tagCtx.WithValue(ctx, m)
-
-	ctx, err = o.insertOptRels(ctx, exec, m)
-	return ctx, m, err
-}
-
 // CreateMany builds multiple tags and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 func (o TagTemplate) CreateMany(ctx context.Context, exec bob.Executor, number int) (models.TagSlice, error) {
-	_, m, err := o.createMany(ctx, exec, number)
-	return m, err
+	var err error
+	m := make(models.TagSlice, number)
+
+	for i := range m {
+		m[i], err = o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // MustCreateMany builds multiple tags and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o TagTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, number int) models.TagSlice {
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		panic(err)
 	}
@@ -333,29 +347,12 @@ func (o TagTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, numb
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o TagTemplate) CreateManyOrFail(ctx context.Context, tb testing.TB, exec bob.Executor, number int) models.TagSlice {
 	tb.Helper()
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
 	}
 	return m
-}
-
-// createMany builds multiple tags and inserts them into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted models
-func (o TagTemplate) createMany(ctx context.Context, exec bob.Executor, number int) (context.Context, models.TagSlice, error) {
-	var err error
-	m := make(models.TagSlice, number)
-
-	for i := range m {
-		ctx, m[i], err = o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	return ctx, m, nil
 }
 
 // Tag has methods that act as mods for the TagTemplate
@@ -590,7 +587,7 @@ func (m tagMods) WithParentsCascading() TagMod {
 		ctx = tagWithParentsCascadingCtx.WithValue(ctx, true)
 		{
 
-			related := o.f.NewTagCategory(ctx, TagCategoryMods.WithParentsCascading())
+			related := o.f.NewTagCategoryWithContext(ctx, TagCategoryMods.WithParentsCascading())
 			m.WithTagCategory(related).Apply(ctx, o)
 		}
 	})
@@ -606,9 +603,17 @@ func (m tagMods) WithTagCategory(rel *TagCategoryTemplate) TagMod {
 
 func (m tagMods) WithNewTagCategory(mods ...TagCategoryMod) TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
-		related := o.f.NewTagCategory(ctx, mods...)
+		related := o.f.NewTagCategoryWithContext(ctx, mods...)
 
 		m.WithTagCategory(related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) WithExistingTagCategory(em *models.TagCategory) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.TagCategory = &tagRTagCategoryR{
+			o: o.f.FromExistingTagCategory(em),
+		}
 	})
 }
 
@@ -629,7 +634,7 @@ func (m tagMods) WithPosts(number int, related *PostTemplate) TagMod {
 
 func (m tagMods) WithNewPosts(number int, mods ...PostMod) TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
-		related := o.f.NewPost(ctx, mods...)
+		related := o.f.NewPostWithContext(ctx, mods...)
 		m.WithPosts(number, related).Apply(ctx, o)
 	})
 }
@@ -645,8 +650,18 @@ func (m tagMods) AddPosts(number int, related *PostTemplate) TagMod {
 
 func (m tagMods) AddNewPosts(number int, mods ...PostMod) TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
-		related := o.f.NewPost(ctx, mods...)
+		related := o.f.NewPostWithContext(ctx, mods...)
 		m.AddPosts(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) AddExistingPosts(existingModels ...*models.Post) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		for _, em := range existingModels {
+			o.r.Posts = append(o.r.Posts, &tagRPostsR{
+				o: o.f.FromExistingPost(em),
+			})
+		}
 	})
 }
 
@@ -667,7 +682,7 @@ func (m tagMods) WithTagAliases(number int, related *TagAliasTemplate) TagMod {
 
 func (m tagMods) WithNewTagAliases(number int, mods ...TagAliasMod) TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
-		related := o.f.NewTagAlias(ctx, mods...)
+		related := o.f.NewTagAliasWithContext(ctx, mods...)
 		m.WithTagAliases(number, related).Apply(ctx, o)
 	})
 }
@@ -683,8 +698,18 @@ func (m tagMods) AddTagAliases(number int, related *TagAliasTemplate) TagMod {
 
 func (m tagMods) AddNewTagAliases(number int, mods ...TagAliasMod) TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
-		related := o.f.NewTagAlias(ctx, mods...)
+		related := o.f.NewTagAliasWithContext(ctx, mods...)
 		m.AddTagAliases(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) AddExistingTagAliases(existingModels ...*models.TagAlias) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		for _, em := range existingModels {
+			o.r.TagAliases = append(o.r.TagAliases, &tagRTagAliasesR{
+				o: o.f.FromExistingTagAlias(em),
+			})
+		}
 	})
 }
 

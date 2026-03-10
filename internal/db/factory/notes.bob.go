@@ -42,6 +42,8 @@ type NoteTemplate struct {
 	UpdatedAt func() time.Time
 
 	f *Factory
+
+	alreadyPersisted bool
 }
 
 // Apply mods to the NoteTemplate
@@ -62,23 +64,23 @@ func (o NoteTemplate) BuildSetter() *models.NoteSetter {
 
 	if o.ID != nil {
 		val := o.ID()
-		m.ID = &val
+		m.ID = func() *uuid.UUID { return &val }()
 	}
 	if o.Title != nil {
 		val := o.Title()
-		m.Title = &val
+		m.Title = func() *string { return &val }()
 	}
 	if o.Content != nil {
 		val := o.Content()
-		m.Content = &val
+		m.Content = func() *string { return &val }()
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
-		m.CreatedAt = &val
+		m.CreatedAt = func() *time.Time { return &val }()
 	}
 	if o.UpdatedAt != nil {
 		val := o.UpdatedAt()
-		m.UpdatedAt = &val
+		m.UpdatedAt = func() *time.Time { return &val }()
 	}
 
 	return m
@@ -137,25 +139,36 @@ func (o NoteTemplate) BuildMany(number int) models.NoteSlice {
 }
 
 func ensureCreatableNote(m *models.NoteSetter) {
-	if m.Title == nil {
+	if !(m.Title != nil) {
 		val := random_string(nil)
-		m.Title = &val
+		m.Title = func() *string { return &val }()
 	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.Note
 // according to the relationships in the template.
 // any required relationship should have already exist on the model
-func (o *NoteTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Note) (context.Context, error) {
+func (o *NoteTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Note) error {
 	var err error
 
-	return ctx, err
+	return err
 }
 
 // Create builds a note and inserts it into the database
 // Relations objects are also inserted and placed in the .R field
 func (o *NoteTemplate) Create(ctx context.Context, exec bob.Executor) (*models.Note, error) {
-	_, m, err := o.create(ctx, exec)
+	var err error
+	opt := o.BuildSetter()
+	ensureCreatableNote(opt)
+
+	m, err := models.Notes.Insert(opt).One(ctx, exec)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := o.insertOptRels(ctx, exec, m); err != nil {
+		return nil, err
+	}
 	return m, err
 }
 
@@ -163,7 +176,7 @@ func (o *NoteTemplate) Create(ctx context.Context, exec bob.Executor) (*models.N
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o *NoteTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models.Note {
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +188,7 @@ func (o *NoteTemplate) MustCreate(ctx context.Context, exec bob.Executor) *model
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o *NoteTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.Executor) *models.Note {
 	tb.Helper()
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
@@ -183,36 +196,27 @@ func (o *NoteTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob
 	return m
 }
 
-// create builds a note and inserts it into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted model
-func (o *NoteTemplate) create(ctx context.Context, exec bob.Executor) (context.Context, *models.Note, error) {
-	var err error
-	opt := o.BuildSetter()
-	ensureCreatableNote(opt)
-
-	m, err := models.Notes.Insert(opt).One(ctx, exec)
-	if err != nil {
-		return ctx, nil, err
-	}
-	ctx = noteCtx.WithValue(ctx, m)
-
-	ctx, err = o.insertOptRels(ctx, exec, m)
-	return ctx, m, err
-}
-
 // CreateMany builds multiple notes and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 func (o NoteTemplate) CreateMany(ctx context.Context, exec bob.Executor, number int) (models.NoteSlice, error) {
-	_, m, err := o.createMany(ctx, exec, number)
-	return m, err
+	var err error
+	m := make(models.NoteSlice, number)
+
+	for i := range m {
+		m[i], err = o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // MustCreateMany builds multiple notes and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o NoteTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, number int) models.NoteSlice {
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		panic(err)
 	}
@@ -224,29 +228,12 @@ func (o NoteTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, num
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o NoteTemplate) CreateManyOrFail(ctx context.Context, tb testing.TB, exec bob.Executor, number int) models.NoteSlice {
 	tb.Helper()
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
 	}
 	return m
-}
-
-// createMany builds multiple notes and inserts them into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted models
-func (o NoteTemplate) createMany(ctx context.Context, exec bob.Executor, number int) (context.Context, models.NoteSlice, error) {
-	var err error
-	m := make(models.NoteSlice, number)
-
-	for i := range m {
-		ctx, m[i], err = o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	return ctx, m, nil
 }
 
 // Note has methods that act as mods for the NoteTemplate

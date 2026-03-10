@@ -1,15 +1,15 @@
 // Code generated . DO NOT EDIT.
 // This file is meant to be re-generated in place and/or deleted at any time.
 
-package models_test
+package errors
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	factory "github.com/dharmab/hyperboard/internal/db/factory"
 	models "github.com/dharmab/hyperboard/internal/db/models"
-	factory "github.com/dharmab/hyperboard/internal/db/models/factory"
 	"github.com/stephenafamo/bob"
 )
 
@@ -21,18 +21,18 @@ func TestTagCategoryUniqueConstraintErrors(t *testing.T) {
 	f := factory.New()
 	tests := []struct {
 		name         string
-		expectedErr  *models.UniqueConstraintError
-		conflictMods func(context.Context, bob.Executor, *models.TagCategory) factory.TagCategoryModSlice
+		expectedErr  *UniqueConstraintError
+		conflictMods func(context.Context, *testing.T, bob.Executor, *models.TagCategory) factory.TagCategoryModSlice
 	}{
 		{
 			name:        "ErrUniqueTagCategoriesPkey",
-			expectedErr: models.TagCategoryErrors.ErrUniqueTagCategoriesPkey,
-			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.TagCategory) factory.TagCategoryModSlice {
+			expectedErr: TagCategoryErrors.ErrUniqueTagCategoriesPkey,
+			conflictMods: func(ctx context.Context, t *testing.T, exec bob.Executor, obj *models.TagCategory) factory.TagCategoryModSlice {
 				shouldUpdate := false
 				updateMods := make(factory.TagCategoryModSlice, 0, 1)
 
 				if shouldUpdate {
-					if err := obj.Update(ctx, exec, f.NewTagCategory(ctx, updateMods...).BuildSetter()); err != nil {
+					if err := obj.Update(ctx, exec, f.NewTagCategoryWithContext(ctx, updateMods...).BuildSetter()); err != nil {
 						t.Fatalf("Error updating object: %v", err)
 					}
 				}
@@ -44,13 +44,13 @@ func TestTagCategoryUniqueConstraintErrors(t *testing.T) {
 		},
 		{
 			name:        "ErrUniqueTagCategoriesNameKey",
-			expectedErr: models.TagCategoryErrors.ErrUniqueTagCategoriesNameKey,
-			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.TagCategory) factory.TagCategoryModSlice {
+			expectedErr: TagCategoryErrors.ErrUniqueTagCategoriesNameKey,
+			conflictMods: func(ctx context.Context, t *testing.T, exec bob.Executor, obj *models.TagCategory) factory.TagCategoryModSlice {
 				shouldUpdate := false
 				updateMods := make(factory.TagCategoryModSlice, 0, 1)
 
 				if shouldUpdate {
-					if err := obj.Update(ctx, exec, f.NewTagCategory(ctx, updateMods...).BuildSetter()); err != nil {
+					if err := obj.Update(ctx, exec, f.NewTagCategoryWithContext(ctx, updateMods...).BuildSetter()); err != nil {
 						t.Fatalf("Error updating object: %v", err)
 					}
 				}
@@ -64,7 +64,7 @@ func TestTagCategoryUniqueConstraintErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			tx, err := testDB.Begin(ctx)
@@ -80,24 +80,24 @@ func TestTagCategoryUniqueConstraintErrors(t *testing.T) {
 
 			var exec bob.Executor = tx
 
-			obj, err := f.NewTagCategory(ctx, factory.TagCategoryMods.WithParentsCascading()).Create(ctx, exec)
+			obj, err := f.NewTagCategoryWithContext(ctx, factory.TagCategoryMods.WithParentsCascading()).Create(ctx, exec)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			obj2, err := f.NewTagCategory(ctx).Create(ctx, exec)
+			obj2, err := f.NewTagCategoryWithContext(ctx).Create(ctx, exec)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			err = obj2.Update(ctx, exec, f.NewTagCategory(ctx, tt.conflictMods(ctx, exec, obj)...).BuildSetter())
-			if !errors.Is(models.ErrUniqueConstraint, err) {
+			err = obj2.Update(ctx, exec, f.NewTagCategoryWithContext(ctx, tt.conflictMods(ctx, t, exec, obj)...).BuildSetter())
+			if !errors.Is(ErrUniqueConstraint, err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.name, err)
 			}
 			if !errors.Is(tt.expectedErr, err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.expectedErr.Error(), err)
 			}
-			if !models.ErrUniqueConstraint.Is(err) {
+			if !ErrUniqueConstraint.Is(err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.name, err)
 			}
 			if !tt.expectedErr.Is(err) {

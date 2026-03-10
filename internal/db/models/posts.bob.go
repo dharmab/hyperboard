@@ -46,7 +46,7 @@ type Post struct {
 type PostSlice []*Post
 
 // Posts contains methods to work with the posts table
-var Posts = psql.NewTablex[*Post, PostSlice, *PostSetter]("", "posts")
+var Posts = psql.NewTablex[*Post, PostSlice, *PostSetter]("", "posts", buildPostColumns("posts"))
 
 // PostsQuery is a query on the posts table
 type PostsQuery = *psql.ViewQuery[*Post, PostSlice]
@@ -56,22 +56,27 @@ type postR struct {
 	Tags TagSlice // posts_tags.posts_tags_post_id_fkeyposts_tags.posts_tags_tag_id_fkey
 }
 
-type postColumnNames struct {
-	ID           string
-	MimeType     string
-	ContentURL   string
-	ThumbnailURL string
-	Note         string
-	HasAudio     string
-	Sha256       string
-	Phash        string
-	CreatedAt    string
-	UpdatedAt    string
+func buildPostColumns(alias string) postColumns {
+	return postColumns{
+		ColumnsExpr: expr.NewColumnsExpr(
+			"id", "mime_type", "content_url", "thumbnail_url", "note", "has_audio", "sha256", "phash", "created_at", "updated_at",
+		).WithParent("posts"),
+		tableAlias:   alias,
+		ID:           psql.Quote(alias, "id"),
+		MimeType:     psql.Quote(alias, "mime_type"),
+		ContentURL:   psql.Quote(alias, "content_url"),
+		ThumbnailURL: psql.Quote(alias, "thumbnail_url"),
+		Note:         psql.Quote(alias, "note"),
+		HasAudio:     psql.Quote(alias, "has_audio"),
+		Sha256:       psql.Quote(alias, "sha256"),
+		Phash:        psql.Quote(alias, "phash"),
+		CreatedAt:    psql.Quote(alias, "created_at"),
+		UpdatedAt:    psql.Quote(alias, "updated_at"),
+	}
 }
 
-var PostColumns = buildPostColumns("posts")
-
 type postColumns struct {
+	expr.ColumnsExpr
 	tableAlias   string
 	ID           psql.Expression
 	MimeType     psql.Expression
@@ -91,67 +96,6 @@ func (c postColumns) Alias() string {
 
 func (postColumns) AliasedAs(alias string) postColumns {
 	return buildPostColumns(alias)
-}
-
-func buildPostColumns(alias string) postColumns {
-	return postColumns{
-		tableAlias:   alias,
-		ID:           psql.Quote(alias, "id"),
-		MimeType:     psql.Quote(alias, "mime_type"),
-		ContentURL:   psql.Quote(alias, "content_url"),
-		ThumbnailURL: psql.Quote(alias, "thumbnail_url"),
-		Note:         psql.Quote(alias, "note"),
-		HasAudio:     psql.Quote(alias, "has_audio"),
-		Sha256:       psql.Quote(alias, "sha256"),
-		Phash:        psql.Quote(alias, "phash"),
-		CreatedAt:    psql.Quote(alias, "created_at"),
-		UpdatedAt:    psql.Quote(alias, "updated_at"),
-	}
-}
-
-type postWhere[Q psql.Filterable] struct {
-	ID           psql.WhereMod[Q, uuid.UUID]
-	MimeType     psql.WhereMod[Q, string]
-	ContentURL   psql.WhereMod[Q, string]
-	ThumbnailURL psql.WhereMod[Q, string]
-	Note         psql.WhereMod[Q, string]
-	HasAudio     psql.WhereMod[Q, bool]
-	Sha256       psql.WhereMod[Q, string]
-	Phash        psql.WhereNullMod[Q, int64]
-	CreatedAt    psql.WhereMod[Q, time.Time]
-	UpdatedAt    psql.WhereMod[Q, time.Time]
-}
-
-func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
-	return buildPostWhere[Q](buildPostColumns(alias))
-}
-
-func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
-	return postWhere[Q]{
-		ID:           psql.Where[Q, uuid.UUID](cols.ID),
-		MimeType:     psql.Where[Q, string](cols.MimeType),
-		ContentURL:   psql.Where[Q, string](cols.ContentURL),
-		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
-		Note:         psql.Where[Q, string](cols.Note),
-		HasAudio:     psql.Where[Q, bool](cols.HasAudio),
-		Sha256:       psql.Where[Q, string](cols.Sha256),
-		Phash:        psql.WhereNull[Q, int64](cols.Phash),
-		CreatedAt:    psql.Where[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:    psql.Where[Q, time.Time](cols.UpdatedAt),
-	}
-}
-
-var PostErrors = &postErrors{
-	ErrUniquePostsPkey: &UniqueConstraintError{
-		schema:  "",
-		table:   "posts",
-		columns: []string{"id"},
-		s:       "posts_pkey",
-	},
-}
-
-type postErrors struct {
-	ErrUniquePostsPkey *UniqueConstraintError
 }
 
 // PostSetter is used for insert/upsert/update operations
@@ -175,76 +119,117 @@ func (s PostSetter) SetColumns() []string {
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
-
 	if s.MimeType != nil {
 		vals = append(vals, "mime_type")
 	}
-
 	if s.ContentURL != nil {
 		vals = append(vals, "content_url")
 	}
-
 	if s.ThumbnailURL != nil {
 		vals = append(vals, "thumbnail_url")
 	}
-
 	if s.Note != nil {
 		vals = append(vals, "note")
 	}
-
 	if s.HasAudio != nil {
 		vals = append(vals, "has_audio")
 	}
-
 	if s.Sha256 != nil {
 		vals = append(vals, "sha256")
 	}
-
 	if s.Phash != nil {
 		vals = append(vals, "phash")
 	}
-
 	if s.CreatedAt != nil {
 		vals = append(vals, "created_at")
 	}
-
 	if s.UpdatedAt != nil {
 		vals = append(vals, "updated_at")
 	}
-
 	return vals
 }
 
 func (s PostSetter) Overwrite(t *Post) {
 	if s.ID != nil {
-		t.ID = *s.ID
+		t.ID = func() uuid.UUID {
+			if s.ID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.ID
+		}()
 	}
 	if s.MimeType != nil {
-		t.MimeType = *s.MimeType
+		t.MimeType = func() string {
+			if s.MimeType == nil {
+				return *new(string)
+			}
+			return *s.MimeType
+		}()
 	}
 	if s.ContentURL != nil {
-		t.ContentURL = *s.ContentURL
+		t.ContentURL = func() string {
+			if s.ContentURL == nil {
+				return *new(string)
+			}
+			return *s.ContentURL
+		}()
 	}
 	if s.ThumbnailURL != nil {
-		t.ThumbnailURL = *s.ThumbnailURL
+		t.ThumbnailURL = func() string {
+			if s.ThumbnailURL == nil {
+				return *new(string)
+			}
+			return *s.ThumbnailURL
+		}()
 	}
 	if s.Note != nil {
-		t.Note = *s.Note
+		t.Note = func() string {
+			if s.Note == nil {
+				return *new(string)
+			}
+			return *s.Note
+		}()
 	}
 	if s.HasAudio != nil {
-		t.HasAudio = *s.HasAudio
+		t.HasAudio = func() bool {
+			if s.HasAudio == nil {
+				return *new(bool)
+			}
+			return *s.HasAudio
+		}()
 	}
 	if s.Sha256 != nil {
-		t.Sha256 = *s.Sha256
+		t.Sha256 = func() string {
+			if s.Sha256 == nil {
+				return *new(string)
+			}
+			return *s.Sha256
+		}()
 	}
 	if s.Phash != nil {
-		t.Phash = *s.Phash
+		t.Phash = func() sql.Null[int64] {
+			if s.Phash == nil {
+				return *new(sql.Null[int64])
+			}
+			v := s.Phash
+			return *v
+		}()
 	}
 	if s.CreatedAt != nil {
-		t.CreatedAt = *s.CreatedAt
+		t.CreatedAt = func() time.Time {
+			if s.CreatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.CreatedAt
+		}()
 	}
 	if s.UpdatedAt != nil {
-		t.UpdatedAt = *s.UpdatedAt
+		t.UpdatedAt = func() time.Time {
+			if s.UpdatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.UpdatedAt
+		}()
 	}
 }
 
@@ -253,64 +238,115 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 		return Posts.BeforeInsertHooks.RunHooks(ctx, exec, s)
 	})
 
-	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		vals := make([]bob.Expression, 10)
 		if s.ID != nil {
-			vals[0] = psql.Arg(*s.ID)
+			vals[0] = psql.Arg(func() uuid.UUID {
+				if s.ID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.ID
+			}())
 		} else {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
 		if s.MimeType != nil {
-			vals[1] = psql.Arg(*s.MimeType)
+			vals[1] = psql.Arg(func() string {
+				if s.MimeType == nil {
+					return *new(string)
+				}
+				return *s.MimeType
+			}())
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
 		if s.ContentURL != nil {
-			vals[2] = psql.Arg(*s.ContentURL)
+			vals[2] = psql.Arg(func() string {
+				if s.ContentURL == nil {
+					return *new(string)
+				}
+				return *s.ContentURL
+			}())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
 		if s.ThumbnailURL != nil {
-			vals[3] = psql.Arg(*s.ThumbnailURL)
+			vals[3] = psql.Arg(func() string {
+				if s.ThumbnailURL == nil {
+					return *new(string)
+				}
+				return *s.ThumbnailURL
+			}())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
 		if s.Note != nil {
-			vals[4] = psql.Arg(*s.Note)
+			vals[4] = psql.Arg(func() string {
+				if s.Note == nil {
+					return *new(string)
+				}
+				return *s.Note
+			}())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
 		if s.HasAudio != nil {
-			vals[5] = psql.Arg(*s.HasAudio)
+			vals[5] = psql.Arg(func() bool {
+				if s.HasAudio == nil {
+					return *new(bool)
+				}
+				return *s.HasAudio
+			}())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
 		if s.Sha256 != nil {
-			vals[6] = psql.Arg(*s.Sha256)
+			vals[6] = psql.Arg(func() string {
+				if s.Sha256 == nil {
+					return *new(string)
+				}
+				return *s.Sha256
+			}())
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
 		if s.Phash != nil {
-			vals[7] = psql.Arg(*s.Phash)
+			vals[7] = psql.Arg(func() sql.Null[int64] {
+				if s.Phash == nil {
+					return *new(sql.Null[int64])
+				}
+				v := s.Phash
+				return *v
+			}())
 		} else {
 			vals[7] = psql.Raw("DEFAULT")
 		}
 
 		if s.CreatedAt != nil {
-			vals[8] = psql.Arg(*s.CreatedAt)
+			vals[8] = psql.Arg(func() time.Time {
+				if s.CreatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.CreatedAt
+			}())
 		} else {
 			vals[8] = psql.Raw("DEFAULT")
 		}
 
 		if s.UpdatedAt != nil {
-			vals[9] = psql.Arg(*s.UpdatedAt)
+			vals[9] = psql.Arg(func() time.Time {
+				if s.UpdatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.UpdatedAt
+			}())
 		} else {
 			vals[9] = psql.Raw("DEFAULT")
 		}
@@ -404,20 +440,20 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 func FindPost(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*Post, error) {
 	if len(cols) == 0 {
 		return Posts.Query(
-			SelectWhere.Posts.ID.EQ(IDPK),
+			sm.Where(Posts.Columns.ID.EQ(psql.Arg(IDPK))),
 		).One(ctx, exec)
 	}
 
 	return Posts.Query(
-		SelectWhere.Posts.ID.EQ(IDPK),
-		sm.Columns(Posts.Columns().Only(cols...)),
+		sm.Where(Posts.Columns.ID.EQ(psql.Arg(IDPK))),
+		sm.Columns(Posts.Columns.Only(cols...)),
 	).One(ctx, exec)
 }
 
 // PostExists checks the presence of a single record by primary key
 func PostExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return Posts.Query(
-		SelectWhere.Posts.ID.EQ(IDPK),
+		sm.Where(Posts.Columns.ID.EQ(psql.Arg(IDPK))),
 	).Exists(ctx, exec)
 }
 
@@ -445,7 +481,7 @@ func (o *Post) primaryKeyVals() bob.Expression {
 }
 
 func (o *Post) pkEQ() dialect.Expression {
-	return psql.Quote("posts", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("posts", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		return o.primaryKeyVals().WriteSQL(ctx, w, d, start)
 	}))
 }
@@ -472,7 +508,7 @@ func (o *Post) Delete(ctx context.Context, exec bob.Executor) error {
 // Reload refreshes the Post using the executor
 func (o *Post) Reload(ctx context.Context, exec bob.Executor) error {
 	o2, err := Posts.Query(
-		SelectWhere.Posts.ID.EQ(o.ID),
+		sm.Where(Posts.Columns.ID.EQ(psql.Arg(o.ID))),
 	).One(ctx, exec)
 	if err != nil {
 		return err
@@ -506,7 +542,7 @@ func (o PostSlice) pkIN() dialect.Expression {
 		return psql.Raw("NULL")
 	}
 
-	return psql.Quote("posts", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("posts", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		pkPairs := make([]bob.Expression, len(o))
 		for i, row := range o {
 			pkPairs[i] = row.primaryKeyVals()
@@ -622,56 +658,22 @@ func (o PostSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
-type postJoins[Q dialect.Joinable] struct {
-	typ  string
-	Tags modAs[Q, tagColumns]
-}
-
-func (j postJoins[Q]) aliasedAs(alias string) postJoins[Q] {
-	return buildPostJoins[Q](buildPostColumns(alias), j.typ)
-}
-
-func buildPostJoins[Q dialect.Joinable](cols postColumns, typ string) postJoins[Q] {
-	return postJoins[Q]{
-		typ: typ,
-		Tags: modAs[Q, tagColumns]{
-			c: TagColumns,
-			f: func(to tagColumns) bob.Mod[Q] {
-				random := strconv.FormatInt(randInt(), 10)
-				mods := make(mods.QueryMods[Q], 0, 2)
-
-				{
-					to := PostsTagColumns.AliasedAs(PostsTagColumns.Alias() + random)
-					mods = append(mods, dialect.Join[Q](typ, PostsTags.Name().As(to.Alias())).On(
-						to.PostID.EQ(cols.ID),
-					))
-				}
-				{
-					cols := PostsTagColumns.AliasedAs(PostsTagColumns.Alias() + random)
-					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.TagID),
-					))
-				}
-
-				return mods
-			},
-		},
-	}
-}
-
 // Tags starts a query for related objects on tags
 func (o *Post) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 	return Tags.Query(append(mods,
 		sm.InnerJoin(PostsTags.NameAs()).On(
-			TagColumns.ID.EQ(PostsTagColumns.TagID)),
-		sm.Where(PostsTagColumns.PostID.EQ(psql.Arg(o.ID))),
+			Tags.Columns.ID.EQ(PostsTags.Columns.TagID)),
+		sm.Where(PostsTags.Columns.PostID.EQ(psql.Arg(o.ID))),
 	)...)
 }
 
 func (os PostSlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkID := make(pgtypes.Array[uuid.UUID], len(os))
-	for i, o := range os {
-		pkID[i] = o.ID
+	pkID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
@@ -679,10 +681,107 @@ func (os PostSlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 
 	return Tags.Query(append(mods,
 		sm.InnerJoin(PostsTags.NameAs()).On(
-			TagColumns.ID.EQ(PostsTagColumns.TagID),
+			Tags.Columns.ID.EQ(PostsTags.Columns.TagID),
 		),
-		sm.Where(psql.Group(PostsTagColumns.PostID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(PostsTags.Columns.PostID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func attachPostTags0(ctx context.Context, exec bob.Executor, count int, post0 *Post, tags2 TagSlice) (PostsTagSlice, error) {
+	setters := make([]*PostsTagSetter, count)
+	for i := range count {
+		setters[i] = &PostsTagSetter{
+			PostID: func() *uuid.UUID { return &post0.ID }(),
+			TagID:  func() *uuid.UUID { return &tags2[i].ID }(),
+		}
+	}
+
+	postsTags1, err := PostsTags.Insert(bob.ToMods(setters...)).All(ctx, exec)
+	if err != nil {
+		return nil, fmt.Errorf("attachPostTags0: %w", err)
+	}
+
+	return postsTags1, nil
+}
+
+func (post0 *Post) InsertTags(ctx context.Context, exec bob.Executor, related ...*TagSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	inserted, err := Tags.Insert(bob.ToMods(related...)).All(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+	tags2 := TagSlice(inserted)
+
+	_, err = attachPostTags0(ctx, exec, len(related), post0, tags2)
+	if err != nil {
+		return err
+	}
+
+	post0.R.Tags = append(post0.R.Tags, tags2...)
+
+	for _, rel := range tags2 {
+		rel.R.Posts = append(rel.R.Posts, post0)
+	}
+	return nil
+}
+
+func (post0 *Post) AttachTags(ctx context.Context, exec bob.Executor, related ...*Tag) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	tags2 := TagSlice(related)
+
+	_, err = attachPostTags0(ctx, exec, len(related), post0, tags2)
+	if err != nil {
+		return err
+	}
+
+	post0.R.Tags = append(post0.R.Tags, tags2...)
+
+	for _, rel := range related {
+		rel.R.Posts = append(rel.R.Posts, post0)
+	}
+
+	return nil
+}
+
+type postWhere[Q psql.Filterable] struct {
+	ID           psql.WhereMod[Q, uuid.UUID]
+	MimeType     psql.WhereMod[Q, string]
+	ContentURL   psql.WhereMod[Q, string]
+	ThumbnailURL psql.WhereMod[Q, string]
+	Note         psql.WhereMod[Q, string]
+	HasAudio     psql.WhereMod[Q, bool]
+	Sha256       psql.WhereMod[Q, string]
+	Phash        psql.WhereNullMod[Q, int64]
+	CreatedAt    psql.WhereMod[Q, time.Time]
+	UpdatedAt    psql.WhereMod[Q, time.Time]
+}
+
+func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
+	return buildPostWhere[Q](buildPostColumns(alias))
+}
+
+func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
+	return postWhere[Q]{
+		ID:           psql.Where[Q, uuid.UUID](cols.ID),
+		MimeType:     psql.Where[Q, string](cols.MimeType),
+		ContentURL:   psql.Where[Q, string](cols.ContentURL),
+		ThumbnailURL: psql.Where[Q, string](cols.ThumbnailURL),
+		Note:         psql.Where[Q, string](cols.Note),
+		HasAudio:     psql.Where[Q, bool](cols.HasAudio),
+		Sha256:       psql.Where[Q, string](cols.Sha256),
+		Phash:        psql.WhereNull[Q, int64](cols.Phash),
+		CreatedAt:    psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:    psql.Where[Q, time.Time](cols.UpdatedAt),
+	}
 }
 
 func (o *Post) Preload(name string, retrieved any) error {
@@ -770,12 +869,12 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 	}
 
 	if len(sq.SelectList.Columns) == 0 {
-		mods = append(mods, sm.Columns(Tags.Columns()))
+		mods = append(mods, sm.Columns(Tags.Columns))
 	}
 
 	q := os.Tags(append(
 		mods,
-		sm.Columns(PostsTagColumns.PostID.As("related_posts.ID")),
+		sm.Columns(PostsTags.Columns.PostID.As("related_posts.ID")),
 	)...)
 
 	IDSlice := []uuid.UUID{}
@@ -783,7 +882,7 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 	mapper := scan.Mod(scan.StructMapper[*Tag](), func(ctx context.Context, cols []string) (scan.BeforeFunc, func(any, any) error) {
 		return func(row *scan.Row) (any, error) {
 				IDSlice = append(IDSlice, *new(uuid.UUID))
-				row.ScheduleScan("related_posts.ID", &IDSlice[len(IDSlice)-1])
+				row.ScheduleScanByName("related_posts.ID", &IDSlice[len(IDSlice)-1])
 
 				return nil, nil
 			},
@@ -792,7 +891,7 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 			}
 	})
 
-	tags, err := bob.Allx[*Tag, TagSlice](ctx, exec, q, mapper)
+	tags, err := bob.Allx[bob.SliceTransformer[*Tag, TagSlice]](ctx, exec, q, mapper)
 	if err != nil {
 		return err
 	}
@@ -803,7 +902,7 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 
 	for _, o := range os {
 		for i, rel := range tags {
-			if o.ID != IDSlice[i] {
+			if !(o.ID == IDSlice[i]) {
 				continue
 			}
 
@@ -816,67 +915,39 @@ func (os PostSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob
 	return nil
 }
 
-func attachPostTags0(ctx context.Context, exec bob.Executor, count int, post0 *Post, tags2 TagSlice) (PostsTagSlice, error) {
-	setters := make([]*PostsTagSetter, count)
-	for i := 0; i < count; i++ {
-		setters[i] = &PostsTagSetter{
-			PostID: &post0.ID,
-			TagID:  &tags2[i].ID,
-		}
-	}
-
-	postsTags1, err := PostsTags.Insert(bob.ToMods(setters...)).All(ctx, exec)
-	if err != nil {
-		return nil, fmt.Errorf("attachPostTags0: %w", err)
-	}
-
-	return postsTags1, nil
+type postJoins[Q dialect.Joinable] struct {
+	typ  string
+	Tags modAs[Q, tagColumns]
 }
 
-func (post0 *Post) InsertTags(ctx context.Context, exec bob.Executor, related ...*TagSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	inserted, err := Tags.Insert(bob.ToMods(related...)).All(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-	tags2 := TagSlice(inserted)
-
-	_, err = attachPostTags0(ctx, exec, len(related), post0, tags2)
-	if err != nil {
-		return err
-	}
-
-	post0.R.Tags = append(post0.R.Tags, tags2...)
-
-	for _, rel := range tags2 {
-		rel.R.Posts = append(rel.R.Posts, post0)
-	}
-	return nil
+func (j postJoins[Q]) aliasedAs(alias string) postJoins[Q] {
+	return buildPostJoins[Q](buildPostColumns(alias), j.typ)
 }
 
-func (post0 *Post) AttachTags(ctx context.Context, exec bob.Executor, related ...*Tag) error {
-	if len(related) == 0 {
-		return nil
+func buildPostJoins[Q dialect.Joinable](cols postColumns, typ string) postJoins[Q] {
+	return postJoins[Q]{
+		typ: typ,
+		Tags: modAs[Q, tagColumns]{
+			c: Tags.Columns,
+			f: func(to tagColumns) bob.Mod[Q] {
+				random := strconv.FormatInt(randInt(), 10)
+				mods := make(mods.QueryMods[Q], 0, 2)
+
+				{
+					to := PostsTags.Columns.AliasedAs(PostsTags.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, PostsTags.Name().As(to.Alias())).On(
+						to.PostID.EQ(cols.ID),
+					))
+				}
+				{
+					cols := PostsTags.Columns.AliasedAs(PostsTags.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
+						to.ID.EQ(cols.TagID),
+					))
+				}
+
+				return mods
+			},
+		},
 	}
-
-	var err error
-	tags2 := TagSlice(related)
-
-	_, err = attachPostTags0(ctx, exec, len(related), post0, tags2)
-	if err != nil {
-		return err
-	}
-
-	post0.R.Tags = append(post0.R.Tags, tags2...)
-
-	for _, rel := range related {
-		rel.R.Posts = append(rel.R.Posts, post0)
-	}
-
-	return nil
 }

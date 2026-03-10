@@ -49,6 +49,8 @@ type PostTemplate struct {
 
 	r postR
 	f *Factory
+
+	alreadyPersisted bool
 }
 
 type postR struct {
@@ -90,43 +92,43 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 
 	if o.ID != nil {
 		val := o.ID()
-		m.ID = &val
+		m.ID = func() *uuid.UUID { return &val }()
 	}
 	if o.MimeType != nil {
 		val := o.MimeType()
-		m.MimeType = &val
+		m.MimeType = func() *string { return &val }()
 	}
 	if o.ContentURL != nil {
 		val := o.ContentURL()
-		m.ContentURL = &val
+		m.ContentURL = func() *string { return &val }()
 	}
 	if o.ThumbnailURL != nil {
 		val := o.ThumbnailURL()
-		m.ThumbnailURL = &val
+		m.ThumbnailURL = func() *string { return &val }()
 	}
 	if o.Note != nil {
 		val := o.Note()
-		m.Note = &val
+		m.Note = func() *string { return &val }()
 	}
 	if o.HasAudio != nil {
 		val := o.HasAudio()
-		m.HasAudio = &val
+		m.HasAudio = func() *bool { return &val }()
 	}
 	if o.Sha256 != nil {
 		val := o.Sha256()
-		m.Sha256 = &val
+		m.Sha256 = func() *string { return &val }()
 	}
 	if o.Phash != nil {
 		val := o.Phash()
-		m.Phash = &val
+		m.Phash = func() *sql.Null[int64] { v := val; return &v }()
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
-		m.CreatedAt = &val
+		m.CreatedAt = func() *time.Time { return &val }()
 	}
 	if o.UpdatedAt != nil {
 		val := o.UpdatedAt()
-		m.UpdatedAt = &val
+		m.UpdatedAt = func() *time.Time { return &val }()
 	}
 
 	return m
@@ -200,50 +202,64 @@ func (o PostTemplate) BuildMany(number int) models.PostSlice {
 }
 
 func ensureCreatablePost(m *models.PostSetter) {
-	if m.MimeType == nil {
+	if !(m.MimeType != nil) {
 		val := random_string(nil)
-		m.MimeType = &val
+		m.MimeType = func() *string { return &val }()
 	}
-	if m.ContentURL == nil {
+	if !(m.ContentURL != nil) {
 		val := random_string(nil)
-		m.ContentURL = &val
+		m.ContentURL = func() *string { return &val }()
 	}
-	if m.ThumbnailURL == nil {
+	if !(m.ThumbnailURL != nil) {
 		val := random_string(nil)
-		m.ThumbnailURL = &val
+		m.ThumbnailURL = func() *string { return &val }()
 	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.Post
 // according to the relationships in the template.
 // any required relationship should have already exist on the model
-func (o *PostTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Post) (context.Context, error) {
+func (o *PostTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Post) error {
 	var err error
 
 	isTagsDone, _ := postRelTagsCtx.Value(ctx)
 	if !isTagsDone && o.r.Tags != nil {
 		ctx = postRelTagsCtx.WithValue(ctx, true)
 		for _, r := range o.r.Tags {
-			var rel0 models.TagSlice
-			ctx, rel0, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
+			if r.o.alreadyPersisted {
+				m.R.Tags = append(m.R.Tags, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
 
-			err = m.AttachTags(ctx, exec, rel0...)
-			if err != nil {
-				return ctx, err
+				err = m.AttachTags(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	return ctx, err
+	return err
 }
 
 // Create builds a post and inserts it into the database
 // Relations objects are also inserted and placed in the .R field
 func (o *PostTemplate) Create(ctx context.Context, exec bob.Executor) (*models.Post, error) {
-	_, m, err := o.create(ctx, exec)
+	var err error
+	opt := o.BuildSetter()
+	ensureCreatablePost(opt)
+
+	m, err := models.Posts.Insert(opt).One(ctx, exec)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := o.insertOptRels(ctx, exec, m); err != nil {
+		return nil, err
+	}
 	return m, err
 }
 
@@ -251,7 +267,7 @@ func (o *PostTemplate) Create(ctx context.Context, exec bob.Executor) (*models.P
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o *PostTemplate) MustCreate(ctx context.Context, exec bob.Executor) *models.Post {
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		panic(err)
 	}
@@ -263,7 +279,7 @@ func (o *PostTemplate) MustCreate(ctx context.Context, exec bob.Executor) *model
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o *PostTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob.Executor) *models.Post {
 	tb.Helper()
-	_, m, err := o.create(ctx, exec)
+	m, err := o.Create(ctx, exec)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
@@ -271,36 +287,27 @@ func (o *PostTemplate) CreateOrFail(ctx context.Context, tb testing.TB, exec bob
 	return m
 }
 
-// create builds a post and inserts it into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted model
-func (o *PostTemplate) create(ctx context.Context, exec bob.Executor) (context.Context, *models.Post, error) {
-	var err error
-	opt := o.BuildSetter()
-	ensureCreatablePost(opt)
-
-	m, err := models.Posts.Insert(opt).One(ctx, exec)
-	if err != nil {
-		return ctx, nil, err
-	}
-	ctx = postCtx.WithValue(ctx, m)
-
-	ctx, err = o.insertOptRels(ctx, exec, m)
-	return ctx, m, err
-}
-
 // CreateMany builds multiple posts and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 func (o PostTemplate) CreateMany(ctx context.Context, exec bob.Executor, number int) (models.PostSlice, error) {
-	_, m, err := o.createMany(ctx, exec, number)
-	return m, err
+	var err error
+	m := make(models.PostSlice, number)
+
+	for i := range m {
+		m[i], err = o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // MustCreateMany builds multiple posts and inserts them into the database
 // Relations objects are also inserted and placed in the .R field
 // panics if an error occurs
 func (o PostTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, number int) models.PostSlice {
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		panic(err)
 	}
@@ -312,29 +319,12 @@ func (o PostTemplate) MustCreateMany(ctx context.Context, exec bob.Executor, num
 // It calls `tb.Fatal(err)` on the test/benchmark if an error occurs
 func (o PostTemplate) CreateManyOrFail(ctx context.Context, tb testing.TB, exec bob.Executor, number int) models.PostSlice {
 	tb.Helper()
-	_, m, err := o.createMany(ctx, exec, number)
+	m, err := o.CreateMany(ctx, exec, number)
 	if err != nil {
 		tb.Fatal(err)
 		return nil
 	}
 	return m
-}
-
-// createMany builds multiple posts and inserts them into the database
-// Relations objects are also inserted and placed in the .R field
-// this returns a context that includes the newly inserted models
-func (o PostTemplate) createMany(ctx context.Context, exec bob.Executor, number int) (context.Context, models.PostSlice, error) {
-	var err error
-	m := make(models.PostSlice, number)
-
-	for i := range m {
-		ctx, m[i], err = o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	return ctx, m, nil
 }
 
 // Post has methods that act as mods for the PostTemplate
@@ -709,7 +699,7 @@ func (m postMods) WithTags(number int, related *TagTemplate) PostMod {
 
 func (m postMods) WithNewTags(number int, mods ...TagMod) PostMod {
 	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
-		related := o.f.NewTag(ctx, mods...)
+		related := o.f.NewTagWithContext(ctx, mods...)
 		m.WithTags(number, related).Apply(ctx, o)
 	})
 }
@@ -725,8 +715,18 @@ func (m postMods) AddTags(number int, related *TagTemplate) PostMod {
 
 func (m postMods) AddNewTags(number int, mods ...TagMod) PostMod {
 	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
-		related := o.f.NewTag(ctx, mods...)
+		related := o.f.NewTagWithContext(ctx, mods...)
 		m.AddTags(number, related).Apply(ctx, o)
+	})
+}
+
+func (m postMods) AddExistingTags(existingModels ...*models.Tag) PostMod {
+	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
+		for _, em := range existingModels {
+			o.r.Tags = append(o.r.Tags, &postRTagsR{
+				o: o.f.FromExistingTag(em),
+			})
+		}
 	})
 }
 

@@ -1,15 +1,15 @@
 // Code generated . DO NOT EDIT.
 // This file is meant to be re-generated in place and/or deleted at any time.
 
-package models_test
+package errors
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	factory "github.com/dharmab/hyperboard/internal/db/factory"
 	models "github.com/dharmab/hyperboard/internal/db/models"
-	factory "github.com/dharmab/hyperboard/internal/db/models/factory"
 	"github.com/stephenafamo/bob"
 )
 
@@ -21,18 +21,18 @@ func TestTagAliasUniqueConstraintErrors(t *testing.T) {
 	f := factory.New()
 	tests := []struct {
 		name         string
-		expectedErr  *models.UniqueConstraintError
-		conflictMods func(context.Context, bob.Executor, *models.TagAlias) factory.TagAliasModSlice
+		expectedErr  *UniqueConstraintError
+		conflictMods func(context.Context, *testing.T, bob.Executor, *models.TagAlias) factory.TagAliasModSlice
 	}{
 		{
 			name:        "ErrUniqueTagAliasesPkey",
-			expectedErr: models.TagAliasErrors.ErrUniqueTagAliasesPkey,
-			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.TagAlias) factory.TagAliasModSlice {
+			expectedErr: TagAliasErrors.ErrUniqueTagAliasesPkey,
+			conflictMods: func(ctx context.Context, t *testing.T, exec bob.Executor, obj *models.TagAlias) factory.TagAliasModSlice {
 				shouldUpdate := false
 				updateMods := make(factory.TagAliasModSlice, 0, 1)
 
 				if shouldUpdate {
-					if err := obj.Update(ctx, exec, f.NewTagAlias(ctx, updateMods...).BuildSetter()); err != nil {
+					if err := obj.Update(ctx, exec, f.NewTagAliasWithContext(ctx, updateMods...).BuildSetter()); err != nil {
 						t.Fatalf("Error updating object: %v", err)
 					}
 				}
@@ -44,13 +44,13 @@ func TestTagAliasUniqueConstraintErrors(t *testing.T) {
 		},
 		{
 			name:        "ErrUniqueTagAliasesAliasNameKey",
-			expectedErr: models.TagAliasErrors.ErrUniqueTagAliasesAliasNameKey,
-			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.TagAlias) factory.TagAliasModSlice {
+			expectedErr: TagAliasErrors.ErrUniqueTagAliasesAliasNameKey,
+			conflictMods: func(ctx context.Context, t *testing.T, exec bob.Executor, obj *models.TagAlias) factory.TagAliasModSlice {
 				shouldUpdate := false
 				updateMods := make(factory.TagAliasModSlice, 0, 1)
 
 				if shouldUpdate {
-					if err := obj.Update(ctx, exec, f.NewTagAlias(ctx, updateMods...).BuildSetter()); err != nil {
+					if err := obj.Update(ctx, exec, f.NewTagAliasWithContext(ctx, updateMods...).BuildSetter()); err != nil {
 						t.Fatalf("Error updating object: %v", err)
 					}
 				}
@@ -64,7 +64,7 @@ func TestTagAliasUniqueConstraintErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			tx, err := testDB.Begin(ctx)
@@ -80,24 +80,24 @@ func TestTagAliasUniqueConstraintErrors(t *testing.T) {
 
 			var exec bob.Executor = tx
 
-			obj, err := f.NewTagAlias(ctx, factory.TagAliasMods.WithParentsCascading()).Create(ctx, exec)
+			obj, err := f.NewTagAliasWithContext(ctx, factory.TagAliasMods.WithParentsCascading()).Create(ctx, exec)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			obj2, err := f.NewTagAlias(ctx).Create(ctx, exec)
+			obj2, err := f.NewTagAliasWithContext(ctx).Create(ctx, exec)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			err = obj2.Update(ctx, exec, f.NewTagAlias(ctx, tt.conflictMods(ctx, exec, obj)...).BuildSetter())
-			if !errors.Is(models.ErrUniqueConstraint, err) {
+			err = obj2.Update(ctx, exec, f.NewTagAliasWithContext(ctx, tt.conflictMods(ctx, t, exec, obj)...).BuildSetter())
+			if !errors.Is(ErrUniqueConstraint, err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.name, err)
 			}
 			if !errors.Is(tt.expectedErr, err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.expectedErr.Error(), err)
 			}
-			if !models.ErrUniqueConstraint.Is(err) {
+			if !ErrUniqueConstraint.Is(err) {
 				t.Fatalf("Expected: %s, Got: %v", tt.name, err)
 			}
 			if !tt.expectedErr.Is(err) {

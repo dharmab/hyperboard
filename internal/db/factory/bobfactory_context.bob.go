@@ -3,24 +3,11 @@
 
 package factory
 
-import (
-	"context"
-
-	models "github.com/dharmab/hyperboard/internal/db/models"
-)
+import "context"
 
 type contextKey string
 
 var (
-	// Table context
-
-	noteCtx        = newContextual[*models.Note]("note")
-	postCtx        = newContextual[*models.Post]("post")
-	postsTagCtx    = newContextual[*models.PostsTag]("postsTag")
-	tagAliasCtx    = newContextual[*models.TagAlias]("tagAlias")
-	tagCategoryCtx = newContextual[*models.TagCategory]("tagCategory")
-	tagCtx         = newContextual[*models.Tag]("tag")
-
 	// Relationship Contexts for notes
 	noteWithParentsCascadingCtx = newContextual[bool]("noteWithParentsCascading")
 

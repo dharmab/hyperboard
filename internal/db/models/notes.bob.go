@@ -32,22 +32,27 @@ type Note struct {
 type NoteSlice []*Note
 
 // Notes contains methods to work with the notes table
-var Notes = psql.NewTablex[*Note, NoteSlice, *NoteSetter]("", "notes")
+var Notes = psql.NewTablex[*Note, NoteSlice, *NoteSetter]("", "notes", buildNoteColumns("notes"))
 
 // NotesQuery is a query on the notes table
 type NotesQuery = *psql.ViewQuery[*Note, NoteSlice]
 
-type noteColumnNames struct {
-	ID        string
-	Title     string
-	Content   string
-	CreatedAt string
-	UpdatedAt string
+func buildNoteColumns(alias string) noteColumns {
+	return noteColumns{
+		ColumnsExpr: expr.NewColumnsExpr(
+			"id", "title", "content", "created_at", "updated_at",
+		).WithParent("notes"),
+		tableAlias: alias,
+		ID:         psql.Quote(alias, "id"),
+		Title:      psql.Quote(alias, "title"),
+		Content:    psql.Quote(alias, "content"),
+		CreatedAt:  psql.Quote(alias, "created_at"),
+		UpdatedAt:  psql.Quote(alias, "updated_at"),
+	}
 }
 
-var NoteColumns = buildNoteColumns("notes")
-
 type noteColumns struct {
+	expr.ColumnsExpr
 	tableAlias string
 	ID         psql.Expression
 	Title      psql.Expression
@@ -62,52 +67,6 @@ func (c noteColumns) Alias() string {
 
 func (noteColumns) AliasedAs(alias string) noteColumns {
 	return buildNoteColumns(alias)
-}
-
-func buildNoteColumns(alias string) noteColumns {
-	return noteColumns{
-		tableAlias: alias,
-		ID:         psql.Quote(alias, "id"),
-		Title:      psql.Quote(alias, "title"),
-		Content:    psql.Quote(alias, "content"),
-		CreatedAt:  psql.Quote(alias, "created_at"),
-		UpdatedAt:  psql.Quote(alias, "updated_at"),
-	}
-}
-
-type noteWhere[Q psql.Filterable] struct {
-	ID        psql.WhereMod[Q, uuid.UUID]
-	Title     psql.WhereMod[Q, string]
-	Content   psql.WhereMod[Q, string]
-	CreatedAt psql.WhereMod[Q, time.Time]
-	UpdatedAt psql.WhereMod[Q, time.Time]
-}
-
-func (noteWhere[Q]) AliasedAs(alias string) noteWhere[Q] {
-	return buildNoteWhere[Q](buildNoteColumns(alias))
-}
-
-func buildNoteWhere[Q psql.Filterable](cols noteColumns) noteWhere[Q] {
-	return noteWhere[Q]{
-		ID:        psql.Where[Q, uuid.UUID](cols.ID),
-		Title:     psql.Where[Q, string](cols.Title),
-		Content:   psql.Where[Q, string](cols.Content),
-		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
-		UpdatedAt: psql.Where[Q, time.Time](cols.UpdatedAt),
-	}
-}
-
-var NoteErrors = &noteErrors{
-	ErrUniqueNotesPkey: &UniqueConstraintError{
-		schema:  "",
-		table:   "notes",
-		columns: []string{"id"},
-		s:       "notes_pkey",
-	},
-}
-
-type noteErrors struct {
-	ErrUniqueNotesPkey *UniqueConstraintError
 }
 
 // NoteSetter is used for insert/upsert/update operations
@@ -126,41 +85,61 @@ func (s NoteSetter) SetColumns() []string {
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
-
 	if s.Title != nil {
 		vals = append(vals, "title")
 	}
-
 	if s.Content != nil {
 		vals = append(vals, "content")
 	}
-
 	if s.CreatedAt != nil {
 		vals = append(vals, "created_at")
 	}
-
 	if s.UpdatedAt != nil {
 		vals = append(vals, "updated_at")
 	}
-
 	return vals
 }
 
 func (s NoteSetter) Overwrite(t *Note) {
 	if s.ID != nil {
-		t.ID = *s.ID
+		t.ID = func() uuid.UUID {
+			if s.ID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.ID
+		}()
 	}
 	if s.Title != nil {
-		t.Title = *s.Title
+		t.Title = func() string {
+			if s.Title == nil {
+				return *new(string)
+			}
+			return *s.Title
+		}()
 	}
 	if s.Content != nil {
-		t.Content = *s.Content
+		t.Content = func() string {
+			if s.Content == nil {
+				return *new(string)
+			}
+			return *s.Content
+		}()
 	}
 	if s.CreatedAt != nil {
-		t.CreatedAt = *s.CreatedAt
+		t.CreatedAt = func() time.Time {
+			if s.CreatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.CreatedAt
+		}()
 	}
 	if s.UpdatedAt != nil {
-		t.UpdatedAt = *s.UpdatedAt
+		t.UpdatedAt = func() time.Time {
+			if s.UpdatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.UpdatedAt
+		}()
 	}
 }
 
@@ -169,34 +148,59 @@ func (s *NoteSetter) Apply(q *dialect.InsertQuery) {
 		return Notes.BeforeInsertHooks.RunHooks(ctx, exec, s)
 	})
 
-	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		vals := make([]bob.Expression, 5)
 		if s.ID != nil {
-			vals[0] = psql.Arg(*s.ID)
+			vals[0] = psql.Arg(func() uuid.UUID {
+				if s.ID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.ID
+			}())
 		} else {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
 		if s.Title != nil {
-			vals[1] = psql.Arg(*s.Title)
+			vals[1] = psql.Arg(func() string {
+				if s.Title == nil {
+					return *new(string)
+				}
+				return *s.Title
+			}())
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
 		if s.Content != nil {
-			vals[2] = psql.Arg(*s.Content)
+			vals[2] = psql.Arg(func() string {
+				if s.Content == nil {
+					return *new(string)
+				}
+				return *s.Content
+			}())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
 		if s.CreatedAt != nil {
-			vals[3] = psql.Arg(*s.CreatedAt)
+			vals[3] = psql.Arg(func() time.Time {
+				if s.CreatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.CreatedAt
+			}())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
 		if s.UpdatedAt != nil {
-			vals[4] = psql.Arg(*s.UpdatedAt)
+			vals[4] = psql.Arg(func() time.Time {
+				if s.UpdatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.UpdatedAt
+			}())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
@@ -255,20 +259,20 @@ func (s NoteSetter) Expressions(prefix ...string) []bob.Expression {
 func FindNote(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*Note, error) {
 	if len(cols) == 0 {
 		return Notes.Query(
-			SelectWhere.Notes.ID.EQ(IDPK),
+			sm.Where(Notes.Columns.ID.EQ(psql.Arg(IDPK))),
 		).One(ctx, exec)
 	}
 
 	return Notes.Query(
-		SelectWhere.Notes.ID.EQ(IDPK),
-		sm.Columns(Notes.Columns().Only(cols...)),
+		sm.Where(Notes.Columns.ID.EQ(psql.Arg(IDPK))),
+		sm.Columns(Notes.Columns.Only(cols...)),
 	).One(ctx, exec)
 }
 
 // NoteExists checks the presence of a single record by primary key
 func NoteExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return Notes.Query(
-		SelectWhere.Notes.ID.EQ(IDPK),
+		sm.Where(Notes.Columns.ID.EQ(psql.Arg(IDPK))),
 	).Exists(ctx, exec)
 }
 
@@ -296,7 +300,7 @@ func (o *Note) primaryKeyVals() bob.Expression {
 }
 
 func (o *Note) pkEQ() dialect.Expression {
-	return psql.Quote("notes", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("notes", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		return o.primaryKeyVals().WriteSQL(ctx, w, d, start)
 	}))
 }
@@ -322,7 +326,7 @@ func (o *Note) Delete(ctx context.Context, exec bob.Executor) error {
 // Reload refreshes the Note using the executor
 func (o *Note) Reload(ctx context.Context, exec bob.Executor) error {
 	o2, err := Notes.Query(
-		SelectWhere.Notes.ID.EQ(o.ID),
+		sm.Where(Notes.Columns.ID.EQ(psql.Arg(o.ID))),
 	).One(ctx, exec)
 	if err != nil {
 		return err
@@ -356,7 +360,7 @@ func (o NoteSlice) pkIN() dialect.Expression {
 		return psql.Raw("NULL")
 	}
 
-	return psql.Quote("notes", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("notes", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		pkPairs := make([]bob.Expression, len(o))
 		for i, row := range o {
 			pkPairs[i] = row.primaryKeyVals()
@@ -470,4 +474,26 @@ func (o NoteSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	o.copyMatchingRows(o2...)
 
 	return nil
+}
+
+type noteWhere[Q psql.Filterable] struct {
+	ID        psql.WhereMod[Q, uuid.UUID]
+	Title     psql.WhereMod[Q, string]
+	Content   psql.WhereMod[Q, string]
+	CreatedAt psql.WhereMod[Q, time.Time]
+	UpdatedAt psql.WhereMod[Q, time.Time]
+}
+
+func (noteWhere[Q]) AliasedAs(alias string) noteWhere[Q] {
+	return buildNoteWhere[Q](buildNoteColumns(alias))
+}
+
+func buildNoteWhere[Q psql.Filterable](cols noteColumns) noteWhere[Q] {
+	return noteWhere[Q]{
+		ID:        psql.Where[Q, uuid.UUID](cols.ID),
+		Title:     psql.Where[Q, string](cols.Title),
+		Content:   psql.Where[Q, string](cols.Content),
+		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt: psql.Where[Q, time.Time](cols.UpdatedAt),
+	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // Set the testDB to enable tests that use the database
-var testDB bob.Transactor
+var testDB bob.Transactor[bob.Tx]
 
 func TestRandom_int64(t *testing.T) {
 	t.Parallel()

@@ -37,7 +37,7 @@ type TagAlias struct {
 type TagAliasSlice []*TagAlias
 
 // TagAliases contains methods to work with the tag_aliases table
-var TagAliases = psql.NewTablex[*TagAlias, TagAliasSlice, *TagAliasSetter]("", "tag_aliases")
+var TagAliases = psql.NewTablex[*TagAlias, TagAliasSlice, *TagAliasSetter]("", "tag_aliases", buildTagAliasColumns("tag_aliases"))
 
 // TagAliasesQuery is a query on the tag_aliases table
 type TagAliasesQuery = *psql.ViewQuery[*TagAlias, TagAliasSlice]
@@ -47,16 +47,21 @@ type tagAliasR struct {
 	Tag *Tag // tag_aliases.tag_aliases_tag_id_fkey
 }
 
-type tagAliasColumnNames struct {
-	ID        string
-	TagID     string
-	AliasName string
-	CreatedAt string
+func buildTagAliasColumns(alias string) tagAliasColumns {
+	return tagAliasColumns{
+		ColumnsExpr: expr.NewColumnsExpr(
+			"id", "tag_id", "alias_name", "created_at",
+		).WithParent("tag_aliases"),
+		tableAlias: alias,
+		ID:         psql.Quote(alias, "id"),
+		TagID:      psql.Quote(alias, "tag_id"),
+		AliasName:  psql.Quote(alias, "alias_name"),
+		CreatedAt:  psql.Quote(alias, "created_at"),
+	}
 }
 
-var TagAliasColumns = buildTagAliasColumns("tag_aliases")
-
 type tagAliasColumns struct {
+	expr.ColumnsExpr
 	tableAlias string
 	ID         psql.Expression
 	TagID      psql.Expression
@@ -70,58 +75,6 @@ func (c tagAliasColumns) Alias() string {
 
 func (tagAliasColumns) AliasedAs(alias string) tagAliasColumns {
 	return buildTagAliasColumns(alias)
-}
-
-func buildTagAliasColumns(alias string) tagAliasColumns {
-	return tagAliasColumns{
-		tableAlias: alias,
-		ID:         psql.Quote(alias, "id"),
-		TagID:      psql.Quote(alias, "tag_id"),
-		AliasName:  psql.Quote(alias, "alias_name"),
-		CreatedAt:  psql.Quote(alias, "created_at"),
-	}
-}
-
-type tagAliasWhere[Q psql.Filterable] struct {
-	ID        psql.WhereMod[Q, uuid.UUID]
-	TagID     psql.WhereMod[Q, uuid.UUID]
-	AliasName psql.WhereMod[Q, string]
-	CreatedAt psql.WhereMod[Q, time.Time]
-}
-
-func (tagAliasWhere[Q]) AliasedAs(alias string) tagAliasWhere[Q] {
-	return buildTagAliasWhere[Q](buildTagAliasColumns(alias))
-}
-
-func buildTagAliasWhere[Q psql.Filterable](cols tagAliasColumns) tagAliasWhere[Q] {
-	return tagAliasWhere[Q]{
-		ID:        psql.Where[Q, uuid.UUID](cols.ID),
-		TagID:     psql.Where[Q, uuid.UUID](cols.TagID),
-		AliasName: psql.Where[Q, string](cols.AliasName),
-		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
-	}
-}
-
-var TagAliasErrors = &tagAliasErrors{
-	ErrUniqueTagAliasesPkey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tag_aliases",
-		columns: []string{"id"},
-		s:       "tag_aliases_pkey",
-	},
-
-	ErrUniqueTagAliasesAliasNameKey: &UniqueConstraintError{
-		schema:  "",
-		table:   "tag_aliases",
-		columns: []string{"alias_name"},
-		s:       "tag_aliases_alias_name_key",
-	},
-}
-
-type tagAliasErrors struct {
-	ErrUniqueTagAliasesPkey *UniqueConstraintError
-
-	ErrUniqueTagAliasesAliasNameKey *UniqueConstraintError
 }
 
 // TagAliasSetter is used for insert/upsert/update operations
@@ -139,34 +92,50 @@ func (s TagAliasSetter) SetColumns() []string {
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
-
 	if s.TagID != nil {
 		vals = append(vals, "tag_id")
 	}
-
 	if s.AliasName != nil {
 		vals = append(vals, "alias_name")
 	}
-
 	if s.CreatedAt != nil {
 		vals = append(vals, "created_at")
 	}
-
 	return vals
 }
 
 func (s TagAliasSetter) Overwrite(t *TagAlias) {
 	if s.ID != nil {
-		t.ID = *s.ID
+		t.ID = func() uuid.UUID {
+			if s.ID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.ID
+		}()
 	}
 	if s.TagID != nil {
-		t.TagID = *s.TagID
+		t.TagID = func() uuid.UUID {
+			if s.TagID == nil {
+				return *new(uuid.UUID)
+			}
+			return *s.TagID
+		}()
 	}
 	if s.AliasName != nil {
-		t.AliasName = *s.AliasName
+		t.AliasName = func() string {
+			if s.AliasName == nil {
+				return *new(string)
+			}
+			return *s.AliasName
+		}()
 	}
 	if s.CreatedAt != nil {
-		t.CreatedAt = *s.CreatedAt
+		t.CreatedAt = func() time.Time {
+			if s.CreatedAt == nil {
+				return *new(time.Time)
+			}
+			return *s.CreatedAt
+		}()
 	}
 }
 
@@ -175,28 +144,48 @@ func (s *TagAliasSetter) Apply(q *dialect.InsertQuery) {
 		return TagAliases.BeforeInsertHooks.RunHooks(ctx, exec, s)
 	})
 
-	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		vals := make([]bob.Expression, 4)
 		if s.ID != nil {
-			vals[0] = psql.Arg(*s.ID)
+			vals[0] = psql.Arg(func() uuid.UUID {
+				if s.ID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.ID
+			}())
 		} else {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
 		if s.TagID != nil {
-			vals[1] = psql.Arg(*s.TagID)
+			vals[1] = psql.Arg(func() uuid.UUID {
+				if s.TagID == nil {
+					return *new(uuid.UUID)
+				}
+				return *s.TagID
+			}())
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
 		if s.AliasName != nil {
-			vals[2] = psql.Arg(*s.AliasName)
+			vals[2] = psql.Arg(func() string {
+				if s.AliasName == nil {
+					return *new(string)
+				}
+				return *s.AliasName
+			}())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
 		if s.CreatedAt != nil {
-			vals[3] = psql.Arg(*s.CreatedAt)
+			vals[3] = psql.Arg(func() time.Time {
+				if s.CreatedAt == nil {
+					return *new(time.Time)
+				}
+				return *s.CreatedAt
+			}())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
@@ -248,20 +237,20 @@ func (s TagAliasSetter) Expressions(prefix ...string) []bob.Expression {
 func FindTagAlias(ctx context.Context, exec bob.Executor, IDPK uuid.UUID, cols ...string) (*TagAlias, error) {
 	if len(cols) == 0 {
 		return TagAliases.Query(
-			SelectWhere.TagAliases.ID.EQ(IDPK),
+			sm.Where(TagAliases.Columns.ID.EQ(psql.Arg(IDPK))),
 		).One(ctx, exec)
 	}
 
 	return TagAliases.Query(
-		SelectWhere.TagAliases.ID.EQ(IDPK),
-		sm.Columns(TagAliases.Columns().Only(cols...)),
+		sm.Where(TagAliases.Columns.ID.EQ(psql.Arg(IDPK))),
+		sm.Columns(TagAliases.Columns.Only(cols...)),
 	).One(ctx, exec)
 }
 
 // TagAliasExists checks the presence of a single record by primary key
 func TagAliasExists(ctx context.Context, exec bob.Executor, IDPK uuid.UUID) (bool, error) {
 	return TagAliases.Query(
-		SelectWhere.TagAliases.ID.EQ(IDPK),
+		sm.Where(TagAliases.Columns.ID.EQ(psql.Arg(IDPK))),
 	).Exists(ctx, exec)
 }
 
@@ -289,7 +278,7 @@ func (o *TagAlias) primaryKeyVals() bob.Expression {
 }
 
 func (o *TagAlias) pkEQ() dialect.Expression {
-	return psql.Quote("tag_aliases", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tag_aliases", "id").EQ(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		return o.primaryKeyVals().WriteSQL(ctx, w, d, start)
 	}))
 }
@@ -316,7 +305,7 @@ func (o *TagAlias) Delete(ctx context.Context, exec bob.Executor) error {
 // Reload refreshes the TagAlias using the executor
 func (o *TagAlias) Reload(ctx context.Context, exec bob.Executor) error {
 	o2, err := TagAliases.Query(
-		SelectWhere.TagAliases.ID.EQ(o.ID),
+		sm.Where(TagAliases.Columns.ID.EQ(psql.Arg(o.ID))),
 	).One(ctx, exec)
 	if err != nil {
 		return err
@@ -350,7 +339,7 @@ func (o TagAliasSlice) pkIN() dialect.Expression {
 		return psql.Raw("NULL")
 	}
 
-	return psql.Quote("tag_aliases", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
+	return psql.Quote("tag_aliases", "id").In(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 		pkPairs := make([]bob.Expression, len(o))
 		for i, row := range o {
 			pkPairs[i] = row.primaryKeyVals()
@@ -466,54 +455,96 @@ func (o TagAliasSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
-type tagAliasJoins[Q dialect.Joinable] struct {
-	typ string
-	Tag modAs[Q, tagColumns]
-}
-
-func (j tagAliasJoins[Q]) aliasedAs(alias string) tagAliasJoins[Q] {
-	return buildTagAliasJoins[Q](buildTagAliasColumns(alias), j.typ)
-}
-
-func buildTagAliasJoins[Q dialect.Joinable](cols tagAliasColumns, typ string) tagAliasJoins[Q] {
-	return tagAliasJoins[Q]{
-		typ: typ,
-		Tag: modAs[Q, tagColumns]{
-			c: TagColumns,
-			f: func(to tagColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.TagID),
-					))
-				}
-
-				return mods
-			},
-		},
-	}
-}
-
 // Tag starts a query for related objects on tags
 func (o *TagAlias) Tag(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
 	return Tags.Query(append(mods,
-		sm.Where(TagColumns.ID.EQ(psql.Arg(o.TagID))),
+		sm.Where(Tags.Columns.ID.EQ(psql.Arg(o.TagID))),
 	)...)
 }
 
 func (os TagAliasSlice) Tag(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
-	pkTagID := make(pgtypes.Array[uuid.UUID], len(os))
-	for i, o := range os {
-		pkTagID[i] = o.TagID
+	pkTagID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkTagID = append(pkTagID, o.TagID)
 	}
 	PKArgExpr := psql.Select(sm.Columns(
 		psql.F("unnest", psql.Cast(psql.Arg(pkTagID), "uuid[]")),
 	))
 
 	return Tags.Query(append(mods,
-		sm.Where(psql.Group(TagColumns.ID).OP("IN", PKArgExpr)),
+		sm.Where(psql.Group(Tags.Columns.ID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func attachTagAliasTag0(ctx context.Context, exec bob.Executor, count int, tagAlias0 *TagAlias, tag1 *Tag) (*TagAlias, error) {
+	setter := &TagAliasSetter{
+		TagID: func() *uuid.UUID { return &tag1.ID }(),
+	}
+
+	err := tagAlias0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagAliasTag0: %w", err)
+	}
+
+	return tagAlias0, nil
+}
+
+func (tagAlias0 *TagAlias) InsertTag(ctx context.Context, exec bob.Executor, related *TagSetter) error {
+	var err error
+
+	tag1, err := Tags.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachTagAliasTag0(ctx, exec, 1, tagAlias0, tag1)
+	if err != nil {
+		return err
+	}
+
+	tagAlias0.R.Tag = tag1
+
+	tag1.R.TagAliases = append(tag1.R.TagAliases, tagAlias0)
+
+	return nil
+}
+
+func (tagAlias0 *TagAlias) AttachTag(ctx context.Context, exec bob.Executor, tag1 *Tag) error {
+	var err error
+
+	_, err = attachTagAliasTag0(ctx, exec, 1, tagAlias0, tag1)
+	if err != nil {
+		return err
+	}
+
+	tagAlias0.R.Tag = tag1
+
+	tag1.R.TagAliases = append(tag1.R.TagAliases, tagAlias0)
+
+	return nil
+}
+
+type tagAliasWhere[Q psql.Filterable] struct {
+	ID        psql.WhereMod[Q, uuid.UUID]
+	TagID     psql.WhereMod[Q, uuid.UUID]
+	AliasName psql.WhereMod[Q, string]
+	CreatedAt psql.WhereMod[Q, time.Time]
+}
+
+func (tagAliasWhere[Q]) AliasedAs(alias string) tagAliasWhere[Q] {
+	return buildTagAliasWhere[Q](buildTagAliasColumns(alias))
+}
+
+func buildTagAliasWhere[Q psql.Filterable](cols tagAliasColumns) tagAliasWhere[Q] {
+	return tagAliasWhere[Q]{
+		ID:        psql.Where[Q, uuid.UUID](cols.ID),
+		TagID:     psql.Where[Q, uuid.UUID](cols.TagID),
+		AliasName: psql.Where[Q, string](cols.AliasName),
+		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
+	}
 }
 
 func (o *TagAlias) Preload(name string, retrieved any) error {
@@ -546,21 +577,17 @@ type tagAliasPreloader struct {
 func buildTagAliasPreloader() tagAliasPreloader {
 	return tagAliasPreloader{
 		Tag: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*Tag, TagSlice](orm.Relationship{
+			return psql.Preload[*Tag, TagSlice](psql.PreloadRel{
 				Name: "Tag",
-				Sides: []orm.RelSide{
+				Sides: []psql.PreloadSide{
 					{
-						From: TableNames.TagAliases,
-						To:   TableNames.Tags,
-						FromColumns: []string{
-							ColumnNames.TagAliases.TagID,
-						},
-						ToColumns: []string{
-							ColumnNames.Tags.ID,
-						},
+						From:        TagAliases,
+						To:          Tags,
+						FromColumns: []string{"tag_id"},
+						ToColumns:   []string{"id"},
 					},
 				},
-			}, Tags.Columns().Names(), opts...)
+			}, Tags.Columns.Names(), opts...)
 		},
 	}
 }
@@ -616,8 +643,13 @@ func (os TagAliasSlice) LoadTag(ctx context.Context, exec bob.Executor, mods ...
 	}
 
 	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
 		for _, rel := range tags {
-			if o.TagID != rel.ID {
+
+			if !(o.TagID == rel.ID) {
 				continue
 			}
 
@@ -631,48 +663,31 @@ func (os TagAliasSlice) LoadTag(ctx context.Context, exec bob.Executor, mods ...
 	return nil
 }
 
-func attachTagAliasTag0(ctx context.Context, exec bob.Executor, count int, tagAlias0 *TagAlias, tag1 *Tag) (*TagAlias, error) {
-	setter := &TagAliasSetter{
-		TagID: &tag1.ID,
-	}
-
-	err := tagAlias0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachTagAliasTag0: %w", err)
-	}
-
-	return tagAlias0, nil
+type tagAliasJoins[Q dialect.Joinable] struct {
+	typ string
+	Tag modAs[Q, tagColumns]
 }
 
-func (tagAlias0 *TagAlias) InsertTag(ctx context.Context, exec bob.Executor, related *TagSetter) error {
-	tag1, err := Tags.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachTagAliasTag0(ctx, exec, 1, tagAlias0, tag1)
-	if err != nil {
-		return err
-	}
-
-	tagAlias0.R.Tag = tag1
-
-	tag1.R.TagAliases = append(tag1.R.TagAliases, tagAlias0)
-
-	return nil
+func (j tagAliasJoins[Q]) aliasedAs(alias string) tagAliasJoins[Q] {
+	return buildTagAliasJoins[Q](buildTagAliasColumns(alias), j.typ)
 }
 
-func (tagAlias0 *TagAlias) AttachTag(ctx context.Context, exec bob.Executor, tag1 *Tag) error {
-	var err error
+func buildTagAliasJoins[Q dialect.Joinable](cols tagAliasColumns, typ string) tagAliasJoins[Q] {
+	return tagAliasJoins[Q]{
+		typ: typ,
+		Tag: modAs[Q, tagColumns]{
+			c: Tags.Columns,
+			f: func(to tagColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
 
-	_, err = attachTagAliasTag0(ctx, exec, 1, tagAlias0, tag1)
-	if err != nil {
-		return err
+				{
+					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
+						to.ID.EQ(cols.TagID),
+					))
+				}
+
+				return mods
+			},
+		},
 	}
-
-	tagAlias0.R.Tag = tag1
-
-	tag1.R.TagAliases = append(tag1.R.TagAliases, tagAlias0)
-
-	return nil
 }

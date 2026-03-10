@@ -13,7 +13,7 @@ func TestCreateNote(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -27,7 +27,7 @@ func TestCreateNote(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewNote(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewNoteWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating Note: %v", err)
 	}
 }
@@ -37,7 +37,7 @@ func TestCreatePost(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -51,7 +51,7 @@ func TestCreatePost(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewPost(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewPostWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating Post: %v", err)
 	}
 }
@@ -61,7 +61,7 @@ func TestCreatePostsTag(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -75,7 +75,7 @@ func TestCreatePostsTag(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewPostsTag(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewPostsTagWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating PostsTag: %v", err)
 	}
 }
@@ -85,7 +85,7 @@ func TestCreateTagAlias(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -99,7 +99,7 @@ func TestCreateTagAlias(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewTagAlias(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewTagAliasWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating TagAlias: %v", err)
 	}
 }
@@ -109,7 +109,7 @@ func TestCreateTagCategory(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -123,7 +123,7 @@ func TestCreateTagCategory(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewTagCategory(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewTagCategoryWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating TagCategory: %v", err)
 	}
 }
@@ -133,7 +133,7 @@ func TestCreateTag(t *testing.T) {
 		t.Skip("skipping test, no DSN provided")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	tx, err := testDB.Begin(ctx)
@@ -147,7 +147,7 @@ func TestCreateTag(t *testing.T) {
 		}
 	}()
 
-	if _, err := New().NewTag(ctx).Create(ctx, tx); err != nil {
+	if _, err := New().NewTagWithContext(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating Tag: %v", err)
 	}
 }

@@ -155,7 +155,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 
 	// Ordering
 	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.TagColumns.Name).Asc(),
+		sm.OrderBy(models.Tags.Columns.Name).Asc(),
 	}
 
 	// Cursor
@@ -165,7 +165,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		mods = append(mods, sm.Where(models.TagColumns.Name.GT(psql.Arg(decodedName))))
+		mods = append(mods, sm.Where(models.Tags.Columns.Name.GT(psql.Arg(decodedName))))
 	}
 
 	// Limit
@@ -242,7 +242,7 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 	model, err := models.Tags.Query(
-		sm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
+		sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -299,7 +299,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	if tag.Category != nil && *tag.Category != "" {
 		logger.Info().Str("category", *tag.Category).Msg("resolving tag category")
 		category, err := models.TagCategories.Query(
-			sm.Where(models.TagCategoryColumns.Name.EQ(psql.Arg(*tag.Category))),
+			sm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(*tag.Category))),
 		).One(ctx, s.db)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -313,7 +313,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	existing, err := models.Tags.Query(
-		sm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
+		sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
 	).One(ctx, s.db)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag")
@@ -616,7 +616,7 @@ func (s *Server) DeleteTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 
 	_, err := models.Tags.Delete(
-		dm.Where(models.TagColumns.Name.EQ(psql.Arg(name))),
+		dm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
 	).Exec(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
