@@ -7,15 +7,33 @@ on:
     branches: [main]
 
 jobs:
-  ci:
+  style:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - run: go mod tidy
+      - run: go vet ./...
+      - run: go fix ./...
+      - run: gofmt -s -w .
+      - run: git diff --exit-code
 
-      - run: make format && go mod tidy && git diff --exit-code
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
 
-      - run: make lint test
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v9
