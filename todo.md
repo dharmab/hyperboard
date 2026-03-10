@@ -1,4 +1,0 @@
-- upgrade go to 1.26, including using new() where possible
-- build out hyperboardctl CLI subcommands, e.g. searching for and downloading items, editing notes with a text editor
-- more robust unit testing
-- make sure shell-out dependencies are in containerfile (cwebp, ffmpeg, etc.)
