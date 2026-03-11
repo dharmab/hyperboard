@@ -21,6 +21,7 @@ func Where[Q psql.Filterable]() struct {
 	Posts         postWhere[Q]
 	PostsTags     postsTagWhere[Q]
 	TagAliases    tagAliasWhere[Q]
+	TagCascades   tagCascadeWhere[Q]
 	TagCategories tagCategoryWhere[Q]
 	Tags          tagWhere[Q]
 } {
@@ -29,6 +30,7 @@ func Where[Q psql.Filterable]() struct {
 		Posts         postWhere[Q]
 		PostsTags     postsTagWhere[Q]
 		TagAliases    tagAliasWhere[Q]
+		TagCascades   tagCascadeWhere[Q]
 		TagCategories tagCategoryWhere[Q]
 		Tags          tagWhere[Q]
 	}{
@@ -36,6 +38,7 @@ func Where[Q psql.Filterable]() struct {
 		Posts:         buildPostWhere[Q](Posts.Columns),
 		PostsTags:     buildPostsTagWhere[Q](PostsTags.Columns),
 		TagAliases:    buildTagAliasWhere[Q](TagAliases.Columns),
+		TagCascades:   buildTagCascadeWhere[Q](TagCascades.Columns),
 		TagCategories: buildTagCategoryWhere[Q](TagCategories.Columns),
 		Tags:          buildTagWhere[Q](Tags.Columns),
 	}

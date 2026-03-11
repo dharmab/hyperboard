@@ -184,7 +184,12 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 		items := make([]types.Post, 0, len(posts))
 		for _, post := range posts {
-			items = append(items, postFromModel(post))
+			p := postFromModel(post)
+			ct, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+			if len(ct) > 0 {
+				p.CascadingTags = &ct
+			}
+			items = append(items, p)
 		}
 		respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
 		return
@@ -232,7 +237,12 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 	items := make([]types.Post, 0, len(posts))
 	for _, post := range posts {
-		items = append(items, postFromModel(post))
+		p := postFromModel(post)
+		ct, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+		if len(ct) > 0 {
+			p.CascadingTags = &ct
+		}
+		items = append(items, p)
 	}
 	respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
 }
@@ -250,7 +260,17 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	respond(w, http.StatusOK, postFromModel(model))
+	post := postFromModel(model)
+	cascadingTags, err := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(id))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve cascading tags")
+		return
+	}
+	if len(cascadingTags) > 0 {
+		post.CascadingTags = &cascadingTags
+	}
+
+	respond(w, http.StatusOK, post)
 }
 
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {

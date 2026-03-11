@@ -15,6 +15,7 @@
       <th class="sortable" data-sort="category" data-type="string">Category</th>
       <th class="sortable" data-sort="description" data-type="string">Description</th>
       <th class="sortable" data-sort="aliases" data-type="string">Aliases</th>
+      <th class="sortable" data-sort="cascading" data-type="string">Cascading Tags</th>
       <th class="sortable" data-sort="posts" data-type="number">Posts</th>
     </tr>
   </thead>
@@ -30,6 +31,9 @@
       <td data-value="{{.Description}}">{{.Description}}</td>
       <td data-value="{{if .Aliases}}{{join_strings (deref_strings .Aliases) ", "}}{{end}}" style="color:var(--base03);font-size:0.9rem">
         {{if .Aliases}}{{join_strings (deref_strings .Aliases) ", "}}{{end}}
+      </td>
+      <td data-value="{{if .CascadingTags}}{{join_strings (deref_strings .CascadingTags) ", "}}{{end}}" style="color:var(--base03);font-size:0.9rem">
+        {{if .CascadingTags}}{{join_strings (deref_strings .CascadingTags) ", "}}{{end}}
       </td>
       <td data-value="{{if .PostCount}}{{deref_int .PostCount}}{{else}}0{{end}}">
         {{if and .PostCount (gt (deref_int .PostCount) 0)}}

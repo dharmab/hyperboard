@@ -88,6 +88,12 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		return
 	}
 
+	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, tagIDs...)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag cascades")
+		return
+	}
+
 	var nextCursor *string
 	if hasMore {
 		encoded := obfuscateCursor(tags[len(tags)-1].Name)
@@ -105,6 +111,9 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 		}
 		if aliases, ok := aliasMap[tag.ID]; ok {
 			tagResp.Aliases = &aliases
+		}
+		if cascades, ok := cascadeMap[tag.ID]; ok {
+			tagResp.CascadingTags = &cascades
 		}
 		items = append(items, tagResp)
 	}
@@ -141,6 +150,15 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 	if aliases, ok := aliasMap[model.ID]; ok {
 		tagResp.Aliases = &aliases
+	}
+
+	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, model.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tag cascades")
+		return
+	}
+	if cascades, ok := cascadeMap[model.ID]; ok {
+		tagResp.CascadingTags = &cascades
 	}
 
 	respond(w, http.StatusOK, tagResp)
@@ -200,12 +218,18 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		aliases = *tag.Aliases
 	}
 
+	var cascadingTags []string
+	if tag.CascadingTags != nil {
+		cascadingTags = *tag.CascadingTags
+	}
+
 	now := time.Now().UTC()
 	resultModel, isCreate, err := s.sqlStore.UpsertTag(ctx, name, store.TagInput{
 		Name:          tag.Name,
 		Description:   tag.Description,
 		Category:      tag.Category,
 		Aliases:       aliases,
+		CascadingTags: cascadingTags,
 		TagCategoryID: tagCategoryID,
 	}, now)
 	if err != nil {
@@ -226,6 +250,15 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 	}
 	if a, ok := aliasMap[resultModel.ID]; ok {
 		tagResp.Aliases = &a
+	}
+
+	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, resultModel.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to load tag cascades")
+		return
+	}
+	if c, ok := cascadeMap[resultModel.ID]; ok {
+		tagResp.CascadingTags = &c
 	}
 
 	status := http.StatusOK

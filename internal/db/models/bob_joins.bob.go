@@ -35,6 +35,7 @@ type joins[Q dialect.Joinable] struct {
 	Posts         joinSet[postJoins[Q]]
 	PostsTags     joinSet[postsTagJoins[Q]]
 	TagAliases    joinSet[tagAliasJoins[Q]]
+	TagCascades   joinSet[tagCascadeJoins[Q]]
 	TagCategories joinSet[tagCategoryJoins[Q]]
 	Tags          joinSet[tagJoins[Q]]
 }
@@ -52,6 +53,7 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		Posts:         buildJoinSet[postJoins[Q]](Posts.Columns, buildPostJoins),
 		PostsTags:     buildJoinSet[postsTagJoins[Q]](PostsTags.Columns, buildPostsTagJoins),
 		TagAliases:    buildJoinSet[tagAliasJoins[Q]](TagAliases.Columns, buildTagAliasJoins),
+		TagCascades:   buildJoinSet[tagCascadeJoins[Q]](TagCascades.Columns, buildTagCascadeJoins),
 		TagCategories: buildJoinSet[tagCategoryJoins[Q]](TagCategories.Columns, buildTagCategoryJoins),
 		Tags:          buildJoinSet[tagJoins[Q]](Tags.Columns, buildTagJoins),
 	}

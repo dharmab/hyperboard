@@ -26,26 +26,28 @@ type Note struct {
 
 // Post defines model for Post.
 type Post struct {
-	ContentUrl   URL       `json:"contentUrl"`
-	CreatedAt    Timestamp `json:"createdAt"`
-	HasAudio     bool      `json:"hasAudio"`
-	ID           ID        `json:"id"`
-	MimeType     string    `json:"mimeType"`
-	Note         string    `json:"note"`
-	Tags         []TagName `json:"tags"`
-	ThumbnailUrl URL       `json:"thumbnailUrl"`
-	UpdatedAt    Timestamp `json:"updatedAt"`
+	CascadingTags *[]TagName `json:"cascadingTags,omitempty"`
+	ContentUrl    URL        `json:"contentUrl"`
+	CreatedAt     Timestamp  `json:"createdAt"`
+	HasAudio      bool       `json:"hasAudio"`
+	ID            ID         `json:"id"`
+	MimeType      string     `json:"mimeType"`
+	Note          string     `json:"note"`
+	Tags          []TagName  `json:"tags"`
+	ThumbnailUrl  URL        `json:"thumbnailUrl"`
+	UpdatedAt     Timestamp  `json:"updatedAt"`
 }
 
 // Tag defines model for Tag.
 type Tag struct {
-	Aliases     *[]string        `json:"aliases,omitempty"`
-	Category    *TagCategoryName `json:"category,omitempty"`
-	CreatedAt   Timestamp        `json:"createdAt"`
-	Description string           `json:"description"`
-	Name        TagName          `json:"name"`
-	PostCount   *int             `json:"postCount,omitempty"`
-	UpdatedAt   Timestamp        `json:"updatedAt"`
+	Aliases       *[]string        `json:"aliases,omitempty"`
+	CascadingTags *[]TagName       `json:"cascadingTags,omitempty"`
+	Category      *TagCategoryName `json:"category,omitempty"`
+	CreatedAt     Timestamp        `json:"createdAt"`
+	Description   string           `json:"description"`
+	Name          TagName          `json:"name"`
+	PostCount     *int             `json:"postCount,omitempty"`
+	UpdatedAt     Timestamp        `json:"updatedAt"`
 }
 
 // TagCategory defines model for TagCategory.

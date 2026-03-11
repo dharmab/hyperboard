@@ -34,12 +34,13 @@ type TagsData struct {
 }
 
 type TagEditData struct {
-	Tag         types.Tag
-	Categories  []types.TagCategory
-	Aliases     []string
-	CurrentName string
-	IsNew       bool
-	Error       string
+	Tag           types.Tag
+	Categories    []types.TagCategory
+	Aliases       []string
+	CascadingTags []string
+	CurrentName   string
+	IsNew         bool
+	Error         string
 }
 
 type TagCategoriesData struct {

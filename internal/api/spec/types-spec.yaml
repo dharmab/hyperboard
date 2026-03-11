@@ -38,6 +38,10 @@ components:
           type: array
           items:
             type: string
+        cascadingTags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagName"
         postCount:
           type: integer
         createdAt:
@@ -91,6 +95,10 @@ components:
         hasAudio:
           type: boolean
         tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagName"
+        cascadingTags:
           type: array
           items:
             $ref: "#/components/schemas/TagName"

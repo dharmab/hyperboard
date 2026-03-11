@@ -28,6 +28,11 @@
     <input type="text" name="aliases" value="{{join_strings .Aliases ", "}}" placeholder="comma-separated aliases">
     <span style="color:var(--base03);font-size:0.85rem">Typing an alias in search or tag add will resolve to this tag's canonical name.</span>
   </div>
+  <div class="form-group">
+    <label>Cascading Tags</label>
+    <input type="text" name="cascading_tags" value="{{join_strings .CascadingTags ", "}}" placeholder="comma-separated tag names">
+    <span style="color:var(--base03);font-size:0.85rem">Posts with this tag will also appear in searches for these tags.</span>
+  </div>
   <button type="submit" class="btn btn-primary">Save</button>
   {{if not .IsNew}}
   <button type="button" class="btn btn-danger"

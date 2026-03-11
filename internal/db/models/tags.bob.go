@@ -51,6 +51,7 @@ type TagsQuery = *psql.ViewQuery[*Tag, TagSlice]
 type tagR struct {
 	Posts       PostSlice     // posts_tags.posts_tags_post_id_fkeyposts_tags.posts_tags_tag_id_fkey
 	TagAliases  TagAliasSlice // tag_aliases.tag_aliases_tag_id_fkey
+	Tags        TagSlice      // tag_cascades.tag_cascades_cascaded_tag_id_fkeytag_cascades.tag_cascades_tag_id_fkey
 	TagCategory *TagCategory  // tags.tags_tag_category_id_fkey
 }
 
@@ -581,6 +582,35 @@ func (os TagSlice) TagAliases(mods ...bob.Mod[*dialect.SelectQuery]) TagAliasesQ
 	)...)
 }
 
+// Tags starts a query for related objects on tags
+func (o *Tag) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
+	return Tags.Query(append(mods,
+		sm.InnerJoin(TagCascades.NameAs()).On(
+			Tags.Columns.ID.EQ(TagCascades.Columns.TagID)),
+		sm.Where(TagCascades.Columns.CascadedTagID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os TagSlice) Tags(mods ...bob.Mod[*dialect.SelectQuery]) TagsQuery {
+	pkID := make(pgtypes.Array[uuid.UUID], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "uuid[]")),
+	))
+
+	return Tags.Query(append(mods,
+		sm.InnerJoin(TagCascades.NameAs()).On(
+			Tags.Columns.ID.EQ(TagCascades.Columns.TagID),
+		),
+		sm.Where(psql.Group(TagCascades.Columns.CascadedTagID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // TagCategory starts a query for related objects on tag_categories
 func (o *Tag) TagCategory(mods ...bob.Mod[*dialect.SelectQuery]) TagCategoriesQuery {
 	return TagCategories.Query(append(mods,
@@ -738,6 +768,71 @@ func (tag0 *Tag) AttachTagAliases(ctx context.Context, exec bob.Executor, relate
 	return nil
 }
 
+func attachTagTags0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, tags2 TagSlice) (TagCascadeSlice, error) {
+	setters := make([]*TagCascadeSetter, count)
+	for i := range count {
+		setters[i] = &TagCascadeSetter{
+			CascadedTagID: func() *uuid.UUID { return &tag0.ID }(),
+			TagID:         func() *uuid.UUID { return &tags2[i].ID }(),
+		}
+	}
+
+	tagCascades1, err := TagCascades.Insert(bob.ToMods(setters...)).All(ctx, exec)
+	if err != nil {
+		return nil, fmt.Errorf("attachTagTags0: %w", err)
+	}
+
+	return tagCascades1, nil
+}
+
+func (tag0 *Tag) InsertTags(ctx context.Context, exec bob.Executor, related ...*TagSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	inserted, err := Tags.Insert(bob.ToMods(related...)).All(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+	tags2 := TagSlice(inserted)
+
+	_, err = attachTagTags0(ctx, exec, len(related), tag0, tags2)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.Tags = append(tag0.R.Tags, tags2...)
+
+	for _, rel := range tags2 {
+		rel.R.Tags = append(rel.R.Tags, tag0)
+	}
+	return nil
+}
+
+func (tag0 *Tag) AttachTags(ctx context.Context, exec bob.Executor, related ...*Tag) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	tags2 := TagSlice(related)
+
+	_, err = attachTagTags0(ctx, exec, len(related), tag0, tags2)
+	if err != nil {
+		return err
+	}
+
+	tag0.R.Tags = append(tag0.R.Tags, tags2...)
+
+	for _, rel := range related {
+		rel.R.Tags = append(rel.R.Tags, tag0)
+	}
+
+	return nil
+}
+
 func attachTagTagCategory0(ctx context.Context, exec bob.Executor, count int, tag0 *Tag, tagCategory1 *TagCategory) (*Tag, error) {
 	setter := &TagSetter{
 		TagCategoryID: func() *sql.Null[uuid.UUID] { v := sql.Null[uuid.UUID]{V: tagCategory1.ID, Valid: true}; return &v }(),
@@ -844,6 +939,20 @@ func (o *Tag) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "Tags":
+		rels, ok := retrieved.(TagSlice)
+		if !ok {
+			return fmt.Errorf("tag cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.Tags = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.Tags = TagSlice{o}
+			}
+		}
+		return nil
 	case "TagCategory":
 		rel, ok := retrieved.(*TagCategory)
 		if !ok {
@@ -886,6 +995,7 @@ func buildTagPreloader() tagPreloader {
 type tagThenLoader[Q orm.Loadable] struct {
 	Posts       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TagAliases  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Tags        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TagCategory func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
@@ -895,6 +1005,9 @@ func buildTagThenLoader[Q orm.Loadable]() tagThenLoader[Q] {
 	}
 	type TagAliasesLoadInterface interface {
 		LoadTagAliases(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type TagsLoadInterface interface {
+		LoadTags(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type TagCategoryLoadInterface interface {
 		LoadTagCategory(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -911,6 +1024,12 @@ func buildTagThenLoader[Q orm.Loadable]() tagThenLoader[Q] {
 			"TagAliases",
 			func(ctx context.Context, exec bob.Executor, retrieved TagAliasesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadTagAliases(ctx, exec, mods...)
+			},
+		),
+		Tags: thenLoadBuilder[Q](
+			"Tags",
+			func(ctx context.Context, exec bob.Executor, retrieved TagsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadTags(ctx, exec, mods...)
 			},
 		),
 		TagCategory: thenLoadBuilder[Q](
@@ -1064,6 +1183,87 @@ func (os TagSlice) LoadTagAliases(ctx context.Context, exec bob.Executor, mods .
 	return nil
 }
 
+// LoadTags loads the tag's Tags into the .R struct
+func (o *Tag) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.Tags = nil
+
+	related, err := o.Tags(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.Tags = TagSlice{o}
+	}
+
+	o.R.Tags = related
+	return nil
+}
+
+// LoadTags loads the tag's Tags into the .R struct
+func (os TagSlice) LoadTags(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	// since we are changing the columns, we need to check if the original columns were set or add the defaults
+	sq := dialect.SelectQuery{}
+	for _, mod := range mods {
+		mod.Apply(&sq)
+	}
+
+	if len(sq.SelectList.Columns) == 0 {
+		mods = append(mods, sm.Columns(Tags.Columns))
+	}
+
+	q := os.Tags(append(
+		mods,
+		sm.Columns(TagCascades.Columns.CascadedTagID.As("related_tags.ID")),
+	)...)
+
+	IDSlice := []uuid.UUID{}
+
+	mapper := scan.Mod(scan.StructMapper[*Tag](), func(ctx context.Context, cols []string) (scan.BeforeFunc, func(any, any) error) {
+		return func(row *scan.Row) (any, error) {
+				IDSlice = append(IDSlice, *new(uuid.UUID))
+				row.ScheduleScanByName("related_tags.ID", &IDSlice[len(IDSlice)-1])
+
+				return nil, nil
+			},
+			func(any, any) error {
+				return nil
+			}
+	})
+
+	tags, err := bob.Allx[bob.SliceTransformer[*Tag, TagSlice]](ctx, exec, q, mapper)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.Tags = nil
+	}
+
+	for _, o := range os {
+		for i, rel := range tags {
+			if !(o.ID == IDSlice[i]) {
+				continue
+			}
+
+			rel.R.Tags = append(rel.R.Tags, o)
+
+			o.R.Tags = append(o.R.Tags, rel)
+		}
+	}
+
+	return nil
+}
+
 // LoadTagCategory loads the tag's TagCategory into the .R struct
 func (o *Tag) LoadTagCategory(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -1123,6 +1323,7 @@ type tagJoins[Q dialect.Joinable] struct {
 	typ         string
 	Posts       modAs[Q, postColumns]
 	TagAliases  modAs[Q, tagAliasColumns]
+	Tags        modAs[Q, tagColumns]
 	TagCategory modAs[Q, tagCategoryColumns]
 }
 
@@ -1163,6 +1364,28 @@ func buildTagJoins[Q dialect.Joinable](cols tagColumns, typ string) tagJoins[Q] 
 				{
 					mods = append(mods, dialect.Join[Q](typ, TagAliases.Name().As(to.Alias())).On(
 						to.TagID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
+		Tags: modAs[Q, tagColumns]{
+			c: Tags.Columns,
+			f: func(to tagColumns) bob.Mod[Q] {
+				random := strconv.FormatInt(randInt(), 10)
+				mods := make(mods.QueryMods[Q], 0, 2)
+
+				{
+					to := TagCascades.Columns.AliasedAs(TagCascades.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, TagCascades.Name().As(to.Alias())).On(
+						to.CascadedTagID.EQ(cols.ID),
+					))
+				}
+				{
+					cols := TagCascades.Columns.AliasedAs(TagCascades.Columns.Alias() + random)
+					mods = append(mods, dialect.Join[Q](typ, Tags.Name().As(to.Alias())).On(
+						to.ID.EQ(cols.TagID),
 					))
 				}
 

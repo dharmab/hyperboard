@@ -17,6 +17,7 @@ type Factory struct {
 	basePostMods        PostModSlice
 	basePostsTagMods    PostsTagModSlice
 	baseTagAliasMods    TagAliasModSlice
+	baseTagCascadeMods  TagCascadeModSlice
 	baseTagCategoryMods TagCategoryModSlice
 	baseTagMods         TagModSlice
 }
@@ -156,6 +157,39 @@ func (f *Factory) FromExistingTagAlias(m *models.TagAlias) *TagAliasTemplate {
 	return o
 }
 
+func (f *Factory) NewTagCascade(mods ...TagCascadeMod) *TagCascadeTemplate {
+	return f.NewTagCascadeWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewTagCascadeWithContext(ctx context.Context, mods ...TagCascadeMod) *TagCascadeTemplate {
+	o := &TagCascadeTemplate{f: f}
+
+	if f != nil {
+		f.baseTagCascadeMods.Apply(ctx, o)
+	}
+
+	TagCascadeModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingTagCascade(m *models.TagCascade) *TagCascadeTemplate {
+	o := &TagCascadeTemplate{f: f, alreadyPersisted: true}
+
+	o.TagID = func() uuid.UUID { return m.TagID }
+	o.CascadedTagID = func() uuid.UUID { return m.CascadedTagID }
+
+	ctx := context.Background()
+	if m.R.CascadedTagTag != nil {
+		TagCascadeMods.WithExistingCascadedTagTag(m.R.CascadedTagTag).Apply(ctx, o)
+	}
+	if m.R.Tag != nil {
+		TagCascadeMods.WithExistingTag(m.R.Tag).Apply(ctx, o)
+	}
+
+	return o
+}
+
 func (f *Factory) NewTagCategory(mods ...TagCategoryMod) *TagCategoryTemplate {
 	return f.NewTagCategoryWithContext(context.Background(), mods...)
 }
@@ -223,6 +257,9 @@ func (f *Factory) FromExistingTag(m *models.Tag) *TagTemplate {
 	if len(m.R.TagAliases) > 0 {
 		TagMods.AddExistingTagAliases(m.R.TagAliases...).Apply(ctx, o)
 	}
+	if len(m.R.Tags) > 0 {
+		TagMods.AddExistingTags(m.R.Tags...).Apply(ctx, o)
+	}
 	if m.R.TagCategory != nil {
 		TagMods.WithExistingTagCategory(m.R.TagCategory).Apply(ctx, o)
 	}
@@ -260,6 +297,14 @@ func (f *Factory) ClearBaseTagAliasMods() {
 
 func (f *Factory) AddBaseTagAliasMod(mods ...TagAliasMod) {
 	f.baseTagAliasMods = append(f.baseTagAliasMods, mods...)
+}
+
+func (f *Factory) ClearBaseTagCascadeMods() {
+	f.baseTagCascadeMods = nil
+}
+
+func (f *Factory) AddBaseTagCascadeMod(mods ...TagCascadeMod) {
+	f.baseTagCascadeMods = append(f.baseTagCascadeMods, mods...)
 }
 
 func (f *Factory) ClearBaseTagCategoryMods() {

@@ -18,15 +18,61 @@ import (
 )
 
 func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams) (models.PostSlice, bool, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	mods := []bob.Mod[*dialect.SelectQuery]{}
 
-	// Apply tag inclusion filters
+	// Apply tag inclusion filters (direct tags + cascading tags)
 	for _, tagName := range params.Query.IncludedTags {
-		resolved, err := s.ResolveAlias(ctx, tagName)
+		resolved, err := s.resolveAliasWithExec(ctx, tx, tagName)
 		if err != nil {
 			return nil, false, err
 		}
-		mods = append(mods, sm.Where(psql.F("EXISTS",
+		mods = append(mods, sm.Where(psql.Or(
+			// Direct tag match
+			psql.F("EXISTS",
+				psql.Select(
+					sm.Columns(psql.S("1")),
+					sm.From("posts_tags"),
+					sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+					sm.Where(psql.And(
+						models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
+						models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
+					)),
+				),
+			),
+			// Cascade match: post has a tag that cascades to the searched tag
+			psql.F("EXISTS",
+				psql.Select(
+					sm.Columns(psql.S("1")),
+					sm.From("posts_tags"),
+					sm.InnerJoin("tag_cascades").On(
+						models.PostsTags.Columns.TagID.EQ(psql.Raw("tag_cascades.tag_id")),
+					),
+					sm.InnerJoin("tags").On(
+						psql.Raw("tag_cascades.cascaded_tag_id").EQ(models.Tags.Columns.ID),
+					),
+					sm.Where(psql.And(
+						models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
+						models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
+					)),
+				),
+			),
+		)))
+	}
+
+	// Apply tag exclusion filters (direct tags + cascading tags)
+	for _, tagName := range params.Query.ExcludedTags {
+		resolved, err := s.resolveAliasWithExec(ctx, tx, tagName)
+		if err != nil {
+			return nil, false, err
+		}
+		// Exclude posts with direct tag match
+		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
 			psql.Select(
 				sm.Columns(psql.S("1")),
 				sm.From("posts_tags"),
@@ -36,20 +82,18 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
 				)),
 			),
-		)))
-	}
-
-	// Apply tag exclusion filters
-	for _, tagName := range params.Query.ExcludedTags {
-		resolved, err := s.ResolveAlias(ctx, tagName)
-		if err != nil {
-			return nil, false, err
-		}
+		))))
+		// Exclude posts with cascade match
 		mods = append(mods, sm.Where(psql.Not(psql.F("EXISTS",
 			psql.Select(
 				sm.Columns(psql.S("1")),
 				sm.From("posts_tags"),
-				sm.InnerJoin("tags").OnEQ(models.PostsTags.Columns.TagID, models.Tags.Columns.ID),
+				sm.InnerJoin("tag_cascades").On(
+					models.PostsTags.Columns.TagID.EQ(psql.Raw("tag_cascades.tag_id")),
+				),
+				sm.InnerJoin("tags").On(
+					psql.Raw("tag_cascades.cascaded_tag_id").EQ(models.Tags.Columns.ID),
+				),
 				sm.Where(psql.And(
 					models.PostsTags.Columns.PostID.EQ(models.Posts.Columns.ID),
 					models.Tags.Columns.Name.EQ(psql.Arg(resolved)),
@@ -108,12 +152,12 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 			sm.Offset(int64(params.RandomOffset)),
 		)
 
-		posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+		posts, err := models.Posts.Query(mods...).All(ctx, tx)
 		if err != nil {
 			return nil, false, err
 		}
 
-		if err := posts.LoadTags(ctx, s.db); err != nil {
+		if err := posts.LoadTags(ctx, tx); err != nil {
 			return nil, false, err
 		}
 
@@ -146,12 +190,12 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 
 	mods = append(mods, sm.Limit(int64(params.Limit+1)))
 
-	posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+	posts, err := models.Posts.Query(mods...).All(ctx, tx)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if err := posts.LoadTags(ctx, s.db); err != nil {
+	if err := posts.LoadTags(ctx, tx); err != nil {
 		return nil, false, err
 	}
 
@@ -163,9 +207,15 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 }
 
 func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.Post, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	model, err := models.Posts.Query(
 		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -173,7 +223,7 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 		return nil, err
 	}
 
-	if err := model.LoadTags(ctx, s.db); err != nil {
+	if err := model.LoadTags(ctx, tx); err != nil {
 		return nil, err
 	}
 
@@ -185,21 +235,21 @@ func (s *PostgresSQLStore) CreatePost(ctx context.Context, setter *models.PostSe
 }
 
 func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note string, tagNames []string, now time.Time) (*models.Post, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	existingPost, err := models.Posts.Query(
 		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 
 	nowPtr := &now
 	err = existingPost.Update(ctx, tx, &models.PostSetter{
@@ -253,9 +303,15 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 }
 
 func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, setter *models.PostSetter) (*models.Post, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	existingPost, err := models.Posts.Query(
 		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -263,12 +319,16 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 		return nil, err
 	}
 
-	err = existingPost.Update(ctx, s.db, setter)
+	err = existingPost.Update(ctx, tx, setter)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = existingPost.LoadTags(ctx, s.db); err != nil {
+	if err = existingPost.LoadTags(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -276,9 +336,15 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 }
 
 func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	existingPost, err := models.Posts.Query(
 		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -287,7 +353,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	}
 
 	nowPtr := &now
-	err = existingPost.Update(ctx, s.db, &models.PostSetter{
+	err = existingPost.Update(ctx, tx, &models.PostSetter{
 		ThumbnailURL: &thumbnailURL,
 		UpdatedAt:    nowPtr,
 	})
@@ -295,7 +361,11 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 		return nil, err
 	}
 
-	if err := existingPost.LoadTags(ctx, s.db); err != nil {
+	if err := existingPost.LoadTags(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -303,9 +373,15 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 }
 
 func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	post, err := models.Posts.Query(
 		sm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -315,8 +391,12 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 
 	_, err = models.Posts.Delete(
 		dm.Where(models.Posts.Columns.ID.EQ(psql.Arg(id))),
-	).Exec(ctx, s.db)
+	).Exec(ctx, tx)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -337,6 +417,12 @@ func (s *PostgresSQLStore) FindPostBySha256(ctx context.Context, hash string) (*
 }
 
 func (s *PostgresSQLStore) FindSimilarPosts(ctx context.Context, excludeID uuid.UUID, pHash int64, limit int) (models.PostSlice, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	phashHamming := dialect.NewFunction("bit_count",
 		psql.Cast(psql.Group(models.Posts.Columns.Phash.OP("#", psql.Arg(pHash))), "bit(64)"),
 	)
@@ -351,12 +437,12 @@ func (s *PostgresSQLStore) FindSimilarPosts(ctx context.Context, excludeID uuid.
 		mods = append(mods, sm.Where(models.Posts.Columns.ID.NE(psql.Arg(excludeID))))
 	}
 
-	posts, err := models.Posts.Query(mods...).All(ctx, s.db)
+	posts, err := models.Posts.Query(mods...).All(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := posts.LoadTags(ctx, s.db); err != nil {
+	if err := posts.LoadTags(ctx, tx); err != nil {
 		return nil, err
 	}
 
