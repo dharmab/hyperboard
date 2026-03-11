@@ -552,13 +552,16 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 	}
 
 	if tagCatID.Valid {
-		var cn string
-		err = tx.QueryRowContext(ctx, "SELECT name FROM tag_categories WHERE id = $1", tagCatID.V).Scan(&cn)
+		cat := &models.TagCategory{}
+		err = tx.QueryRowContext(ctx,
+			"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE id = $1",
+			tagCatID.V,
+		).Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil {
-			tag.Category = &models.TagCategory{Name: cn}
+			tag.Category = cat
 		}
 	}
 
