@@ -19,9 +19,12 @@ func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string
 	if cursor != nil {
 		query += ` WHERE name > $1`
 		args = append(args, *cursor)
+		args = append(args, limit+1)
+		query += ` ORDER BY name ASC LIMIT $2`
+	} else {
+		args = append(args, limit+1)
+		query += ` ORDER BY name ASC LIMIT $1`
 	}
-
-	query += ` ORDER BY name ASC LIMIT ` + strconv.Itoa(limit+1)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

@@ -109,10 +109,8 @@ WHERE pt.post_id = posts.id AND t.name = %s
 		limitArg := argN(params.Limit + 1)
 		offsetArg := argN(params.RandomOffset)
 
-		query := baseQuery + buildWhereSQL() + fmt.Sprintf(
-			` ORDER BY md5(id::text || %s) LIMIT %s OFFSET %s`,
-			seedArg, limitArg, offsetArg,
-		)
+		query := baseQuery + buildWhereSQL() +
+			` ORDER BY md5(id::text || ` + seedArg + `) LIMIT ` + limitArg + ` OFFSET ` + offsetArg
 
 		posts, err := s.queryPosts(ctx, tx, query, args...)
 		if err != nil {
@@ -130,25 +128,26 @@ WHERE pt.post_id = posts.id AND t.name = %s
 		return posts, hasMore, nil
 	}
 
-	sortCol := "created_at"
-	if params.Query.Sort == search.SortUpdatedAt {
-		sortCol = "updated_at"
-	}
+	sortByUpdated := params.Query.Sort == search.SortUpdatedAt
 
 	if params.CursorTime != nil && params.CursorID != nil {
 		t1 := argN(*params.CursorTime)
 		t2 := argN(*params.CursorTime)
 		id1 := argN(*params.CursorID)
-		whereParts = append(whereParts, fmt.Sprintf(`(%s < %s OR (%s = %s AND id < %s))`,
-			sortCol, t1, sortCol, t2, id1,
-		))
+		if sortByUpdated {
+			whereParts = append(whereParts, `(updated_at < `+t1+` OR (updated_at = `+t2+` AND id < `+id1+`))`)
+		} else {
+			whereParts = append(whereParts, `(created_at < `+t1+` OR (created_at = `+t2+` AND id < `+id1+`))`)
+		}
 	}
 
 	limitArg := argN(params.Limit + 1)
-	query := baseQuery + buildWhereSQL() + fmt.Sprintf(
-		` ORDER BY %s DESC, id DESC LIMIT %s`,
-		sortCol, limitArg,
-	)
+	var query string
+	if sortByUpdated {
+		query = baseQuery + buildWhereSQL() + ` ORDER BY updated_at DESC, id DESC LIMIT ` + limitArg
+	} else {
+		query = baseQuery + buildWhereSQL() + ` ORDER BY created_at DESC, id DESC LIMIT ` + limitArg
+	}
 
 	posts, err := s.queryPosts(ctx, tx, query, args...)
 	if err != nil {

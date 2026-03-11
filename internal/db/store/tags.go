@@ -33,9 +33,12 @@ func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit i
 	if cursor != nil {
 		query += ` WHERE name > $1`
 		args = append(args, *cursor)
+		args = append(args, limit+1)
+		query += ` ORDER BY name ASC LIMIT $2`
+	} else {
+		args = append(args, limit+1)
+		query += ` ORDER BY name ASC LIMIT $1`
 	}
-
-	query += ` ORDER BY name ASC LIMIT ` + strconv.Itoa(limit+1)
 
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
