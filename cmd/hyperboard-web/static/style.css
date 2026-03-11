@@ -255,6 +255,10 @@ button:hover,
   margin-right: auto;
 }
 
+.post-media-info a {
+  color: inherit;
+}
+
 .media-mode-option {
   color: var(--base03);
   cursor: pointer;

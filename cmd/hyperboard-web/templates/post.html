@@ -5,7 +5,7 @@
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls">
-  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · {{.FileSize | formatSize}}{{end}}</span>
+  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}</span>
   <span id="media-mode-fit" class="media-mode-option media-mode-option--active" onclick="setMediaMode('fit')">Fit</span>
   <span class="media-mode-sep">/</span>
   <span id="media-mode-fill" class="media-mode-option" onclick="setMediaMode('fill')">Fill</span>
@@ -14,7 +14,7 @@
   {{if .IsVideo}}
   <video controls src="{{.Post.ContentUrl | mediaUrl}}"></video>
   {{else}}
-  <img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post">
+  <a href="{{.Post.ContentUrl | mediaUrl}}"><img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post"></a>
   {{end}}
 </div>
 <script>
