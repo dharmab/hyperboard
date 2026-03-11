@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/dharmab/hyperboard/internal/db/store"
 	pkgtypes "github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 )
 
-func insertTestPost(t *testing.T, opts ...func(*models.PostSetter)) *models.Post {
+func insertTestPost(t *testing.T, opts ...func(*store.CreatePostInput)) *models.Post {
 	t.Helper()
 	ctx := t.Context()
 	id := uuid.Must(uuid.NewV4())
@@ -21,22 +22,22 @@ func insertTestPost(t *testing.T, opts ...func(*models.PostSetter)) *models.Post
 	contentURL := "http://fake-storage/posts/" + id.String() + "/content.webp"
 	thumbnailURL := "http://fake-storage/posts/" + id.String() + "/thumbnail.webp"
 	sha := id.String() // unique per test
-	now := new(time.Now().UTC())
+	now := time.Now().UTC()
 	hasAudio := false
-	setter := &models.PostSetter{
-		ID:           &id,
-		MimeType:     &mime,
-		ContentURL:   &contentURL,
-		ThumbnailURL: &thumbnailURL,
-		HasAudio:     &hasAudio,
-		Sha256:       &sha,
+	input := store.CreatePostInput{
+		ID:           id,
+		MimeType:     mime,
+		ContentURL:   contentURL,
+		ThumbnailURL: thumbnailURL,
+		HasAudio:     hasAudio,
+		Sha256:       sha,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
 	for _, opt := range opts {
-		opt(setter)
+		opt(&input)
 	}
-	post, err := models.Posts.Insert(setter).One(ctx, testDB)
+	post, err := testSQLStore.CreatePost(ctx, input)
 	if err != nil {
 		t.Fatalf("failed to insert test post: %v", err)
 	}
@@ -154,9 +155,9 @@ func TestGetPostsSearch(t *testing.T) {
 	tag2Name := "search-tag2-" + uuid.Must(uuid.NewV4()).String()[:8]
 
 	// Tag post1 with tag1
-	tagPost(t, srv, post1.ID, tag1Name)
+	tagPost(t, post1.ID, tag1Name)
 	// Tag post2 with tag2
-	tagPost(t, srv, post2.ID, tag2Name)
+	tagPost(t, post2.ID, tag2Name)
 
 	t.Run("search by tag inclusion", func(t *testing.T) {
 		search := tag1Name
@@ -323,27 +324,29 @@ func TestGetPostsSortRandom(t *testing.T) {
 	})
 }
 
-func tagPost(t *testing.T, srv *Server, postID uuid.UUID, tagName string) {
+func tagPost(t *testing.T, postID uuid.UUID, tagName string) {
 	t.Helper()
 	ctx := t.Context()
 
-	// Create the tag
-	now := new(time.Now().UTC())
-	tag, err := models.Tags.Insert(&models.TagSetter{
-		Name:      &tagName,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}).One(ctx, testDB)
+	now := time.Now().UTC()
+
+	// Create tag using raw SQL
+	_, err := testSQLDB.ExecContext(ctx,
+		"INSERT INTO tags (name, created_at, updated_at) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
+		tagName, now, now,
+	)
 	if err != nil {
 		t.Fatalf("failed to create tag: %v", err)
 	}
 
-	// Get the post model for AttachTags
-	post, err := models.FindPost(ctx, testDB, postID)
+	var tagID uuid.UUID
+	err = testSQLDB.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", tagName).Scan(&tagID)
 	if err != nil {
-		t.Fatalf("failed to find post: %v", err)
+		t.Fatalf("failed to find tag: %v", err)
 	}
-	if err := post.AttachTags(ctx, testDB, tag); err != nil {
+
+	_, err = testSQLDB.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2)", postID, tagID)
+	if err != nil {
 		t.Fatalf("failed to attach tag: %v", err)
 	}
 }

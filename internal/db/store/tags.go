@@ -11,11 +11,6 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/gofrs/uuid/v5"
-	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/dialect"
-	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit int) (models.TagSlice, bool, error) {
@@ -23,25 +18,81 @@ func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit i
 	if err != nil {
 		return nil, false, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.Tags.Columns.Name).Asc(),
-	}
-
+	var args []any
+	query := "SELECT id, name, description, tag_category_id, created_at, updated_at FROM tags"
 	if cursor != nil {
-		mods = append(mods, sm.Where(models.Tags.Columns.Name.GT(psql.Arg(*cursor))))
+		query += " WHERE name > $1"
+		args = append(args, *cursor)
 	}
+	//nolint:gosec // placeholders are parameterized $N values, not user input
+	query += " ORDER BY name ASC LIMIT $" + strconv.Itoa(len(args)+1)
+	args = append(args, limit+1)
 
-	mods = append(mods, sm.Limit(int64(limit+1)))
-
-	tags, err := models.Tags.Query(mods...).All(ctx, tx)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, false, err
 	}
+	defer func() { _ = rows.Close() }()
 
-	if err := tags.LoadTagCategory(ctx, tx); err != nil {
+	var tags models.TagSlice
+	categoryIDs := make(map[uuid.UUID]struct{})
+	for rows.Next() {
+		var tag models.Tag
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Description, &tag.TagCategoryID, &tag.CreatedAt, &tag.UpdatedAt); err != nil {
+			return nil, false, err
+		}
+		tags = append(tags, &tag)
+		if tag.TagCategoryID.Valid {
+			categoryIDs[tag.TagCategoryID.V] = struct{}{}
+		}
+	}
+	if err := rows.Err(); err != nil {
 		return nil, false, err
+	}
+
+	// Batch-load tag categories
+	if len(categoryIDs) > 0 {
+		ids := make([]any, 0, len(categoryIDs))
+		var placeholders strings.Builder
+		i := 0
+		for id := range categoryIDs {
+			if i > 0 {
+				placeholders.WriteString(", ")
+			}
+			placeholders.WriteString("$" + strconv.Itoa(i+1))
+			ids = append(ids, id)
+			i++
+		}
+
+		//nolint:gosec // placeholders are parameterized $N values, not user input
+		catRows, err := tx.QueryContext(ctx,
+			"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE id IN ("+placeholders.String()+")",
+			ids...,
+		)
+		if err != nil {
+			return nil, false, err
+		}
+		defer func() { _ = catRows.Close() }()
+
+		categories := make(map[uuid.UUID]*models.TagCategory)
+		for catRows.Next() {
+			var cat models.TagCategory
+			if err := catRows.Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt); err != nil {
+				return nil, false, err
+			}
+			categories[cat.ID] = &cat
+		}
+		if err := catRows.Err(); err != nil {
+			return nil, false, err
+		}
+
+		for _, tag := range tags {
+			if tag.TagCategoryID.Valid {
+				tag.TagCategory = categories[tag.TagCategoryID.V]
+			}
+		}
 	}
 
 	hasMore := len(tags) > limit
@@ -56,11 +107,13 @@ func (s *PostgresSQLStore) GetTag(ctx context.Context, name string) (*models.Tag
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	model, err := models.Tags.Query(
-		sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
-	).One(ctx, tx)
+	var tag models.Tag
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, name, description, tag_category_id, created_at, updated_at FROM tags WHERE name = $1",
+		name,
+	).Scan(&tag.ID, &tag.Name, &tag.Description, &tag.TagCategoryID, &tag.CreatedAt, &tag.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -68,13 +121,21 @@ func (s *PostgresSQLStore) GetTag(ctx context.Context, name string) (*models.Tag
 		return nil, err
 	}
 
-	if model.TagCategoryID.Valid {
-		if err := model.LoadTagCategory(ctx, tx); err != nil {
+	if tag.TagCategoryID.Valid {
+		var cat models.TagCategory
+		err = tx.QueryRowContext(ctx,
+			"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE id = $1",
+			tag.TagCategoryID.V,
+		).Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
+		}
+		if err == nil {
+			tag.TagCategory = &cat
 		}
 	}
 
-	return model, nil
+	return &tag, nil
 }
 
 func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input TagInput, now time.Time) (*models.Tag, bool, error) {
@@ -82,43 +143,38 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 	if err != nil {
 		return nil, false, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	existing, err := models.Tags.Query(
-		sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(urlName))),
-	).One(ctx, tx)
+	var existing models.Tag
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, name, description, tag_category_id, created_at, updated_at FROM tags WHERE name = $1",
+		urlName,
+	).Scan(&existing.ID, &existing.Name, &existing.Description, &existing.TagCategoryID, &existing.CreatedAt, &existing.UpdatedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, false, err
 	}
 
-	nowPtr := &now
-	var resultModel *models.Tag
-	isCreate := existing == nil
+	var resultModel models.Tag
+	isCreate := errors.Is(err, sql.ErrNoRows)
 
-	if existing != nil {
-		err = existing.Update(ctx, tx, &models.TagSetter{
-			Name:          &input.Name,
-			Description:   &input.Description,
-			TagCategoryID: &input.TagCategoryID,
-			UpdatedAt:     nowPtr,
-		})
+	if !isCreate {
+		_, err = tx.ExecContext(ctx,
+			"UPDATE tags SET name = $1, description = $2, tag_category_id = $3, updated_at = $4 WHERE id = $5",
+			input.Name, input.Description, input.TagCategoryID, now, existing.ID,
+		)
 		if err != nil {
 			return nil, false, err
 		}
-		existing.Name = input.Name
-		existing.Description = input.Description
-		existing.TagCategoryID = input.TagCategoryID
 		resultModel = existing
+		resultModel.Name = input.Name
+		resultModel.Description = input.Description
+		resultModel.TagCategoryID = input.TagCategoryID
+		resultModel.UpdatedAt = now
 	} else {
-		resultModel, err = models.Tags.Insert(
-			&models.TagSetter{
-				Name:          &input.Name,
-				Description:   &input.Description,
-				TagCategoryID: &input.TagCategoryID,
-				CreatedAt:     nowPtr,
-				UpdatedAt:     nowPtr,
-			},
-		).One(ctx, tx)
+		err = tx.QueryRowContext(ctx,
+			"INSERT INTO tags (name, description, tag_category_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, tag_category_id, created_at, updated_at",
+			input.Name, input.Description, input.TagCategoryID, now, now,
+		).Scan(&resultModel.ID, &resultModel.Name, &resultModel.Description, &resultModel.TagCategoryID, &resultModel.CreatedAt, &resultModel.UpdatedAt)
 		if err != nil {
 			return nil, false, err
 		}
@@ -132,23 +188,29 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 		return nil, false, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, false, err
 	}
 
 	if resultModel.TagCategoryID.Valid {
-		if err := resultModel.LoadTagCategory(ctx, s.db); err != nil {
+		var cat models.TagCategory
+		err = s.db.QueryRowContext(ctx,
+			"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE id = $1",
+			resultModel.TagCategoryID.V,
+		).Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, false, err
+		}
+		if err == nil {
+			resultModel.TagCategory = &cat
 		}
 	}
 
-	return resultModel, isCreate, nil
+	return &resultModel, isCreate, nil
 }
 
 func (s *PostgresSQLStore) DeleteTag(ctx context.Context, name string) error {
-	_, err := models.Tags.Delete(
-		dm.Where(models.Tags.Columns.Name.EQ(psql.Arg(name))),
-	).Exec(ctx, s.db)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM tags WHERE name = $1", name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -174,6 +236,7 @@ func (s *PostgresSQLStore) GetTagPostCounts(ctx context.Context, tagIDs []uuid.U
 	}
 
 	// Count direct posts + posts that cascade to each tag
+	//nolint:gosec // placeholders are parameterized $N values, not user input
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT tag_id, COUNT(DISTINCT post_id) FROM (
 			SELECT tag_id, post_id FROM posts_tags WHERE tag_id IN (`+placeholders.String()+`)
@@ -217,6 +280,7 @@ func (s *PostgresSQLStore) GetTagAliases(ctx context.Context, ids ...uuid.UUID) 
 		args[i] = id
 	}
 
+	//nolint:gosec // placeholders are parameterized $N values, not user input
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT tag_id, alias_name FROM tag_aliases WHERE tag_id IN ("+placeholders.String()+") ORDER BY alias_name",
 		args...,
@@ -258,32 +322,22 @@ func (s *PostgresSQLStore) ResolveAlias(ctx context.Context, name string) (strin
 }
 
 // setTagAliases replaces all aliases for a tag with the given list.
-func (s *PostgresSQLStore) setTagAliases(ctx context.Context, exec bob.Executor, tagID uuid.UUID, aliases []string) error {
+func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID uuid.UUID, aliases []string) error {
 	for _, alias := range aliases {
 		if alias == "" {
 			continue
 		}
-		rows, err := exec.QueryContext(ctx, "SELECT COUNT(*) FROM tags WHERE name = $1", alias)
-		if err != nil {
-			return err
-		}
 		var count int
-		if rows.Next() {
-			err = rows.Scan(&count)
-		}
-		closeErr := rows.Close()
+		err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM tags WHERE name = $1", alias).Scan(&count)
 		if err != nil {
 			return err
-		}
-		if closeErr != nil {
-			return closeErr
 		}
 		if count > 0 {
 			return fmt.Errorf("%w: %q", ErrAliasConflict, alias)
 		}
 	}
 
-	_, err := exec.ExecContext(ctx, "DELETE FROM tag_aliases WHERE tag_id = $1", tagID)
+	_, err := tx.ExecContext(ctx, "DELETE FROM tag_aliases WHERE tag_id = $1", tagID)
 	if err != nil {
 		return err
 	}
@@ -291,7 +345,7 @@ func (s *PostgresSQLStore) setTagAliases(ctx context.Context, exec bob.Executor,
 		if alias == "" {
 			continue
 		}
-		_, err := exec.ExecContext(ctx,
+		_, err := tx.ExecContext(ctx,
 			"INSERT INTO tag_aliases (tag_id, alias_name) VALUES ($1, $2)",
 			tagID, alias,
 		)
@@ -317,6 +371,7 @@ func (s *PostgresSQLStore) GetTagCascades(ctx context.Context, ids ...uuid.UUID)
 		args[i] = id
 	}
 
+	//nolint:gosec // placeholders are parameterized $N values, not user input
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT tc.tag_id, t.name FROM tag_cascades tc JOIN tags t ON tc.cascaded_tag_id = t.id WHERE tc.tag_id IN ("+placeholders.String()+") ORDER BY t.name",
 		args...,
@@ -340,10 +395,8 @@ func (s *PostgresSQLStore) GetTagCascades(ctx context.Context, ids ...uuid.UUID)
 
 // setTagCascades replaces all cascades for a tag with the given list.
 // Each cascade target must be an existing tag (or alias that resolves to one) and must not be the tag itself.
-func (s *PostgresSQLStore) setTagCascades(ctx context.Context, exec bob.Executor, tagID uuid.UUID, cascades []string) error {
-	_, err := models.TagCascades.Delete(
-		dm.Where(models.TagCascades.Columns.TagID.EQ(psql.Arg(tagID))),
-	).Exec(ctx, exec)
+func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID uuid.UUID, cascades []string) error {
+	_, err := tx.ExecContext(ctx, "DELETE FROM tag_cascades WHERE tag_id = $1", tagID)
 	if err != nil {
 		return err
 	}
@@ -354,15 +407,14 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, exec bob.Executor
 		}
 
 		// Resolve alias to canonical tag name
-		resolved, err := s.resolveAliasWithExec(ctx, exec, name)
+		resolved, err := s.resolveAliasWithTx(ctx, tx, name)
 		if err != nil {
 			return err
 		}
 
 		// Look up the target tag
-		target, err := models.Tags.Query(
-			sm.Where(models.Tags.Columns.Name.EQ(psql.Arg(resolved))),
-		).One(ctx, exec)
+		var targetID uuid.UUID
+		err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", resolved).Scan(&targetID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("cascade target tag %q not found", name)
@@ -371,14 +423,14 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, exec bob.Executor
 		}
 
 		// Prevent self-cascade
-		if target.ID == tagID {
+		if targetID == tagID {
 			continue
 		}
 
-		_, err = models.TagCascades.Insert(&models.TagCascadeSetter{
-			TagID:         &tagID,
-			CascadedTagID: &target.ID,
-		}).Exec(ctx, exec)
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO tag_cascades (tag_id, cascaded_tag_id) VALUES ($1, $2)",
+			tagID, targetID,
+		)
 		if err != nil {
 			return err
 		}
@@ -414,7 +466,7 @@ func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid
 }
 
 func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, targetName string) (*ConvertTagToAliasResult, error) {
-	tx, err := s.db.DB.BeginTx(ctx, nil)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -514,15 +566,18 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 		UpdatedAt:     tagUpdatedAt,
 	}
 
-	// Load category name if present
+	// Load category if present
 	if tagCatID.Valid {
-		var cn string
-		err = tx.QueryRowContext(ctx, "SELECT name FROM tag_categories WHERE id = $1", tagCatID.V).Scan(&cn)
+		var cat models.TagCategory
+		err = tx.QueryRowContext(ctx,
+			"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE id = $1",
+			tagCatID.V,
+		).Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil {
-			tag.R.TagCategory = &models.TagCategory{Name: cn}
+			tag.TagCategory = &cat
 		}
 	}
 

@@ -10,26 +10,36 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/gofrs/uuid/v5"
-	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/dialect"
-	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string, limit int) (models.TagCategorySlice, bool, error) {
-	mods := []bob.Mod[*dialect.SelectQuery]{
-		sm.OrderBy(models.TagCategories.Columns.Name).Asc(),
-	}
+	var args []any
+	var query strings.Builder
+	query.WriteString("SELECT id, name, description, color, created_at, updated_at FROM tag_categories")
 
 	if cursor != nil {
-		mods = append(mods, sm.Where(models.TagCategories.Columns.Name.GT(psql.Arg(*cursor))))
+		query.WriteString(" WHERE name > $1")
+		args = append(args, *cursor)
 	}
 
-	mods = append(mods, sm.Limit(int64(limit+1)))
+	query.WriteString(" ORDER BY name ASC LIMIT $" + strconv.Itoa(len(args)+1))
+	args = append(args, limit+1)
 
-	categories, err := models.TagCategories.Query(mods...).All(ctx, s.db)
+	rows, err := s.db.QueryContext(ctx, query.String(), args...)
 	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+
+	var categories models.TagCategorySlice
+	for rows.Next() {
+		cat := &models.TagCategory{}
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt); err != nil {
+			return nil, false, err
+		}
+		categories = append(categories, cat)
+	}
+	if err := rows.Err(); err != nil {
 		return nil, false, err
 	}
 
@@ -41,16 +51,18 @@ func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string
 }
 
 func (s *PostgresSQLStore) GetTagCategory(ctx context.Context, name string) (*models.TagCategory, error) {
-	model, err := models.TagCategories.Query(
-		sm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(name))),
-	).One(ctx, s.db)
+	cat := &models.TagCategory{}
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE name = $1",
+		name,
+	).Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return model, nil
+	return cat, nil
 }
 
 func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string, input TagCategoryInput, now time.Time) (*models.TagCategory, bool, error) {
@@ -58,23 +70,22 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 	if err != nil {
 		return nil, false, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	existing, err := models.TagCategories.Query(
-		sm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(urlName))),
-	).One(ctx, tx)
+	existing := &models.TagCategory{}
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE name = $1",
+		urlName,
+	).Scan(&existing.ID, &existing.Name, &existing.Description, &existing.Color, &existing.CreatedAt, &existing.UpdatedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, false, err
 	}
 
-	nowPtr := &now
-	if existing != nil {
-		err = existing.Update(ctx, tx, &models.TagCategorySetter{
-			Name:        &input.Name,
-			Description: &input.Description,
-			Color:       &input.Color,
-			UpdatedAt:   nowPtr,
-		})
+	if err == nil {
+		_, err = tx.ExecContext(ctx,
+			"UPDATE tag_categories SET name = $1, description = $2, color = $3, updated_at = $4 WHERE id = $5",
+			input.Name, input.Description, input.Color, now, existing.ID,
+		)
 		if err != nil {
 			return nil, false, err
 		}
@@ -83,42 +94,30 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		existing.Color = input.Color
 		existing.UpdatedAt = now
 
-		if err := tx.Commit(ctx); err != nil {
+		if err := tx.Commit(); err != nil {
 			return nil, false, err
 		}
 		return existing, false, nil
 	}
 
-	inserted, err := models.TagCategories.Insert(
-		&models.TagCategorySetter{
-			Name:        &input.Name,
-			Description: &input.Description,
-			Color:       &input.Color,
-			CreatedAt:   nowPtr,
-			UpdatedAt:   nowPtr,
-		},
-	).One(ctx, tx)
+	inserted := &models.TagCategory{}
+	err = tx.QueryRowContext(ctx,
+		"INSERT INTO tag_categories (name, description, color, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, color, created_at, updated_at",
+		input.Name, input.Description, input.Color, now, now,
+	).Scan(&inserted.ID, &inserted.Name, &inserted.Description, &inserted.Color, &inserted.CreatedAt, &inserted.UpdatedAt)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, false, err
 	}
 	return inserted, true, nil
 }
 
 func (s *PostgresSQLStore) DeleteTagCategory(ctx context.Context, name string) error {
-	_, err := models.TagCategories.Delete(
-		dm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(name))),
-	).Exec(ctx, s.db)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
-		return err
-	}
-	return nil
+	_, err := s.db.ExecContext(ctx, "DELETE FROM tag_categories WHERE name = $1", name)
+	return err
 }
 
 func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID]int, error) {
@@ -136,6 +135,7 @@ func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryI
 		args[i] = id
 	}
 
+	//nolint:gosec // placeholders are parameterized $N values, not user input
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT tag_category_id, COUNT(*) FROM tags WHERE tag_category_id IN ("+placeholders.String()+") GROUP BY tag_category_id",
 		args...,

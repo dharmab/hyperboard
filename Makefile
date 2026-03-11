@@ -41,6 +41,4 @@ ci: build-images lint test
 
 clean:
 	find . -name 'gen.go' -delete
-	rm -f internal/db/models/*.bob*.go
-	rm -rf internal/db/factory internal/db/errors internal/db/schema
 	rm -f bin/hyperboard-api bin/hyperboard-web bin/hyperboardctl

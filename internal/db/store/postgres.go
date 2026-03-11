@@ -2,20 +2,19 @@ package store
 
 import (
 	"context"
-
-	"github.com/stephenafamo/bob"
+	"database/sql"
 )
 
-// PostgresSQLStore implements the Store interface using a PostgreSQL database via Bob ORM.
+// PostgresSQLStore implements the Store interface using a PostgreSQL database.
 type PostgresSQLStore struct {
-	db                  bob.DB
+	db                  *sql.DB
 	similarityThreshold int
 }
 
 var _ SQLStore = &PostgresSQLStore{}
 
-// NewPostgresSQLStore creates a new PostgresStore backed by the given bob.DB.
-func NewPostgresSQLStore(db bob.DB, similarityThreshold int) *PostgresSQLStore {
+// NewPostgresSQLStore creates a new PostgresStore backed by the given *sql.DB.
+func NewPostgresSQLStore(db *sql.DB, similarityThreshold int) *PostgresSQLStore {
 	return &PostgresSQLStore{
 		db:                  db,
 		similarityThreshold: similarityThreshold,

@@ -35,8 +35,8 @@ func postFromModel(model *models.Post) types.Post {
 	}
 
 	// Extract tag names from loaded tags
-	tagNames := make([]types.TagName, 0, len(model.R.Tags))
-	for _, tag := range model.R.Tags {
+	tagNames := make([]types.TagName, 0, len(model.Tags))
+	for _, tag := range model.Tags {
 		tagNames = append(tagNames, tag.Name)
 	}
 	post.Tags = tagNames
@@ -400,16 +400,19 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		return
 	}
 
-	id := postID
-	now := new(time.Now().UTC())
-	model, err := s.sqlStore.CreatePost(ctx, &models.PostSetter{
-		ID:           &id,
-		MimeType:     &contentMIME,
-		ContentURL:   &contentURL,
-		ThumbnailURL: &thumbnailURL,
-		HasAudio:     &hasAudioVal,
-		Sha256:       &hashHex,
-		Phash:        phashVal,
+	now := time.Now().UTC()
+	var phash sql.Null[int64]
+	if phashVal != nil {
+		phash = *phashVal
+	}
+	model, err := s.sqlStore.CreatePost(ctx, store.CreatePostInput{
+		ID:           postID,
+		MimeType:     contentMIME,
+		ContentURL:   contentURL,
+		ThumbnailURL: thumbnailURL,
+		HasAudio:     hasAudioVal,
+		Sha256:       hashHex,
+		Phash:        phash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	})
@@ -420,7 +423,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	logger.Info().Str("mime", contentMIME).Msg("post uploaded")
-	model.R.Tags = nil
+	model.Tags = nil
 	respond(w, http.StatusCreated, postFromModel(model))
 }
 
@@ -579,14 +582,18 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
 	}
 
-	now := new(time.Now().UTC())
-	model, err := s.sqlStore.UpdatePostContent(ctx, postID, &models.PostSetter{
-		MimeType:     &contentMIME,
-		ContentURL:   &contentURL,
-		ThumbnailURL: &thumbnailURL,
-		HasAudio:     &hasAudioVal,
-		Sha256:       &hashHex,
-		Phash:        phashVal,
+	now := time.Now().UTC()
+	var phash sql.Null[int64]
+	if phashVal != nil {
+		phash = *phashVal
+	}
+	model, err := s.sqlStore.UpdatePostContent(ctx, postID, store.UpdatePostContentInput{
+		MimeType:     contentMIME,
+		ContentURL:   contentURL,
+		ThumbnailURL: thumbnailURL,
+		HasAudio:     hasAudioVal,
+		Sha256:       hashHex,
+		Phash:        phash,
 		UpdatedAt:    now,
 	})
 	if err != nil {
