@@ -70,23 +70,6 @@ var TagAliases = Table[
 			Where:         "",
 			Include:       []string{},
 		},
-		IdxTagAliasesAliasName: index{
-			Type: "btree",
-			Name: "idx_tag_aliases_alias_name",
-			Columns: []indexColumn{
-				{
-					Name:         "alias_name",
-					Desc:         null.FromCond(false, true),
-					IsExpression: false,
-				},
-			},
-			Unique:        false,
-			Comment:       "",
-			NullsFirst:    []bool{false},
-			NullsDistinct: false,
-			Where:         "",
-			Include:       []string{},
-		},
 		IdxTagAliasesTagID: index{
 			Type: "btree",
 			Name: "idx_tag_aliases_tag_id",
@@ -164,14 +147,13 @@ func (c tagAliasColumns) AsSlice() []column {
 
 type tagAliasIndexes struct {
 	TagAliasesPkey         index
-	IdxTagAliasesAliasName index
 	IdxTagAliasesTagID     index
 	TagAliasesAliasNameKey index
 }
 
 func (i tagAliasIndexes) AsSlice() []index {
 	return []index{
-		i.TagAliasesPkey, i.IdxTagAliasesAliasName, i.IdxTagAliasesTagID, i.TagAliasesAliasNameKey,
+		i.TagAliasesPkey, i.IdxTagAliasesTagID, i.TagAliasesAliasNameKey,
 	}
 }
 

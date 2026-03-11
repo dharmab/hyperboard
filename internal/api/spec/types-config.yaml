@@ -2,6 +2,6 @@
 package: types
 generate:
   models: true
-output: ../../../pkg/types/gen.go
+output: gen.go
 output-options:
   skip-prune: true
