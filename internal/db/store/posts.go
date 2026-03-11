@@ -24,51 +24,62 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 	var whereParts []string
 	var args []any
 
-	argN := func(v any) string {
+	// appendArg adds a value to the args list and returns its 1-based index
+	// for use in SQL placeholder $N notation (e.g. $1, $2, ...).
+	// Only integer indices are ever embedded in SQL; all values go through args.
+	appendArg := func(v any) int {
 		args = append(args, v)
-		return "$" + strconv.Itoa(len(args))
+		return len(args)
 	}
 
 	for _, tagName := range params.Query.IncludedTags {
-		resolved, err := s.resolveAliasWithExec(ctx, tx, tagName)
-		if err != nil {
-			return nil, false, err
+		resolved, resolveErr := s.resolveAliasWithExec(ctx, tx, tagName)
+		if resolveErr != nil {
+			return nil, false, resolveErr
 		}
-		p1 := argN(resolved)
-		p2 := argN(resolved)
-		whereParts = append(whereParts, fmt.Sprintf(`(
+		// Use the same arg index in both the direct and cascade subqueries.
+		n := appendArg(resolved)
+		whereParts = append(whereParts, fmt.Sprintf(
+			`(
 EXISTS (
 SELECT 1 FROM posts_tags pt
 JOIN tags t ON pt.tag_id = t.id
-WHERE pt.post_id = posts.id AND t.name = %s
+WHERE pt.post_id = posts.id AND t.name = $%d
 )
 OR EXISTS (
 SELECT 1 FROM posts_tags pt
 JOIN tag_cascades tc ON pt.tag_id = tc.tag_id
 JOIN tags t ON tc.cascaded_tag_id = t.id
-WHERE pt.post_id = posts.id AND t.name = %s
+WHERE pt.post_id = posts.id AND t.name = $%d
 )
-)`, p1, p2))
+)`,
+			n, n,
+		))
 	}
 
 	for _, tagName := range params.Query.ExcludedTags {
-		resolved, err := s.resolveAliasWithExec(ctx, tx, tagName)
-		if err != nil {
-			return nil, false, err
+		resolved, resolveErr := s.resolveAliasWithExec(ctx, tx, tagName)
+		if resolveErr != nil {
+			return nil, false, resolveErr
 		}
-		p1 := argN(resolved)
-		p2 := argN(resolved)
-		whereParts = append(whereParts, fmt.Sprintf(`NOT EXISTS (
+		n := appendArg(resolved)
+		whereParts = append(whereParts, fmt.Sprintf(
+			`NOT EXISTS (
 SELECT 1 FROM posts_tags pt
 JOIN tags t ON pt.tag_id = t.id
-WHERE pt.post_id = posts.id AND t.name = %s
-)`, p1))
-		whereParts = append(whereParts, fmt.Sprintf(`NOT EXISTS (
+WHERE pt.post_id = posts.id AND t.name = $%d
+)`,
+			n,
+		))
+		whereParts = append(whereParts, fmt.Sprintf(
+			`NOT EXISTS (
 SELECT 1 FROM posts_tags pt
 JOIN tag_cascades tc ON pt.tag_id = tc.tag_id
 JOIN tags t ON tc.cascaded_tag_id = t.id
-WHERE pt.post_id = posts.id AND t.name = %s
-)`, p2))
+WHERE pt.post_id = posts.id AND t.name = $%d
+)`,
+			n,
+		))
 	}
 
 	if params.Query.Tagged != nil {
@@ -80,16 +91,19 @@ WHERE pt.post_id = posts.id AND t.name = %s
 	}
 
 	if params.Query.TypeImage {
-		whereParts = append(whereParts, "mime_type LIKE "+argN("image/%"))
+		n := appendArg("image/%")
+		whereParts = append(whereParts, fmt.Sprintf("mime_type LIKE $%d", n))
 	}
 	if params.Query.TypeVideo {
-		whereParts = append(whereParts, "mime_type LIKE "+argN("video/%"))
+		n := appendArg("video/%")
+		whereParts = append(whereParts, fmt.Sprintf("mime_type LIKE $%d", n))
 	}
 	if params.Query.TypeAudio {
-		whereParts = append(whereParts, "has_audio = "+argN(true))
+		n := appendArg(true)
+		whereParts = append(whereParts, fmt.Sprintf("has_audio = $%d", n))
 	}
 
-	baseQuery := `SELECT id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at FROM posts`
+	const baseQuery = `SELECT id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at FROM posts`
 
 	buildWhereSQL := func() string {
 		if len(whereParts) == 0 {
@@ -105,20 +119,22 @@ WHERE pt.post_id = posts.id AND t.name = %s
 			seed = &currentSeed
 		}
 
-		seedArg := argN(strconv.FormatInt(*seed, 10))
-		limitArg := argN(params.Limit + 1)
-		offsetArg := argN(params.RandomOffset)
+		seedN := appendArg(strconv.FormatInt(*seed, 10))
+		limitN := appendArg(params.Limit + 1)
+		offsetN := appendArg(params.RandomOffset)
 
-		query := baseQuery + buildWhereSQL() +
-			` ORDER BY md5(id::text || ` + seedArg + `) LIMIT ` + limitArg + ` OFFSET ` + offsetArg
+		var qb strings.Builder
+		qb.WriteString(baseQuery)
+		qb.WriteString(buildWhereSQL())
+		fmt.Fprintf(&qb, " ORDER BY md5(id::text || $%d) LIMIT $%d OFFSET $%d", seedN, limitN, offsetN)
 
-		posts, err := s.queryPosts(ctx, tx, query, args...)
-		if err != nil {
-			return nil, false, err
+		posts, queryErr := s.queryPosts(ctx, tx, qb.String(), args...)
+		if queryErr != nil {
+			return nil, false, queryErr
 		}
 
-		if err := s.loadPostTags(ctx, tx, posts); err != nil {
-			return nil, false, err
+		if loadErr := s.loadPostTags(ctx, tx, posts); loadErr != nil {
+			return nil, false, loadErr
 		}
 
 		hasMore := len(posts) > params.Limit
@@ -131,25 +147,33 @@ WHERE pt.post_id = posts.id AND t.name = %s
 	sortByUpdated := params.Query.Sort == search.SortUpdatedAt
 
 	if params.CursorTime != nil && params.CursorID != nil {
-		t1 := argN(*params.CursorTime)
-		t2 := argN(*params.CursorTime)
-		id1 := argN(*params.CursorID)
+		tsN := appendArg(*params.CursorTime)
+		idN := appendArg(*params.CursorID)
 		if sortByUpdated {
-			whereParts = append(whereParts, `(updated_at < `+t1+` OR (updated_at = `+t2+` AND id < `+id1+`))`)
+			whereParts = append(whereParts, fmt.Sprintf(
+				"(updated_at < $%d OR (updated_at = $%d AND id < $%d))",
+				tsN, tsN, idN,
+			))
 		} else {
-			whereParts = append(whereParts, `(created_at < `+t1+` OR (created_at = `+t2+` AND id < `+id1+`))`)
+			whereParts = append(whereParts, fmt.Sprintf(
+				"(created_at < $%d OR (created_at = $%d AND id < $%d))",
+				tsN, tsN, idN,
+			))
 		}
 	}
 
-	limitArg := argN(params.Limit + 1)
-	var query string
+	limitN := appendArg(params.Limit + 1)
+
+	var qb strings.Builder
+	qb.WriteString(baseQuery)
+	qb.WriteString(buildWhereSQL())
 	if sortByUpdated {
-		query = baseQuery + buildWhereSQL() + ` ORDER BY updated_at DESC, id DESC LIMIT ` + limitArg
+		fmt.Fprintf(&qb, " ORDER BY updated_at DESC, id DESC LIMIT $%d", limitN)
 	} else {
-		query = baseQuery + buildWhereSQL() + ` ORDER BY created_at DESC, id DESC LIMIT ` + limitArg
+		fmt.Fprintf(&qb, " ORDER BY created_at DESC, id DESC LIMIT $%d", limitN)
 	}
 
-	posts, err := s.queryPosts(ctx, tx, query, args...)
+	posts, err := s.queryPosts(ctx, tx, qb.String(), args...)
 	if err != nil {
 		return nil, false, err
 	}
@@ -175,43 +199,33 @@ func (s *PostgresSQLStore) queryPosts(ctx context.Context, q queryable, query st
 
 	var posts models.PostSlice
 	for rows.Next() {
-		p := &models.Post{}
-		if err := rows.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		post := &models.Post{}
+		if err := rows.Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt); err != nil {
 			return nil, err
 		}
-		posts = append(posts, p)
+		posts = append(posts, post)
 	}
 	return posts, rows.Err()
 }
 
-// loadPostTags batch-loads tags for a slice of posts.
+// loadPostTags batch-loads tags for a slice of posts using a single query with = ANY($1::uuid[]).
 func (s *PostgresSQLStore) loadPostTags(ctx context.Context, q queryable, posts models.PostSlice) error {
 	if len(posts) == 0 {
 		return nil
 	}
 
 	postIDs := make([]uuid.UUID, len(posts))
-	for i, p := range posts {
-		postIDs[i] = p.ID
-	}
-
-	args := make([]any, len(postIDs))
-	var placeholders strings.Builder
-	for i, id := range postIDs {
-		if i > 0 {
-			placeholders.WriteString(", ")
-		}
-		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
+	for i, post := range posts {
+		postIDs[i] = post.ID
 	}
 
 	rows, err := q.QueryContext(ctx,
 		`SELECT pt.post_id, t.id, t.name, t.description, t.tag_category_id, t.created_at, t.updated_at
  FROM posts_tags pt
  JOIN tags t ON pt.tag_id = t.id
- WHERE pt.post_id IN (`+placeholders.String()+`)
+ WHERE pt.post_id = ANY($1::uuid[])
  ORDER BY t.name`,
-		args...,
+		uuidArrayLiteral(postIDs),
 	)
 	if err != nil {
 		return err
@@ -221,18 +235,18 @@ func (s *PostgresSQLStore) loadPostTags(ctx context.Context, q queryable, posts 
 	tagsByPost := make(map[uuid.UUID]models.TagSlice)
 	for rows.Next() {
 		var postID uuid.UUID
-		t := &models.Tag{}
-		if err := rows.Scan(&postID, &t.ID, &t.Name, &t.Description, &t.TagCategoryID, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		tag := &models.Tag{}
+		if err := rows.Scan(&postID, &tag.ID, &tag.Name, &tag.Description, &tag.TagCategoryID, &tag.CreatedAt, &tag.UpdatedAt); err != nil {
 			return err
 		}
-		tagsByPost[postID] = append(tagsByPost[postID], t)
+		tagsByPost[postID] = append(tagsByPost[postID], tag)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 
-	for _, p := range posts {
-		p.Tags = tagsByPost[p.ID]
+	for _, post := range posts {
+		post.Tags = tagsByPost[post.ID]
 	}
 	return nil
 }
@@ -244,11 +258,11 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	p := &models.Post{}
+	post := &models.Post{}
 	err = tx.QueryRowContext(ctx,
 		`SELECT id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at FROM posts WHERE id = $1`,
 		id,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -256,25 +270,25 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 		return nil, err
 	}
 
-	if err := s.loadPostTags(ctx, tx, models.PostSlice{p}); err != nil {
+	if err := s.loadPostTags(ctx, tx, models.PostSlice{post}); err != nil {
 		return nil, err
 	}
 
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error) {
-	p := &models.Post{}
+	post := &models.Post{}
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO posts (id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at)
  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
  RETURNING id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at`,
 		input.ID, input.MimeType, input.ContentURL, input.ThumbnailURL, "", input.HasAudio, input.Sha256, input.Phash, input.CreatedAt, input.UpdatedAt,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note string, tagNames []string, now time.Time) (*models.Post, error) {
@@ -284,12 +298,12 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	p := &models.Post{}
+	post := &models.Post{}
 	err = tx.QueryRowContext(ctx,
 		`UPDATE posts SET note = $1, updated_at = $2 WHERE id = $3
  RETURNING id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at`,
 		note, now, id,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -332,7 +346,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 		}
 	}
 
-	if err := s.loadPostTags(ctx, tx, models.PostSlice{p}); err != nil {
+	if err := s.loadPostTags(ctx, tx, models.PostSlice{post}); err != nil {
 		return nil, err
 	}
 
@@ -340,7 +354,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 		return nil, err
 	}
 
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, input UpdatePostContentInput) (*models.Post, error) {
@@ -350,12 +364,12 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	p := &models.Post{}
+	post := &models.Post{}
 	err = tx.QueryRowContext(ctx,
 		`UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, updated_at = $7 WHERE id = $8
  RETURNING id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at`,
 		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.Sha256, input.Phash, input.UpdatedAt, id,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -363,7 +377,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 		return nil, err
 	}
 
-	if err := s.loadPostTags(ctx, tx, models.PostSlice{p}); err != nil {
+	if err := s.loadPostTags(ctx, tx, models.PostSlice{post}); err != nil {
 		return nil, err
 	}
 
@@ -371,7 +385,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 		return nil, err
 	}
 
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error) {
@@ -381,12 +395,12 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	p := &models.Post{}
+	post := &models.Post{}
 	err = tx.QueryRowContext(ctx,
 		`UPDATE posts SET thumbnail_url = $1, updated_at = $2 WHERE id = $3
  RETURNING id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at`,
 		thumbnailURL, now, id,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -394,7 +408,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 		return nil, err
 	}
 
-	if err := s.loadPostTags(ctx, tx, models.PostSlice{p}); err != nil {
+	if err := s.loadPostTags(ctx, tx, models.PostSlice{post}); err != nil {
 		return nil, err
 	}
 
@@ -402,7 +416,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 		return nil, err
 	}
 
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error) {
@@ -412,11 +426,11 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	p := &models.Post{}
+	post := &models.Post{}
 	err = tx.QueryRowContext(ctx,
 		`SELECT id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at FROM posts WHERE id = $1`,
 		id,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -433,22 +447,22 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 		return nil, err
 	}
 
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) FindPostBySha256(ctx context.Context, hash string) (*models.Post, error) {
-	p := &models.Post{}
+	post := &models.Post{}
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at FROM posts WHERE sha256 = $1`,
 		hash,
-	).Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&post.ID, &post.MimeType, &post.ContentURL, &post.ThumbnailURL, &post.Note, &post.HasAudio, &post.Sha256, &post.Phash, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return p, nil
+	return post, nil
 }
 
 func (s *PostgresSQLStore) FindSimilarPosts(ctx context.Context, excludeID uuid.UUID, pHash int64, limit int) (models.PostSlice, error) {

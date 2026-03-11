@@ -21,28 +21,28 @@ func (s *PostgresSQLStore) ListNotes(ctx context.Context) (models.NoteSlice, err
 
 	var notes models.NoteSlice
 	for rows.Next() {
-		n := &models.Note{}
-		if err := rows.Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		note := &models.Note{}
+		if err := rows.Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
 			return nil, err
 		}
-		notes = append(notes, n)
+		notes = append(notes, note)
 	}
 	return notes, rows.Err()
 }
 
 func (s *PostgresSQLStore) GetNote(ctx context.Context, id uuid.UUID) (*models.Note, error) {
-	n := &models.Note{}
+	note := &models.Note{}
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, title, content, created_at, updated_at FROM notes WHERE id = $1`,
 		id,
-	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
+	).Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return n, nil
+	return note, nil
 }
 
 func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string) (*models.Note, error) {
@@ -51,33 +51,33 @@ func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string
 		return nil, err
 	}
 	now := time.Now().UTC()
-	n := &models.Note{}
+	note := &models.Note{}
 	err = s.db.QueryRowContext(ctx,
 		`INSERT INTO notes (id, title, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)
  RETURNING id, title, content, created_at, updated_at`,
 		id, title, content, now, now,
-	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
+	).Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	return n, nil
+	return note, nil
 }
 
 func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error) {
 	now := time.Now().UTC()
-	n := &models.Note{}
+	note := &models.Note{}
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE notes SET title = $1, content = $2, updated_at = $3 WHERE id = $4
  RETURNING id, title, content, created_at, updated_at`,
 		title, content, now, id,
-	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
+	).Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return n, nil
+	return note, nil
 }
 
 func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
@@ -85,11 +85,11 @@ func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
+	rowCount, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	if rowCount == 0 {
 		return ErrNotFound
 	}
 	return nil

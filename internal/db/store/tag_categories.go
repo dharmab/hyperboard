@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
@@ -34,11 +32,11 @@ func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string
 
 	var categories models.TagCategorySlice
 	for rows.Next() {
-		c := &models.TagCategory{}
-		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Color, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		category := &models.TagCategory{}
+		if err := rows.Scan(&category.ID, &category.Name, &category.Description, &category.Color, &category.CreatedAt, &category.UpdatedAt); err != nil {
 			return nil, false, err
 		}
-		categories = append(categories, c)
+		categories = append(categories, category)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, false, err
@@ -52,18 +50,18 @@ func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string
 }
 
 func (s *PostgresSQLStore) GetTagCategory(ctx context.Context, name string) (*models.TagCategory, error) {
-	c := &models.TagCategory{}
+	category := &models.TagCategory{}
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, name, description, color, created_at, updated_at FROM tag_categories WHERE name = $1`,
 		name,
-	).Scan(&c.ID, &c.Name, &c.Description, &c.Color, &c.CreatedAt, &c.UpdatedAt)
+	).Scan(&category.ID, &category.Name, &category.Description, &category.Color, &category.CreatedAt, &category.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return c, nil
+	return category, nil
 }
 
 func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string, input TagCategoryInput, now time.Time) (*models.TagCategory, bool, error) {
@@ -122,11 +120,11 @@ func (s *PostgresSQLStore) DeleteTagCategory(ctx context.Context, name string) e
 	if err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
+	rowCount, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	if rowCount == 0 {
 		return ErrNotFound
 	}
 	return nil
@@ -137,19 +135,9 @@ func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryI
 		return map[uuid.UUID]int{}, nil
 	}
 
-	args := make([]any, len(categoryIDs))
-	var placeholders strings.Builder
-	for i, id := range categoryIDs {
-		if i > 0 {
-			placeholders.WriteString(", ")
-		}
-		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
-	}
-
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT tag_category_id, COUNT(*) FROM tags WHERE tag_category_id IN ("+placeholders.String()+") GROUP BY tag_category_id",
-		args...,
+		`SELECT tag_category_id, COUNT(*) FROM tags WHERE tag_category_id = ANY($1::uuid[]) GROUP BY tag_category_id`,
+		uuidArrayLiteral(categoryIDs),
 	)
 	if err != nil {
 		return nil, err

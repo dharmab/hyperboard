@@ -3,11 +3,14 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 )
@@ -256,4 +259,194 @@ func TestTagsIntegration(t *testing.T) {
 			t.Fatalf("GetTag status = %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
+}
+
+func TestTagCascadeCRUD(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	ctx := t.Context()
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	parentName := "cascade-crud-parent-" + suffix
+	childName := "cascade-crud-child-" + suffix
+
+	// Create child tag first.
+	childBody := types.Tag{Name: childName}
+	cb, err := json.Marshal(childBody)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	childReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+childName, bytes.NewReader(cb))
+	childReq.Header.Set("Content-Type", "application/json")
+	childW := httptest.NewRecorder()
+	srv.PutTag(childW, childReq, childName)
+	if childW.Code != http.StatusCreated {
+		t.Fatalf("PutTag child status = %d, want %d; body = %s", childW.Code, http.StatusCreated, childW.Body.String())
+	}
+
+	// Create parent tag with cascade to child.
+	cascades := []string{childName}
+	parentBody := types.Tag{Name: parentName, CascadingTags: &cascades}
+	pb, err := json.Marshal(parentBody)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	parentReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+parentName, bytes.NewReader(pb))
+	parentReq.Header.Set("Content-Type", "application/json")
+	parentW := httptest.NewRecorder()
+	srv.PutTag(parentW, parentReq, parentName)
+	if parentW.Code != http.StatusCreated {
+		t.Fatalf("PutTag parent status = %d, want %d; body = %s", parentW.Code, http.StatusCreated, parentW.Body.String())
+	}
+
+	// Retrieve parent and verify cascade is set.
+	getReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tags/"+parentName, nil)
+	getW := httptest.NewRecorder()
+	srv.GetTag(getW, getReq, parentName)
+	if getW.Code != http.StatusOK {
+		t.Fatalf("GetTag status = %d, want %d", getW.Code, http.StatusOK)
+	}
+	var got types.Tag
+	if err := json.NewDecoder(getW.Body).Decode(&got); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if got.CascadingTags == nil || len(*got.CascadingTags) != 1 || (*got.CascadingTags)[0] != childName {
+		t.Errorf("CascadingTags = %v, want [%q]", got.CascadingTags, childName)
+	}
+
+	// Verify GetPostCascadingTags via a tagged post.
+	// Don't use tagPost which would clear cascades by calling UpsertTag without CascadingTags.
+	post := insertTestPost(t)
+	_, err = testStore.UpdatePost(ctx, post.ID, "", []string{parentName}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("failed to tag post: %v", err)
+	}
+	cascadingTags, err := testStore.GetPostCascadingTags(ctx, post.ID)
+	if err != nil {
+		t.Fatalf("GetPostCascadingTags failed: %v", err)
+	}
+	found := false
+	for _, name := range cascadingTags {
+		if name == childName {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected child tag %q in cascading tags for post; got %v", childName, cascadingTags)
+	}
+}
+
+func TestConvertTagToAlias(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	sourceName := "convert-source-" + suffix
+	targetName := "convert-target-" + suffix
+
+	now := time.Now().UTC()
+
+	// Create source and target tags.
+	_, _, err := testStore.UpsertTag(ctx, sourceName, store.TagInput{Name: sourceName}, now)
+	if err != nil {
+		t.Fatalf("failed to create source tag: %v", err)
+	}
+	_, _, err = testStore.UpsertTag(ctx, targetName, store.TagInput{Name: targetName}, now)
+	if err != nil {
+		t.Fatalf("failed to create target tag: %v", err)
+	}
+
+	// Tag two posts: one with source, one with target.
+	sourcePost := insertTestPost(t)
+	targetPost := insertTestPost(t)
+	tagPost(t, sourcePost.ID, sourceName)
+	tagPost(t, targetPost.ID, targetName)
+
+	// Verify initial post counts.
+	sourceCounts, err := testStore.GetTagPostCounts(ctx, []uuid.UUID{})
+	_ = sourceCounts
+	if err != nil {
+		t.Fatalf("GetTagPostCounts failed: %v", err)
+	}
+
+	// Convert source tag to alias of target.
+	result, err := testStore.ConvertTagToAlias(ctx, sourceName, targetName)
+	if err != nil {
+		t.Fatalf("ConvertTagToAlias failed: %v", err)
+	}
+	if result.Tag.Name != targetName {
+		t.Errorf("result tag name = %q, want %q", result.Tag.Name, targetName)
+	}
+
+	// Source tag should no longer exist.
+	_, err = testStore.GetTag(ctx, sourceName)
+	if err == nil {
+		t.Error("source tag should not exist after conversion")
+	}
+
+	// Source name should now resolve as an alias to target.
+	resolved, err := testStore.ResolveAlias(ctx, sourceName)
+	if err != nil {
+		t.Fatalf("ResolveAlias failed: %v", err)
+	}
+	if resolved != targetName {
+		t.Errorf("ResolveAlias(%q) = %q, want %q", sourceName, resolved, targetName)
+	}
+
+	// The post that was tagged with source should now be tagged with target.
+	updatedPost, err := testStore.GetPost(ctx, sourcePost.ID)
+	if err != nil {
+		t.Fatalf("GetPost failed: %v", err)
+	}
+	foundTarget := false
+	for _, tag := range updatedPost.Tags {
+		if tag.Name == targetName {
+			foundTarget = true
+		}
+	}
+	if !foundTarget {
+		t.Errorf("post originally tagged with source should now be tagged with target; tags = %v", updatedPost.Tags)
+	}
+}
+
+func TestTagsPagination(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	for i := range 3 {
+		name := fmt.Sprintf("pagination-tag-%d-%s", i, suffix)
+		body := types.Tag{Name: name}
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+name, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutTag(w, req, name)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("PutTag status = %d, want %d", w.Code, http.StatusCreated)
+		}
+	}
+
+	limit := 1
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tags?limit=1", nil)
+	w := httptest.NewRecorder()
+	srv.GetTags(w, req, GetTagsParams{Limit: &limit})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GetTags status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp TagsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Items == nil || len(*resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(*resp.Items))
+	}
+	if resp.Cursor == nil {
+		t.Error("expected cursor for next page when there are more tags")
+	}
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -143,4 +144,46 @@ func TestTagCategoriesIntegration(t *testing.T) {
 			t.Fatalf("GetTagCategory status = %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
+}
+
+func TestTagCategoriesPagination(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	for i := range 3 {
+		name := fmt.Sprintf("paginationcat-%d-%s", i, suffix)
+		body := types.TagCategory{Name: name, Description: "pagination test", Color: "#000000"}
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+name, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutTagCategory(w, req, name)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("PutTagCategory status = %d, want %d; body = %s", w.Code, http.StatusCreated, w.Body.String())
+		}
+	}
+
+	limit := 1
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/tagCategories?limit=1", nil)
+	w := httptest.NewRecorder()
+	srv.GetTagCategories(w, req, GetTagCategoriesParams{Limit: &limit})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GetTagCategories status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp TagCategoriesResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Items == nil || len(*resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(*resp.Items))
+	}
+	if resp.Cursor == nil {
+		t.Error("expected cursor for next page when there are more categories")
+	}
 }

@@ -17,6 +17,7 @@ import (
 )
 
 var testDB *sql.DB
+var testStore store.SQLStore
 
 func TestMain(m *testing.M) {
 	port, err := freePort()
@@ -47,6 +48,7 @@ func TestMain(m *testing.M) {
 	}
 
 	testDB = stdlib.OpenDBFromPool(pool)
+	testStore = store.NewPostgresSQLStore(testDB, 5)
 
 	code := m.Run()
 

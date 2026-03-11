@@ -128,12 +128,6 @@ linters:
       - linters:
           - gosec
         text: "G115"
-      # G202 (SQL string concatenation): the store package builds IN clause
-      # placeholders from integer indices only ($1, $2, ...), not from user input.
-      - linters:
-          - gosec
-        path: "internal/db/store/"
-        text: "G202"
       # exec.Command in media processing (cwebp/ffmpeg) and the CLI editor
       # launcher. Context propagation requires a larger refactor.
       - linters:
