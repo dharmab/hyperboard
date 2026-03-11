@@ -18,7 +18,7 @@ import (
 
 var (
 	testSQLStore *store.PostgresSQLStore
-	testSQLDB *sql.DB
+	testSQLDB    *sql.DB
 )
 
 func TestMain(m *testing.M) {
