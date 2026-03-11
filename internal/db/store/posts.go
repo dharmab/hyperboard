@@ -307,9 +307,13 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 		if resolveErr != nil {
 			return nil, resolveErr
 		}
+		tagUUID, uuidErr := uuid.NewV4()
+		if uuidErr != nil {
+			return nil, uuidErr
+		}
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO tags (id, name, description, created_at, updated_at) VALUES (gen_random_uuid(), $1, '', $2, $3) ON CONFLICT (name) DO NOTHING",
-			resolvedName, now, now,
+			"INSERT INTO tags (id, name, description, created_at, updated_at) VALUES ($1, $2, '', $3, $4) ON CONFLICT (name) DO NOTHING",
+			tagUUID, resolvedName, now, now,
 		)
 		if err != nil {
 			return nil, err

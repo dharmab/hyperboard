@@ -241,28 +241,25 @@ func (s *PostgresSQLStore) GetTagPostCounts(ctx context.Context, tagIDs []uuid.U
 		return map[uuid.UUID]int{}, nil
 	}
 
-	n := len(tagIDs)
-	// Use two separate placeholder sets to avoid duplicate $N in the UNION query.
-	args := make([]any, n*2)
-	var p1, p2 strings.Builder
+	args := make([]any, len(tagIDs))
+	var placeholders strings.Builder
 	for i, id := range tagIDs {
 		if i > 0 {
-			p1.WriteString(", ")
-			p2.WriteString(", ")
+			placeholders.WriteString(", ")
 		}
-		p1.WriteString("$" + strconv.Itoa(i+1))
-		p2.WriteString("$" + strconv.Itoa(n+i+1))
+		placeholders.WriteString("$" + strconv.Itoa(i+1))
 		args[i] = id
-		args[n+i] = id
 	}
 
+	// PostgreSQL reuses $N parameters across UNION parts, so we use the same placeholders in both.
+	ph := placeholders.String()
 	countQuery := `SELECT tag_id, COUNT(DISTINCT post_id) FROM (
-SELECT tag_id, post_id FROM posts_tags WHERE tag_id IN (` + p1.String() + `)
+SELECT tag_id, post_id FROM posts_tags WHERE tag_id IN (` + ph + `)
 UNION ALL
 SELECT tc.cascaded_tag_id AS tag_id, pt.post_id
 FROM tag_cascades tc
 JOIN posts_tags pt ON pt.tag_id = tc.tag_id
-WHERE tc.cascaded_tag_id IN (` + p2.String() + `)
+WHERE tc.cascaded_tag_id IN (` + ph + `)
 ) combined GROUP BY tag_id`
 	rows, err := s.db.QueryContext(ctx, countQuery, args...)
 	if err != nil {

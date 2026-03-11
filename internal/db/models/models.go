@@ -41,7 +41,7 @@ type Tag struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 
-	// Category is the loaded tag category, if any.
+	// Category is populated by the store's loadTagCategories method when loading tags; nil by default.
 	Category *TagCategory
 }
 
@@ -61,7 +61,7 @@ type Post struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
-	// Tags is the loaded set of tags for this post.
+	// Tags is populated by the store's loadPostTags method when loading posts; nil by default.
 	Tags TagSlice
 }
 
