@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +23,7 @@ func TestAPIProxy_ForwardsRequests(t *testing.T) {
 		t.Fatalf("newAPIProxy: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/posts", nil)
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
 
@@ -50,7 +51,7 @@ func TestAPIProxy_PreservesPath(t *testing.T) {
 		t.Fatalf("newAPIProxy: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/tags/foo", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/tags/foo", nil)
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
 
@@ -74,7 +75,7 @@ func TestAPIProxy_PreservesHeaders(t *testing.T) {
 		t.Fatalf("newAPIProxy: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/posts", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
