@@ -37,7 +37,7 @@ func insertTestPost(t *testing.T, opts ...func(*store.CreatePostInput)) *models.
 	for _, opt := range opts {
 		opt(&input)
 	}
-	post, err := testStore.CreatePost(ctx, input)
+	post, err := testSQLStore.CreatePost(ctx, input)
 	if err != nil {
 		t.Fatalf("failed to insert test post: %v", err)
 	}
