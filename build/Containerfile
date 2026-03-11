@@ -17,15 +17,15 @@ COPY pkg/ pkg/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-api ./cmd/hyperboard-api
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-api ./cmd/hyperboard-api
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-web ./cmd/hyperboard-web
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-web ./cmd/hyperboard-web
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboardctl ./cmd/hyperboardctl
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboardctl ./cmd/hyperboardctl
 
 FROM debian:13-slim AS hyperboard-api
 RUN apt-get update && \

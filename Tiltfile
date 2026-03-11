@@ -9,6 +9,7 @@ def go_build(name, os, arch):
         name + "-bin",
         ['go', 'build', '-o', 'bin/{}'.format(name), './cmd/{}'.format(name)],
         env={
+            'CGO_ENABLED': '0',
             'GOOS': os,
             'GOARCH': arch,
         },
