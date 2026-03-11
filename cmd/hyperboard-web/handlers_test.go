@@ -224,7 +224,7 @@ func TestHandlePosts_WithTagFilters(t *testing.T) {
 		}
 		http.NotFound(w, r)
 	}))
-	app.cfg.TagFilters = `[{"label":"Rating","tags":["rating:safe","rating:explicit"]}]`
+	app.cfg.TagFilters = []TagFilter{{Label: "Rating", Tags: []string{"rating:safe", "rating:explicit"}}}
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()

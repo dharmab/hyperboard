@@ -10,7 +10,10 @@ func TestParseTagFilters(t *testing.T) {
 	t.Run("valid JSON", func(t *testing.T) {
 		t.Parallel()
 		input := `[{"label":"Rating","tags":["rating:safe","rating:questionable"]},{"label":"No AI","tags":["-ai_generated"]}]`
-		filters := parseTagFilters(input)
+		filters, err := parseTagFilters(input)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if len(filters) != 2 {
 			t.Fatalf("got %d filters, want 2", len(filters))
 		}
@@ -30,7 +33,10 @@ func TestParseTagFilters(t *testing.T) {
 
 	t.Run("empty string", func(t *testing.T) {
 		t.Parallel()
-		filters := parseTagFilters("")
+		filters, err := parseTagFilters("")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if filters != nil {
 			t.Errorf("got %v, want nil", filters)
 		}
@@ -38,9 +44,9 @@ func TestParseTagFilters(t *testing.T) {
 
 	t.Run("malformed JSON", func(t *testing.T) {
 		t.Parallel()
-		filters := parseTagFilters("{bad json")
-		if filters != nil {
-			t.Errorf("got %v, want nil", filters)
+		_, err := parseTagFilters("{bad json")
+		if err == nil {
+			t.Error("expected error for malformed JSON, got nil")
 		}
 	})
 }
