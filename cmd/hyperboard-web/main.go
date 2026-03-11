@@ -8,6 +8,8 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -90,6 +92,13 @@ func run() error {
 	staticFS, _ := fs.Sub(embeddedFiles, "static")
 
 	mux := http.NewServeMux()
+
+	// API reverse proxy
+	apiProxy, err := newAPIProxy(cfg.APIURL)
+	if err != nil {
+		return fmt.Errorf("failed to create API proxy: %w", err)
+	}
+	mux.Handle("/api/", apiProxy)
 
 	// Public routes
 	mux.HandleFunc("/login", app.handleLogin)
@@ -199,6 +208,15 @@ func parseTemplates() (map[string]*template.Template, error) {
 	}
 
 	return tmpls, nil
+}
+
+func newAPIProxy(apiURL string) (http.Handler, error) {
+	target, err := url.Parse(apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse API URL: %w", err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	return proxy, nil
 }
 
 func (app *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) {
