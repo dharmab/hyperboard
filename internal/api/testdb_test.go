@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"os"
@@ -13,10 +14,12 @@ import (
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/stephenafamo/bob"
 )
 
-var testDB bob.DB
+var (
+	testStore *store.PostgresSQLStore
+	testSQLDB *sql.DB
+)
 
 func TestMain(m *testing.M) {
 	port, err := freePort()
@@ -46,7 +49,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	testDB = bob.NewDB(stdlib.OpenDBFromPool(pool))
+	testSQLDB = stdlib.OpenDBFromPool(pool)
+	testStore = store.NewPostgresSQLStore(testSQLDB, 5)
 
 	code := m.Run()
 
@@ -67,8 +71,5 @@ func freePort() (uint32, error) {
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	// No cleanup needed: tests use unique random data (UUIDs, random tag names)
-	// and query by specific IDs/names, so they don't interfere with each other.
-	s := store.NewPostgresSQLStore(testDB, 5)
-	return NewServer(s, memory.New())
+	return NewServer(testStore, memory.New())
 }

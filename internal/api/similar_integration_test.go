@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dharmab/hyperboard/internal/db/models"
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gofrs/uuid/v5"
 )
@@ -18,20 +18,20 @@ func TestGetSimilarPosts(t *testing.T) {
 
 	// Insert a post with a known phash
 	var phashVal int64 = 0x0123456789ABCDEF
-	post := insertTestPost(t, func(s *models.PostSetter) {
-		s.Phash = &sql.Null[int64]{V: phashVal, Valid: true}
+	post := insertTestPost(t, func(s *store.CreatePostInput) {
+		s.Phash = sql.Null[int64]{V: phashVal, Valid: true}
 	})
 
 	// Insert a similar post (Hamming distance = 1)
 	similarPhash := phashVal ^ 1 // flip one bit
-	insertTestPost(t, func(s *models.PostSetter) {
-		s.Phash = &sql.Null[int64]{V: similarPhash, Valid: true}
+	insertTestPost(t, func(s *store.CreatePostInput) {
+		s.Phash = sql.Null[int64]{V: similarPhash, Valid: true}
 	})
 
 	// Insert a dissimilar post (Hamming distance > threshold)
 	dissimilarPhash := ^phashVal // flip all bits
-	insertTestPost(t, func(s *models.PostSetter) {
-		s.Phash = &sql.Null[int64]{V: dissimilarPhash, Valid: true}
+	insertTestPost(t, func(s *store.CreatePostInput) {
+		s.Phash = sql.Null[int64]{V: dissimilarPhash, Valid: true}
 	})
 
 	t.Run("returns similar posts", func(t *testing.T) {

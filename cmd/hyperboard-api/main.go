@@ -22,7 +22,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/stephenafamo/bob"
 )
 
 var configPath string
@@ -112,7 +111,7 @@ func serveAPI(ctx context.Context, cfg *Config, dsn string) error {
 	}
 	defer pool.Close()
 
-	db := bob.NewDB(stdlib.OpenDBFromPool(pool))
+	db := stdlib.OpenDBFromPool(pool)
 	s := store.NewPostgresSQLStore(db, cfg.SimilarityThreshold)
 	apiServer := api.NewServer(s, objStorage)
 	mux := http.NewServeMux()

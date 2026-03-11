@@ -8,28 +8,40 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/gofrs/uuid/v5"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func (s *PostgresSQLStore) ListNotes(ctx context.Context) (models.NoteSlice, error) {
-	return models.Notes.Query(
-		sm.OrderBy(models.Notes.Columns.CreatedAt).Desc(),
-	).All(ctx, s.db)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, title, content, created_at, updated_at FROM notes ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var notes models.NoteSlice
+	for rows.Next() {
+		note := &models.Note{}
+		if err := rows.Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
+			return nil, err
+		}
+		notes = append(notes, note)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return notes, nil
 }
 
 func (s *PostgresSQLStore) GetNote(ctx context.Context, id uuid.UUID) (*models.Note, error) {
-	model, err := models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	note := &models.Note{}
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, content, created_at, updated_at FROM notes WHERE id = $1`, id).
+		Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return model, nil
+	return note, nil
 }
 
 func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string) (*models.Note, error) {
@@ -37,16 +49,17 @@ func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string
 	if err != nil {
 		return nil, err
 	}
-	now := new(time.Now().UTC())
-	return models.Notes.Insert(
-		&models.NoteSetter{
-			ID:        &id,
-			Title:     &title,
-			Content:   &content,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-	).One(ctx, s.db)
+	now := time.Now().UTC()
+
+	note := &models.Note{}
+	err = s.db.QueryRowContext(ctx,
+		`INSERT INTO notes (id, title, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, title, content, created_at, updated_at`,
+		id, title, content, now, now,
+	).Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return note, nil
 }
 
 func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error) {
@@ -54,11 +67,10 @@ func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, 
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	model, err := models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, tx)
+	var exists uuid.UUID
+	err = tx.QueryRowContext(ctx, `SELECT id FROM notes WHERE id = $1`, id).Scan(&exists)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -66,23 +78,20 @@ func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, 
 		return nil, err
 	}
 
-	now := new(time.Now().UTC())
-	err = model.Update(ctx, tx, &models.NoteSetter{
-		Title:     &title,
-		Content:   &content,
-		UpdatedAt: now,
-	})
+	now := time.Now().UTC()
+	note := &models.Note{}
+	err = tx.QueryRowContext(ctx,
+		`UPDATE notes SET title = $1, content = $2, updated_at = $3 WHERE id = $4 RETURNING id, title, content, created_at, updated_at`,
+		title, content, now, id,
+	).Scan(&note.ID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	model.Title = title
-	model.Content = content
-	model.UpdatedAt = *now
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return model, nil
+	return note, nil
 }
 
 func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
@@ -90,11 +99,10 @@ func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback() }()
 
-	_, err = models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, tx)
+	var exists uuid.UUID
+	err = tx.QueryRowContext(ctx, `SELECT id FROM notes WHERE id = $1`, id).Scan(&exists)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -102,12 +110,10 @@ func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	_, err = models.Notes.Delete(
-		dm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).Exec(ctx, tx)
+	_, err = tx.ExecContext(ctx, `DELETE FROM notes WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
 
-	return tx.Commit(ctx)
+	return tx.Commit()
 }
