@@ -24,6 +24,11 @@ var (
 	tagAliasWithParentsCascadingCtx = newContextual[bool]("tagAliasWithParentsCascading")
 	tagAliasRelTagCtx               = newContextual[bool]("tag_aliases.tags.tag_aliases.tag_aliases_tag_id_fkey")
 
+	// Relationship Contexts for tag_cascades
+	tagCascadeWithParentsCascadingCtx = newContextual[bool]("tagCascadeWithParentsCascading")
+	tagCascadeRelCascadedTagTagCtx    = newContextual[bool]("tag_cascades.tags.tag_cascades.tag_cascades_cascaded_tag_id_fkey")
+	tagCascadeRelTagCtx               = newContextual[bool]("tag_cascades.tags.tag_cascades.tag_cascades_tag_id_fkey")
+
 	// Relationship Contexts for tag_categories
 	tagCategoryWithParentsCascadingCtx = newContextual[bool]("tagCategoryWithParentsCascading")
 	tagCategoryRelTagsCtx              = newContextual[bool]("tag_categories.tags.tags.tags_tag_category_id_fkey")
@@ -32,6 +37,7 @@ var (
 	tagWithParentsCascadingCtx = newContextual[bool]("tagWithParentsCascading")
 	tagRelPostsCtx             = newContextual[bool]("posts.tags.posts_tags.posts_tags_post_id_fkeyposts_tags.posts_tags_tag_id_fkey")
 	tagRelTagAliasesCtx        = newContextual[bool]("tag_aliases.tags.tag_aliases.tag_aliases_tag_id_fkey")
+	tagRelTagsCtx              = newContextual[bool]("tags.tags.tag_cascades.tag_cascades_cascaded_tag_id_fkeytag_cascades.tag_cascades_tag_id_fkey")
 	tagRelTagCategoryCtx       = newContextual[bool]("tag_categories.tags.tags.tags_tag_category_id_fkey")
 )
 

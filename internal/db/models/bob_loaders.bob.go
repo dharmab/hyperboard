@@ -20,6 +20,7 @@ type preloaders struct {
 	Post        postPreloader
 	PostsTag    postsTagPreloader
 	TagAlias    tagAliasPreloader
+	TagCascade  tagCascadePreloader
 	TagCategory tagCategoryPreloader
 	Tag         tagPreloader
 }
@@ -29,6 +30,7 @@ func getPreloaders() preloaders {
 		Post:        buildPostPreloader(),
 		PostsTag:    buildPostsTagPreloader(),
 		TagAlias:    buildTagAliasPreloader(),
+		TagCascade:  buildTagCascadePreloader(),
 		TagCategory: buildTagCategoryPreloader(),
 		Tag:         buildTagPreloader(),
 	}
@@ -44,6 +46,7 @@ type thenLoaders[Q orm.Loadable] struct {
 	Post        postThenLoader[Q]
 	PostsTag    postsTagThenLoader[Q]
 	TagAlias    tagAliasThenLoader[Q]
+	TagCascade  tagCascadeThenLoader[Q]
 	TagCategory tagCategoryThenLoader[Q]
 	Tag         tagThenLoader[Q]
 }
@@ -53,6 +56,7 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		Post:        buildPostThenLoader[Q](),
 		PostsTag:    buildPostsTagThenLoader[Q](),
 		TagAlias:    buildTagAliasThenLoader[Q](),
+		TagCascade:  buildTagCascadeThenLoader[Q](),
 		TagCategory: buildTagCategoryThenLoader[Q](),
 		Tag:         buildTagThenLoader[Q](),
 	}

@@ -185,6 +185,14 @@ button:hover,
   margin-left: 0.4rem;
   cursor: pointer;
   color: var(--base08);
+  vertical-align: middle;
+}
+
+.badge-cascade {
+  background: transparent;
+  border-top: 1px solid var(--base02);
+  border-right: 1px solid var(--base02);
+  border-bottom: 1px solid var(--base02);
 }
 
 /* Posts grid */

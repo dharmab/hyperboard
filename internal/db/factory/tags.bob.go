@@ -52,6 +52,7 @@ type TagTemplate struct {
 type tagR struct {
 	Posts       []*tagRPostsR
 	TagAliases  []*tagRTagAliasesR
+	Tags        []*tagRTagsR
 	TagCategory *tagRTagCategoryR
 }
 
@@ -62,6 +63,10 @@ type tagRPostsR struct {
 type tagRTagAliasesR struct {
 	number int
 	o      *TagAliasTemplate
+}
+type tagRTagsR struct {
+	number int
+	o      *TagTemplate
 }
 type tagRTagCategoryR struct {
 	o *TagCategoryTemplate
@@ -100,6 +105,18 @@ func (t TagTemplate) setModelRels(o *models.Tag) {
 			rel = append(rel, related...)
 		}
 		o.R.TagAliases = rel
+	}
+
+	if t.r.Tags != nil {
+		rel := models.TagSlice{}
+		for _, r := range t.r.Tags {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.R.Tags = append(rel.R.Tags, o)
+			}
+			rel = append(rel, related...)
+		}
+		o.R.Tags = rel
 	}
 
 	if t.r.TagCategory != nil {
@@ -251,18 +268,38 @@ func (o *TagTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *m
 		}
 	}
 
+	isTagsDone, _ := tagRelTagsCtx.Value(ctx)
+	if !isTagsDone && o.r.Tags != nil {
+		ctx = tagRelTagsCtx.WithValue(ctx, true)
+		for _, r := range o.r.Tags {
+			if r.o.alreadyPersisted {
+				m.R.Tags = append(m.R.Tags, r.o.Build())
+			} else {
+				rel2, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachTags(ctx, exec, rel2...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	isTagCategoryDone, _ := tagRelTagCategoryCtx.Value(ctx)
 	if !isTagCategoryDone && o.r.TagCategory != nil {
 		ctx = tagRelTagCategoryCtx.WithValue(ctx, true)
 		if o.r.TagCategory.o.alreadyPersisted {
 			m.R.TagCategory = o.r.TagCategory.o.Build()
 		} else {
-			var rel2 *models.TagCategory
-			rel2, err = o.r.TagCategory.o.Create(ctx, exec)
+			var rel3 *models.TagCategory
+			rel3, err = o.r.TagCategory.o.Create(ctx, exec)
 			if err != nil {
 				return err
 			}
-			err = m.AttachTagCategory(ctx, exec, rel2)
+			err = m.AttachTagCategory(ctx, exec, rel3)
 			if err != nil {
 				return err
 			}
@@ -716,5 +753,53 @@ func (m tagMods) AddExistingTagAliases(existingModels ...*models.TagAlias) TagMo
 func (m tagMods) WithoutTagAliases() TagMod {
 	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
 		o.r.TagAliases = nil
+	})
+}
+
+func (m tagMods) WithTags(number int, related *TagTemplate) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.Tags = []*tagRTagsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m tagMods) WithNewTags(number int, mods ...TagMod) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		related := o.f.NewTagWithContext(ctx, mods...)
+		m.WithTags(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) AddTags(number int, related *TagTemplate) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.Tags = append(o.r.Tags, &tagRTagsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m tagMods) AddNewTags(number int, mods ...TagMod) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		related := o.f.NewTagWithContext(ctx, mods...)
+		m.AddTags(number, related).Apply(ctx, o)
+	})
+}
+
+func (m tagMods) AddExistingTags(existingModels ...*models.Tag) TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		for _, em := range existingModels {
+			o.r.Tags = append(o.r.Tags, &tagRTagsR{
+				o: o.f.FromExistingTag(em),
+			})
+		}
+	})
+}
+
+func (m tagMods) WithoutTags() TagMod {
+	return TagModFunc(func(ctx context.Context, o *TagTemplate) {
+		o.r.Tags = nil
 	})
 }

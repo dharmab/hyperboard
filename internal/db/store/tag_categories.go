@@ -54,16 +54,22 @@ func (s *PostgresSQLStore) GetTagCategory(ctx context.Context, name string) (*mo
 }
 
 func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string, input TagCategoryInput, now time.Time) (*models.TagCategory, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	existing, err := models.TagCategories.Query(
 		sm.Where(models.TagCategories.Columns.Name.EQ(psql.Arg(urlName))),
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, false, err
 	}
 
 	nowPtr := &now
 	if existing != nil {
-		err = existing.Update(ctx, s.db, &models.TagCategorySetter{
+		err = existing.Update(ctx, tx, &models.TagCategorySetter{
 			Name:        &input.Name,
 			Description: &input.Description,
 			Color:       &input.Color,
@@ -76,6 +82,10 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		existing.Description = input.Description
 		existing.Color = input.Color
 		existing.UpdatedAt = now
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, false, err
+		}
 		return existing, false, nil
 	}
 
@@ -87,8 +97,12 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 			CreatedAt:   nowPtr,
 			UpdatedAt:   nowPtr,
 		},
-	).One(ctx, s.db)
+	).One(ctx, tx)
 	if err != nil {
+		return nil, false, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, false, err
 	}
 	return inserted, true, nil

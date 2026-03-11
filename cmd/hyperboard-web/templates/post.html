@@ -96,7 +96,7 @@ function setMediaMode(mode) {
 
 {{define "post-tags"}}
 <div class="post-tags">
-  {{if .Post.Tags}}
+  {{if or .Post.Tags .Post.CascadingTags}}
   <div class="post-tags-list">
     {{range .Post.Tags}}
     <span class="badge">
@@ -104,6 +104,11 @@ function setMediaMode(mode) {
       <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerHTML">×</a>
     </span>
     {{end}}
+    {{if .Post.CascadingTags}}{{range deref_strings .Post.CascadingTags}}
+    <span class="badge badge-cascade">
+      <a href="/?search={{.}}" class="badge-link">{{.}}</a>
+    </span>
+    {{end}}{{end}}
   </div>
   {{end}}
   <div class="post-tags-add">

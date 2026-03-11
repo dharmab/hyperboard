@@ -483,13 +483,18 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		if tag.Aliases != nil {
 			aliases = *tag.Aliases
 		}
+		var cascadingTags []string
+		if tag.CascadingTags != nil {
+			cascadingTags = *tag.CascadingTags
+		}
 		app.renderTemplate(w, r, "tag_edit", TagEditData{
-			Tag:         tag,
-			Aliases:     aliases,
-			Categories:  cats,
-			CurrentName: name,
-			IsNew:       isNew,
-			Error:       strings.Join(errs, "; "),
+			Tag:           tag,
+			Aliases:       aliases,
+			CascadingTags: cascadingTags,
+			Categories:    cats,
+			CurrentName:   name,
+			IsNew:         isNew,
+			Error:         strings.Join(errs, "; "),
 		})
 
 	case http.MethodPost:
@@ -497,6 +502,7 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		description := r.FormValue("description")
 		category := r.FormValue("category")
 		aliasesRaw := r.FormValue("aliases")
+		cascadingTagsRaw := r.FormValue("cascading_tags")
 
 		var aliases []string
 		for a := range strings.SplitSeq(aliasesRaw, ",") {
@@ -506,10 +512,19 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		var cascadingTags []string
+		for ct := range strings.SplitSeq(cascadingTagsRaw, ",") {
+			ct = strings.TrimSpace(ct)
+			if ct != "" {
+				cascadingTags = append(cascadingTags, ct)
+			}
+		}
+
 		tag := types.Tag{
-			Name:        newName,
-			Description: description,
-			Aliases:     &aliases,
+			Name:          newName,
+			Description:   description,
+			Aliases:       &aliases,
+			CascadingTags: &cascadingTags,
 		}
 		if category != "" {
 			tag.Category = &category
@@ -528,12 +543,13 @@ func (app *App) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 				errMsg = fmt.Sprintf("Failed to save tag: %s", resp.Body)
 			}
 			app.renderTemplate(w, r, "tag_edit", TagEditData{
-				Tag:         tag,
-				Aliases:     aliases,
-				Categories:  cats,
-				CurrentName: name,
-				IsNew:       isNew,
-				Error:       errMsg,
+				Tag:           tag,
+				Aliases:       aliases,
+				CascadingTags: cascadingTags,
+				Categories:    cats,
+				CurrentName:   name,
+				IsNew:         isNew,
+				Error:         errMsg,
 			})
 			return
 		}

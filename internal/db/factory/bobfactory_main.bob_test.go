@@ -104,6 +104,30 @@ func TestCreateTagAlias(t *testing.T) {
 	}
 }
 
+func TestCreateTagCascade(t *testing.T) {
+	if testDB == nil {
+		t.Skip("skipping test, no DSN provided")
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	tx, err := testDB.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Error starting transaction: %v", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatalf("Error rolling back transaction: %v", err)
+		}
+	}()
+
+	if _, err := New().NewTagCascadeWithContext(ctx).Create(ctx, tx); err != nil {
+		t.Fatalf("Error creating TagCascade: %v", err)
+	}
+}
+
 func TestCreateTagCategory(t *testing.T) {
 	if testDB == nil {
 		t.Skip("skipping test, no DSN provided")

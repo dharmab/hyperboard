@@ -63,6 +63,7 @@ type TagStore interface {
 	DeleteTag(ctx context.Context, name string) error
 	GetTagPostCounts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int, error)
 	GetTagAliases(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
+	GetTagCascades(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
 	ResolveAlias(ctx context.Context, name string) (string, error)
 	ConvertTagToAlias(ctx context.Context, sourceName, targetName string) (*ConvertTagToAliasResult, error)
 }
@@ -73,6 +74,7 @@ type TagInput struct {
 	Description   string
 	Category      *string
 	Aliases       []string
+	CascadingTags []string
 	TagCategoryID sql.Null[uuid.UUID]
 }
 
@@ -93,6 +95,7 @@ type PostStore interface {
 	DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error)
 	FindPostBySha256(ctx context.Context, hash string) (*models.Post, error)
 	FindSimilarPosts(ctx context.Context, excludeID uuid.UUID, pHash int64, limit int) (models.PostSlice, error)
+	GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]string, error)
 }
 
 // ListPostsParams holds parameters for listing posts.

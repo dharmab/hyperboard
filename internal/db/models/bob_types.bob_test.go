@@ -26,6 +26,9 @@ var _ bob.HookableType = &PostsTag{}
 // Make sure the type TagAlias runs hooks after queries
 var _ bob.HookableType = &TagAlias{}
 
+// Make sure the type TagCascade runs hooks after queries
+var _ bob.HookableType = &TagCascade{}
+
 // Make sure the type TagCategory runs hooks after queries
 var _ bob.HookableType = &TagCategory{}
 
