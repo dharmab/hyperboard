@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -15,7 +16,7 @@ type Config struct {
 	SessionSecret string
 	APIURL        string
 	LogLevel      string
-	TagFilters    string
+	TagFilters    []TagFilter
 }
 
 func bindConfig(cmd *cobra.Command) {
@@ -35,25 +36,28 @@ func bindConfig(cmd *cobra.Command) {
 	_ = viper.BindPFlags(flags)
 }
 
-func loadConfig() *Config {
+func loadConfig() (*Config, error) {
+	tagFilters, err := parseTagFilters(viper.GetString("tag-filters"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing tag-filters: %w", err)
+	}
 	return &Config{
 		Port:          viper.GetString("port"),
 		AdminPassword: viper.GetString("admin-password"),
 		SessionSecret: viper.GetString("session-secret"),
 		APIURL:        viper.GetString("api-url"),
 		LogLevel:      viper.GetString("log-level"),
-		TagFilters:    viper.GetString("tag-filters"),
-	}
+		TagFilters:    tagFilters,
+	}, nil
 }
 
-func parseTagFilters(jsonStr string) []TagFilter {
+func parseTagFilters(jsonStr string) ([]TagFilter, error) {
 	if jsonStr == "" {
-		return nil
+		return nil, nil
 	}
 	var filters []TagFilter
 	if err := json.Unmarshal([]byte(jsonStr), &filters); err != nil {
-		log.Warn().Err(err).Msg("Failed to parse tag-filters JSON")
-		return nil
+		return nil, fmt.Errorf("invalid JSON %q: %w", jsonStr, err)
 	}
-	return filters
+	return filters, nil
 }
