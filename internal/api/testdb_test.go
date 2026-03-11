@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"os"
@@ -13,10 +14,9 @@ import (
 	embedpg "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/stephenafamo/bob"
 )
 
-var testDB bob.DB
+var testDB *sql.DB
 
 func TestMain(m *testing.M) {
 	port, err := freePort()
@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	testDB = bob.NewDB(stdlib.OpenDBFromPool(pool))
+	testDB = stdlib.OpenDBFromPool(pool)
 
 	code := m.Run()
 

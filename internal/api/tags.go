@@ -41,8 +41,8 @@ func tagFromModel(model *models.Tag) types.Tag {
 
 	// Load the tag category if present
 	if model.TagCategoryID.Valid {
-		if model.R.TagCategory != nil {
-			tag.Category = &model.R.TagCategory.Name
+		if model.Category != nil {
+			tag.Category = &model.Category.Name
 		}
 	}
 

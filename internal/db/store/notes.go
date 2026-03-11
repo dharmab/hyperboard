@@ -8,28 +8,41 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/gofrs/uuid/v5"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/dm"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 func (s *PostgresSQLStore) ListNotes(ctx context.Context) (models.NoteSlice, error) {
-	return models.Notes.Query(
-		sm.OrderBy(models.Notes.Columns.CreatedAt).Desc(),
-	).All(ctx, s.db)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, title, content, created_at, updated_at FROM notes ORDER BY created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var notes models.NoteSlice
+	for rows.Next() {
+		n := &models.Note{}
+		if err := rows.Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt); err != nil {
+			return nil, err
+		}
+		notes = append(notes, n)
+	}
+	return notes, rows.Err()
 }
 
 func (s *PostgresSQLStore) GetNote(ctx context.Context, id uuid.UUID) (*models.Note, error) {
-	model, err := models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, s.db)
+	n := &models.Note{}
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, title, content, created_at, updated_at FROM notes WHERE id = $1`,
+		id,
+	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return model, nil
+	return n, nil
 }
 
 func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string) (*models.Note, error) {
@@ -37,77 +50,47 @@ func (s *PostgresSQLStore) CreateNote(ctx context.Context, title, content string
 	if err != nil {
 		return nil, err
 	}
-	now := new(time.Now().UTC())
-	return models.Notes.Insert(
-		&models.NoteSetter{
-			ID:        &id,
-			Title:     &title,
-			Content:   &content,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-	).One(ctx, s.db)
-}
-
-func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	now := time.Now().UTC()
+	n := &models.Note{}
+	err = s.db.QueryRowContext(ctx,
+		`INSERT INTO notes (id, title, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)
+ RETURNING id, title, content, created_at, updated_at`,
+		id, title, content, now, now,
+	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	return n, nil
+}
 
-	model, err := models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, tx)
+func (s *PostgresSQLStore) UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error) {
+	now := time.Now().UTC()
+	n := &models.Note{}
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE notes SET title = $1, content = $2, updated_at = $3 WHERE id = $4
+ RETURNING id, title, content, created_at, updated_at`,
+		title, content, now, id,
+	).Scan(&n.ID, &n.Title, &n.Content, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-
-	now := new(time.Now().UTC())
-	err = model.Update(ctx, tx, &models.NoteSetter{
-		Title:     &title,
-		Content:   &content,
-		UpdatedAt: now,
-	})
-	if err != nil {
-		return nil, err
-	}
-	model.Title = title
-	model.Content = content
-	model.UpdatedAt = *now
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return model, nil
+	return n, nil
 }
 
 func (s *PostgresSQLStore) DeleteNote(ctx context.Context, id uuid.UUID) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM notes WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	_, err = models.Notes.Query(
-		sm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).One(ctx, tx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
-		return err
-	}
-
-	_, err = models.Notes.Delete(
-		dm.Where(models.Notes.Columns.ID.EQ(psql.Arg(id))),
-	).Exec(ctx, tx)
+	n, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-
-	return tx.Commit(ctx)
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -84,13 +84,37 @@ type ConvertTagToAliasResult struct {
 	Aliases []string
 }
 
+// CreatePostInput holds the fields for creating a new post.
+type CreatePostInput struct {
+	ID           uuid.UUID
+	MimeType     string
+	ContentURL   string
+	ThumbnailURL string
+	HasAudio     bool
+	Sha256       string
+	Phash        sql.Null[int64]
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// UpdatePostContentInput holds the fields for updating post content.
+type UpdatePostContentInput struct {
+	MimeType     string
+	ContentURL   string
+	ThumbnailURL string
+	HasAudio     bool
+	Sha256       string
+	Phash        sql.Null[int64]
+	UpdatedAt    time.Time
+}
+
 // PostStore provides CRUD operations for posts.
 type PostStore interface {
 	ListPosts(ctx context.Context, params ListPostsParams) (models.PostSlice, bool, error)
 	GetPost(ctx context.Context, id uuid.UUID) (*models.Post, error)
-	CreatePost(ctx context.Context, setter *models.PostSetter) (*models.Post, error)
+	CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error)
 	UpdatePost(ctx context.Context, id uuid.UUID, note string, tagNames []string, now time.Time) (*models.Post, error)
-	UpdatePostContent(ctx context.Context, id uuid.UUID, setter *models.PostSetter) (*models.Post, error)
+	UpdatePostContent(ctx context.Context, id uuid.UUID, input UpdatePostContentInput) (*models.Post, error)
 	UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error)
 	DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error)
 	FindPostBySha256(ctx context.Context, hash string) (*models.Post, error)

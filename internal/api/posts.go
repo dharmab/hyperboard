@@ -35,8 +35,8 @@ func postFromModel(model *models.Post) types.Post {
 	}
 
 	// Extract tag names from loaded tags
-	tagNames := make([]types.TagName, 0, len(model.R.Tags))
-	for _, tag := range model.R.Tags {
+	tagNames := make([]types.TagName, 0, len(model.Tags))
+	for _, tag := range model.Tags {
 		tagNames = append(tagNames, tag.Name)
 	}
 	post.Tags = tagNames
@@ -343,12 +343,12 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	// Compute perceptual hash from the thumbnail.
-	var phashVal *sql.Null[int64]
+	var phashVal sql.Null[int64]
 	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
 		logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
-		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
+		phashVal = sql.Null[int64]{V: pHash, Valid: true}
 
 		// Check for visually similar posts (unless force is set).
 		if !force {
@@ -401,14 +401,14 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	id := postID
-	now := new(time.Now().UTC())
-	model, err := s.sqlStore.CreatePost(ctx, &models.PostSetter{
-		ID:           &id,
-		MimeType:     &contentMIME,
-		ContentURL:   &contentURL,
-		ThumbnailURL: &thumbnailURL,
-		HasAudio:     &hasAudioVal,
-		Sha256:       &hashHex,
+	now := time.Now().UTC()
+	model, err := s.sqlStore.CreatePost(ctx, store.CreatePostInput{
+		ID:           id,
+		MimeType:     contentMIME,
+		ContentURL:   contentURL,
+		ThumbnailURL: thumbnailURL,
+		HasAudio:     hasAudioVal,
+		Sha256:       hashHex,
 		Phash:        phashVal,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -420,7 +420,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	logger.Info().Str("mime", contentMIME).Msg("post uploaded")
-	model.R.Tags = nil
+	model.Tags = nil
 	respond(w, http.StatusCreated, postFromModel(model))
 }
 
@@ -571,21 +571,21 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	hashArr := sha256.Sum256(contentData)
 	hashHex := hex.EncodeToString(hashArr[:])
 
-	var phashVal *sql.Null[int64]
+	var phashVal sql.Null[int64]
 	pHash, phashErr := media.DhashFromBytes(thumbnailData)
 	if phashErr != nil {
 		logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 	} else {
-		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
+		phashVal = sql.Null[int64]{V: pHash, Valid: true}
 	}
 
-	now := new(time.Now().UTC())
-	model, err := s.sqlStore.UpdatePostContent(ctx, postID, &models.PostSetter{
-		MimeType:     &contentMIME,
-		ContentURL:   &contentURL,
-		ThumbnailURL: &thumbnailURL,
-		HasAudio:     &hasAudioVal,
-		Sha256:       &hashHex,
+	now := time.Now().UTC()
+	model, err := s.sqlStore.UpdatePostContent(ctx, postID, store.UpdatePostContentInput{
+		MimeType:     contentMIME,
+		ContentURL:   contentURL,
+		ThumbnailURL: thumbnailURL,
+		HasAudio:     hasAudioVal,
+		Sha256:       hashHex,
 		Phash:        phashVal,
 		UpdatedAt:    now,
 	})

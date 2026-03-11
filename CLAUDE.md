@@ -8,13 +8,12 @@ Hyperboard is an image and video hosting web application built with Go, followin
 - `internal/api/` — OpenAPI spec and generated API client/server code
 - `internal/middleware/auth/` — Authentication middleware
 - `internal/middleware/logging/` — HTTP request logging
-- `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, generated models in `internal/db/models/`)
+- `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, database model structs in `internal/db/models/`)
 - `internal/media/` — Media processing
 - `internal/storage/` — Storage abstraction (S3)
 - `internal/types/` — Shared types (generated from OpenAPI spec)
 - `build/Containerfile` — Multi-stage container build for all three binaries
 - `deploy/tilt/` — Kubernetes manifests for local development
-- `scripts/generate/` — Code generation script (runs embedded Postgres, applies migrations, generates Bob ORM models)
 
 ## Prerequisites
 
@@ -28,12 +27,11 @@ This installs Go, k3d, and Tilt via Homebrew.
 
 Run `make generate` to regenerate:
 
-- **Bob ORM models** from database schema — the generate script starts an embedded Postgres instance, runs migrations, and uses `bobgen-psql` to produce `internal/db/models/*.bob.go`
 - **OpenAPI types and server stubs** via `oapi-codegen` from specs in `internal/api/spec/`
 
-Generated files should not be edited by hand. If the database schema changes (new migration in `internal/db/migrations/data/`), re-run generation.
+Generated files should not be edited by hand.
 
-If Tilt is running (`tilt get uiresources`), `go generate ./...` runs automatically when source files change. You can also manually trigger it with `tilt trigger generate`. The generate script uses a random available port for its embedded Postgres, so it can run alongside Tilt without conflicts.
+If Tilt is running (`tilt get uiresources`), `go generate ./...` runs automatically when source files change. You can also manually trigger it with `tilt trigger generate`.
 
 ## Building
 
@@ -99,4 +97,4 @@ make ci
 make clean
 ```
 
-Removes generated files (`gen.go`, `*.bob*.go`) and built binaries.
+Removes generated files (`gen.go`) and built binaries.
