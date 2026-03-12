@@ -86,6 +86,9 @@ func FitImage(img image.Image, maxW, maxH int) image.Image {
 	return dst
 }
 
+// MIMEWebP is the MIME type for WebP images.
+const MIMEWebP = "image/webp"
+
 // MaxWebPDimension is the maximum width/height allowed by the WebP specification.
 const MaxWebPDimension = 16383
 
@@ -108,13 +111,17 @@ func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 		// Too large to convert — store original.
 		content = data
 		mime = detectedMIME
+	} else if detectedMIME == MIMEWebP {
+		// Already WebP — skip re-encoding to avoid quality loss.
+		content = data
+		mime = MIMEWebP
 	} else {
 		encoded, err := EncodeWebP(img, 85)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("encode webp: %w", err)
 		}
 		content = encoded
-		mime = "image/webp"
+		mime = MIMEWebP
 	}
 
 	// Generate thumbnail (512x512 max, preserve aspect ratio).

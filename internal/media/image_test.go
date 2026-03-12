@@ -70,7 +70,7 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		t.Skip("cwebp not available")
 	}
 
-	t.Run("small png to webp", func(t *testing.T) {
+	t.Run("small png to webp", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
 		img := syntheticColorImage(64, 64)
 		pngData := encodePNG(t, img)
 
@@ -78,11 +78,33 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		if err != nil {
 			t.Fatalf("ProcessImage error: %v", err)
 		}
-		if mime != "image/webp" {
-			t.Errorf("mime = %q, want %q", mime, "image/webp")
+		if mime != MIMEWebP {
+			t.Errorf("mime = %q, want %q", mime, MIMEWebP)
 		}
 		if len(content) == 0 {
 			t.Error("content should not be empty")
+		}
+		if len(thumbnail) == 0 {
+			t.Error("thumbnail should not be empty")
+		}
+	})
+
+	t.Run("webp passthrough", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+		img := syntheticColorImage(64, 64)
+		webpData, err := EncodeWebP(img, 85)
+		if err != nil {
+			t.Fatalf("EncodeWebP error: %v", err)
+		}
+
+		content, mime, thumbnail, err := ProcessImage(webpData, MIMEWebP)
+		if err != nil {
+			t.Fatalf("ProcessImage error: %v", err)
+		}
+		if mime != MIMEWebP {
+			t.Errorf("mime = %q, want %q", mime, MIMEWebP)
+		}
+		if !bytes.Equal(content, webpData) {
+			t.Error("webp content should be returned unchanged")
 		}
 		if len(thumbnail) == 0 {
 			t.Error("thumbnail should not be empty")
