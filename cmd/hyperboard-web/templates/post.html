@@ -85,7 +85,10 @@ function setMediaMode(mode) {
 </div>
 {{end}}
 
-<div class="mt-2">
+<div class="mt-2 flex gap-1">
+  <button class="btn"
+    hx-post="/posts/{{.Post.ID}}/regenerate-thumbnail"
+    hx-confirm="Regenerate thumbnail for this post?">Regenerate Thumbnail</button>
   <button class="btn btn-danger"
     hx-delete="/posts/{{.Post.ID}}"
     hx-confirm="Delete this post?"

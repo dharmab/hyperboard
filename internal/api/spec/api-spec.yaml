@@ -357,6 +357,28 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/posts/{id}/thumbnail:
+    post:
+      operationId: regeneratePostThumbnail
+      summary: Regenerate the thumbnail for a post from its existing content.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "422":
+          $ref: "#/components/responses/BadRequestResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
     put:
       operationId: replacePostThumbnail
       summary: Replace a post's thumbnail image. The server processes the image into a WebP thumbnail.

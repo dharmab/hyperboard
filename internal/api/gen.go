@@ -213,6 +213,9 @@ type ServerInterface interface {
 	// Get posts that are visually similar to the given post based on perceptual hash.
 	// (GET /api/v1/posts/{id}/similar)
 	GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, params GetSimilarPostsParams)
+	// Regenerate the thumbnail for a post from its existing content.
+	// (POST /api/v1/posts/{id}/thumbnail)
+	RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
 	// Replace a post's thumbnail image. The server processes the image into a WebP thumbnail.
 	// (PUT /api/v1/posts/{id}/thumbnail)
 	ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
@@ -539,6 +542,31 @@ func (siw *ServerInterfaceWrapper) GetSimilarPosts(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSimilarPosts(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegeneratePostThumbnail operation middleware
+func (siw *ServerInterfaceWrapper) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegeneratePostThumbnail(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1018,6 +1046,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.ReplacePostContent)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/similar", wrapper.GetSimilarPosts)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.RegeneratePostThumbnail)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.ReplacePostThumbnail)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories", wrapper.GetTagCategories)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/tagCategories/{tagCategory}", wrapper.DeleteTagCategory)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"strconv"
@@ -113,4 +114,28 @@ func ProcessVideo(data []byte) ([]byte, bool, error) {
 	}
 
 	return thumbBytes, hasAudio, nil
+}
+
+// RegenerateVideoThumbnail extracts a thumbnail from a random frame between
+// 25% and 75% of the video duration.
+func RegenerateVideoThumbnail(data []byte) ([]byte, error) {
+	tmpFile, err := os.CreateTemp("", "hyperboard-video-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return nil, fmt.Errorf("write temp file: %w", err)
+	}
+	_ = tmpFile.Close()
+
+	offset := 1.0
+	if duration, err := probeDuration(tmpFile.Name()); err == nil && duration > 0 {
+		// Pick a random position between 25% and 75% of the video.
+		offset = duration * (0.25 + rand.Float64()*0.50) //nolint:gosec // not security-sensitive
+	}
+
+	return extractThumbnail(tmpFile.Name(), offset)
 }

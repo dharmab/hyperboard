@@ -675,6 +675,78 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 	respond(w, http.StatusOK, postFromModel(model))
 }
 
+func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request, id Id) {
+	ctx := r.Context()
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", uuid.UUID(id)).Logger()
+
+	postID := uuid.UUID(id)
+
+	post, err := s.sqlStore.GetPost(ctx, postID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
+		return
+	}
+
+	contentKey := storageKeyForContent(postID, post.MimeType)
+	obj, err := s.mediaStore.Download(ctx, contentKey)
+	if err != nil {
+		logger.Error().Err(err).Str("key", contentKey).Msg("failed to download content from storage")
+		respondWithError(w, http.StatusInternalServerError, "Failed to download content")
+		return
+	}
+	data, err := io.ReadAll(obj.Body)
+	_ = obj.Body.Close()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to read content")
+		return
+	}
+
+	var thumbnailData []byte
+	if strings.HasPrefix(post.MimeType, "image/") {
+		_, _, thumbnailData, err = media.ProcessImage(data, post.MimeType)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to process image for thumbnail regeneration")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
+			return
+		}
+	} else if strings.HasPrefix(post.MimeType, "video/") {
+		thumbnailData, err = media.RegenerateVideoThumbnail(data)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to process video for thumbnail regeneration")
+			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
+			return
+		}
+	} else {
+		respondWithError(w, http.StatusUnprocessableEntity, "Cannot regenerate thumbnail for MIME type: %s", post.MimeType)
+		return
+	}
+
+	thumbnailKey := storageKeyForThumbnail(postID)
+	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		return
+	}
+
+	now := time.Now().UTC()
+	model, err := s.sqlStore.UpdatePostThumbnail(ctx, postID, thumbnailURL, now)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			respondWithError(w, http.StatusNotFound, "Post not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		return
+	}
+
+	logger.Info().Msg("thumbnail regenerated")
+	respond(w, http.StatusOK, postFromModel(model))
+}
+
 func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 
