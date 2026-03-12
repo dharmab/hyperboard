@@ -6,7 +6,9 @@
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="flex items-center gap-2 mt-1">
   <h1>Notes</h1>
-  <a href="/notes/_new" class="btn btn-primary">New Note</a>
+  <form method="POST" action="/notes" style="display:inline">
+    <button type="submit" class="btn btn-primary">New Note</button>
+  </form>
 </div>
 <table class="data-table mt-2" id="notes-table">
   <thead>
