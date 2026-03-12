@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/middleware/logging"
+	"github.com/dharmab/hyperboard/internal/middleware/security"
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -131,7 +132,7 @@ func run() error {
 	mux.Handle("/", app.sessionMiddleware(protected))
 
 	httpServer := &http.Server{
-		Handler:           logging.RequestLoggingMiddleware(mux),
+		Handler:           logging.RequestLoggingMiddleware(security.SecurityHeadersMiddleware(mux)),
 		Addr:              ":" + cfg.Port,
 		ReadHeaderTimeout: 30 * time.Second,
 	}
