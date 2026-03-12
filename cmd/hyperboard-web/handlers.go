@@ -233,25 +233,34 @@ func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 		excludeTags[exclude] = true
 	}
 
-	limit := 1000
-	params := &client.GetTagsParams{Limit: &limit}
-	resp, err := app.api.GetTagsWithResponse(ctx, params)
-	if err != nil || resp.JSON200 == nil {
-		w.WriteHeader(http.StatusOK)
-		return
+	// Paginate through all tags
+	var allTags []types.Tag
+	var cursor *string
+	for {
+		limit := 1000
+		params := &client.GetTagsParams{Limit: &limit, Cursor: cursor}
+		resp, err := app.api.GetTagsWithResponse(ctx, params)
+		if err != nil || resp.JSON200 == nil {
+			break
+		}
+		if resp.JSON200.Items != nil {
+			allTags = append(allTags, *resp.JSON200.Items...)
+		}
+		if resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			break
+		}
+		cursor = resp.JSON200.Cursor
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if resp.JSON200.Items != nil {
-		for _, tag := range *resp.JSON200.Items {
-			if excludeTags[tag.Name] {
-				continue
-			}
-			if q != "" && !strings.Contains(strings.ToLower(tag.Name), strings.ToLower(q)) {
-				continue
-			}
-			_, _ = fmt.Fprintf(w, "<option value=%q>", tag.Name)
+	for _, tag := range allTags {
+		if excludeTags[tag.Name] {
+			continue
 		}
+		if q != "" && !strings.Contains(strings.ToLower(tag.Name), strings.ToLower(q)) {
+			continue
+		}
+		_, _ = fmt.Fprintf(w, "<option value=%q>", tag.Name)
 	}
 }
 

@@ -341,6 +341,148 @@ func TestHandlePost_InvalidID(t *testing.T) {
 	}
 }
 
+func TestHandleTagSuggestions(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	tags := []types.Tag{
+		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
+		{Name: "beta", CreatedAt: now, UpdatedAt: now},
+		{Name: "gamma", CreatedAt: now, UpdatedAt: now},
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		if !strings.Contains(body, name) {
+			t.Errorf("expected %q in response body", name)
+		}
+	}
+}
+
+func TestHandleTagSuggestions_Pagination(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	page1 := []types.Tag{
+		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
+		{Name: "beta", CreatedAt: now, UpdatedAt: now},
+	}
+	page2 := []types.Tag{
+		{Name: "gamma", CreatedAt: now, UpdatedAt: now},
+		{Name: "delta", CreatedAt: now, UpdatedAt: now},
+	}
+	cursor := "page2cursor"
+
+	callCount := 0
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			callCount++
+			if r.URL.Query().Get("cursor") == "" {
+				jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &page1, Cursor: &cursor})
+			} else {
+				jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &page2})
+			}
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
+		if !strings.Contains(body, name) {
+			t.Errorf("expected %q in response body", name)
+		}
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 API calls, got %d", callCount)
+	}
+}
+
+func TestHandleTagSuggestions_FilterByQuery(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	tags := []types.Tag{
+		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
+		{Name: "beta", CreatedAt: now, UpdatedAt: now},
+		{Name: "gamma", CreatedAt: now, UpdatedAt: now},
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=alph", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "alpha") {
+		t.Error("expected alpha in response")
+	}
+	if strings.Contains(body, "beta") {
+		t.Error("expected beta to be filtered out")
+	}
+}
+
+func TestHandleTagSuggestions_ExcludeTags(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	tags := []types.Tag{
+		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
+		{Name: "beta", CreatedAt: now, UpdatedAt: now},
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?exclude=alpha", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "alpha") {
+		t.Error("expected alpha to be excluded")
+	}
+	if !strings.Contains(body, "beta") {
+		t.Error("expected beta in response")
+	}
+}
+
 func TestHandleTagConvertToAlias(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
