@@ -121,6 +121,10 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		}
 	}
 
+	if req.Color != "" && !isValidHexColor(req.Color) {
+		respondWithError(w, http.StatusBadRequest, "Color must be a valid hex color (e.g. #ff0000)")
+		return
+	}
 	if req.Color == "" {
 		req.Color = "#888888"
 	}
