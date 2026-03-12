@@ -6,9 +6,9 @@
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls">
   <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}</span>
-  <span id="media-mode-fit" class="media-mode-option media-mode-option--active" onclick="setMediaMode('fit')">Fit</span>
+  <span id="media-mode-fit" class="media-mode-option media-mode-option--active">Fit</span>
   <span class="media-mode-sep">/</span>
-  <span id="media-mode-fill" class="media-mode-option" onclick="setMediaMode('fill')">Fill</span>
+  <span id="media-mode-fill" class="media-mode-option">Fill</span>
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
@@ -17,28 +17,6 @@
   <a href="{{.Post.ContentUrl | mediaUrl}}"><img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post"></a>
   {{end}}
 </div>
-<script>
-function setMediaMode(mode) {
-  var el = document.getElementById('post-media');
-  var fitBtn = document.getElementById('media-mode-fit');
-  var fillBtn = document.getElementById('media-mode-fill');
-  if (mode === 'fill') {
-    el.classList.add('post-media--fill');
-    fillBtn.classList.add('media-mode-option--active');
-    fitBtn.classList.remove('media-mode-option--active');
-  } else {
-    el.classList.remove('post-media--fill');
-    fitBtn.classList.add('media-mode-option--active');
-    fillBtn.classList.remove('media-mode-option--active');
-  }
-  localStorage.setItem('mediaMode', mode);
-}
-(function() {
-  if (localStorage.getItem('mediaMode') === 'fill') {
-    setMediaMode('fill');
-  }
-})();
-</script>
 
 {{template "post-tags" .}}
 
@@ -51,7 +29,7 @@ function setMediaMode(mode) {
     <textarea id="note" name="note" rows="4" style="width:100%">{{.Post.Note}}</textarea>
   </form>
   {{else}}
-  <span class="media-mode-option" onclick="showNoteEditor(this)" style="cursor:pointer">+ Note</span>
+  <span class="media-mode-option" id="btn-add-note" style="cursor:pointer">+ Note</span>
   <template id="note-editor-tpl">
     <form hx-put="/posts/{{.Post.ID}}/note"
       hx-trigger="input changed delay:500ms"
@@ -60,15 +38,6 @@ function setMediaMode(mode) {
       <textarea id="note" name="note" rows="4" style="width:100%"></textarea>
     </form>
   </template>
-  <script>
-  function showNoteEditor(btn) {
-    var container = document.getElementById('post-note');
-    var tpl = document.getElementById('note-editor-tpl');
-    container.innerHTML = tpl.innerHTML;
-    htmx.process(container);
-    container.querySelector('textarea').focus();
-  }
-  </script>
   {{end}}
 </div>
 
@@ -97,6 +66,7 @@ function setMediaMode(mode) {
     hx-push-url="/"
     hx-target="body">Delete Post</button>
 </div>
+<script src="/static/post.js"></script>
 {{end}}
 
 {{define "post-tags"}}
@@ -124,7 +94,7 @@ function setMediaMode(mode) {
       hx-include="this"
       name="q"
       style="width:150px"
-      onkeydown="if(event.key==='Enter'){event.preventDefault();this.closest('.post-tags-add').querySelector('button').click()}">
+>
     <datalist id="tag-suggestions"></datalist>
     <button class="btn" hx-post="/posts/{{.Post.ID}}/tags" hx-include="#tag-input" hx-target=".post-tags" hx-swap="outerHTML">Add</button>
   </div>

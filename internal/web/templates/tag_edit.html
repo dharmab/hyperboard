@@ -49,7 +49,8 @@
   Merge this tag into another tag. All posts will be re-tagged, and this tag's name and aliases will become aliases of the target.
 </p>
 <form method="POST" action="/tags/{{.CurrentName}}/convert-to-alias"
-  onsubmit="return confirm('Convert \x22{{.CurrentName}}\x22 into an alias? This cannot be undone.')">
+  id="convert-to-alias-form"
+  data-confirm-message="Convert &quot;{{.CurrentName}}&quot; into an alias? This cannot be undone.">
   <div class="form-group" style="max-width:400px">
     <label>Target tag</label>
     <input type="text" name="target" id="convert-target-input" required
@@ -62,10 +63,6 @@
   </div>
   <button type="submit" class="btn btn-danger">Convert to Alias</button>
 </form>
-<script>
-document.getElementById('convert-target-input').addEventListener('htmx:configRequest', function(e) {
-  e.detail.parameters.q = this.value;
-});
-</script>
+<script src="/static/tag-edit.js"></script>
 {{end}}
 {{end}}

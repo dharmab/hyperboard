@@ -28,34 +28,5 @@
   {{end}}
   </tbody>
 </table>
-<script>
-(function() {
-  const table = document.getElementById('notes-table');
-  const headers = table.querySelectorAll('th.sortable');
-  headers.forEach(th => {
-    th.style.cursor = 'pointer';
-    th.addEventListener('click', () => {
-      const col = th.cellIndex;
-      const type = th.dataset.type;
-      const asc = !th.classList.contains('sorted-asc');
-      headers.forEach(h => { h.classList.remove('sorted-asc', 'sorted-desc'); });
-      th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
-      const tbody = table.querySelector('tbody');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      rows.sort((a, b) => {
-        const av = a.cells[col].dataset.value;
-        const bv = b.cells[col].dataset.value;
-        let cmp;
-        if (type === 'number') {
-          cmp = parseInt(av, 10) - parseInt(bv, 10);
-        } else {
-          cmp = av.localeCompare(bv, undefined, {sensitivity: 'base'});
-        }
-        return asc ? cmp : -cmp;
-      });
-      rows.forEach(r => tbody.appendChild(r));
-    });
-  });
-})();
-</script>
+<script src="/static/table-sort.js"></script>
 {{end}}
