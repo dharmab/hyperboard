@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// config holds the configuration for the API server.
 type config struct {
 	Port                string
 	AdminPassword       string
@@ -16,6 +17,7 @@ type config struct {
 	ObjectStore         objectStoreConfig
 }
 
+// sqlStoreConfig holds PostgreSQL connection configuration.
 type sqlStoreConfig struct {
 	Host     string
 	User     string
@@ -24,6 +26,7 @@ type sqlStoreConfig struct {
 	SSLMode  string
 }
 
+// objectStoreConfig holds S3-compatible object store configuration.
 type objectStoreConfig struct {
 	Endpoint     string
 	Bucket       string
@@ -33,6 +36,7 @@ type objectStoreConfig struct {
 	UsePathStyle bool
 }
 
+// bindConfig registers CLI flags and environment variable bindings for the API server configuration.
 func bindConfig(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
@@ -61,6 +65,7 @@ func bindConfig(cmd *cobra.Command) {
 	_ = viper.BindPFlags(flags)
 }
 
+// loadConfig reads configuration values from viper and returns a populated config struct.
 func loadConfig() *config {
 	return &config{
 		Port:                viper.GetString("port"),

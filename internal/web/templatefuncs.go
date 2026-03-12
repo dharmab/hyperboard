@@ -8,8 +8,10 @@ import (
 	"strings"
 )
 
+// defaultColor is the CSS color value used when no category color is available.
 const defaultColor = "var(--base03)"
 
+// mediaPath extracts the URL path from a raw URL string, stripping scheme and host.
 func mediaPath(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -18,6 +20,7 @@ func mediaPath(rawURL string) string {
 	return strings.TrimRight(u.Path, "/")
 }
 
+// templateFuncs returns the FuncMap of custom template functions for HTML rendering.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"deref": func(s *string) string {

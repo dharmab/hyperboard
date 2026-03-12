@@ -62,8 +62,10 @@ type UpdatePostContentInput struct {
 	UpdatedAt    time.Time
 }
 
+// postColumns is the SQL column list for post queries.
 const postColumns = "id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at"
 
+// scanPost scans a single row into a Post model.
 func scanPost(row interface{ Scan(...any) error }) (*models.Post, error) {
 	var p models.Post
 	err := row.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
@@ -73,6 +75,7 @@ func scanPost(row interface{ Scan(...any) error }) (*models.Post, error) {
 	return &p, nil
 }
 
+// loadPostTags batch-loads tags for the given posts from the database.
 func loadPostTags(ctx context.Context, querier interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, posts ...*models.Post) error {

@@ -21,6 +21,7 @@ func NewPostgresSQLStore(db *sql.DB, similarityThreshold int) *PostgresSQLStore 
 	}
 }
 
+// Ping checks database connectivity.
 func (s *PostgresSQLStore) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }

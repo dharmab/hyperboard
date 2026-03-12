@@ -11,14 +11,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// noCategoryLabel is the display label used when a tag has no category.
 const noCategoryLabel = "(none)"
 
+// editableTag is a YAML-serializable subset of tag fields for interactive editing.
 type editableTag struct {
 	Name        string  `yaml:"name"`
 	Category    *string `yaml:"category,omitempty"`
 	Description string  `yaml:"description"`
 }
 
+// Register adds tag CRUD subcommands to the CLI application.
 func Register(app *cli.App) {
 	getTagCmd := &cobra.Command{
 		Use:   "tag [name]",

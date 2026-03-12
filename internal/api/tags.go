@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// tagFromModel converts a database Tag model to an API Tag type.
 func tagFromModel(model *models.Tag) types.Tag {
 	tag := types.Tag{
 		Name:        model.Name,
@@ -32,6 +33,7 @@ func tagFromModel(model *models.Tag) types.Tag {
 	return tag
 }
 
+// GetTags handles paginated tag listing with cursor-based pagination.
 func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsParams) {
 	ctx := r.Context()
 

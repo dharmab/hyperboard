@@ -16,11 +16,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// editablePost is a YAML-serializable subset of post fields for interactive editing.
 type editablePost struct {
 	Tags []string `yaml:"tags"`
 	Note string   `yaml:"note"`
 }
 
+// Register adds post CRUD subcommands to the CLI application.
 func Register(app *cli.App) {
 	var searchQuery string
 

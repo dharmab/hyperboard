@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// respond writes a JSON response with the given status code and body.
 func respond(w http.ResponseWriter, code int, body any) {
 	if body == nil {
 		w.WriteHeader(code)
@@ -25,6 +26,7 @@ func respond(w http.ResponseWriter, code int, body any) {
 	}
 }
 
+// respondWithError writes a JSON error response with a formatted message.
 func respondWithError(w http.ResponseWriter, code int, message string, args ...any) {
 	e := Error{Message: fmt.Sprintf(message, args...)}
 	b, err := json.Marshal(e)

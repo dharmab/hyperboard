@@ -8,11 +8,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config holds CLI configuration for API access.
 type Config struct {
 	APIURL        string
 	AdminPassword string
 }
 
+// bindConfig registers persistent CLI flags and environment variable bindings.
 func bindConfig(cmd *cobra.Command) {
 	flags := cmd.PersistentFlags()
 
@@ -26,6 +28,7 @@ func bindConfig(cmd *cobra.Command) {
 	_ = viper.BindPFlags(flags)
 }
 
+// loadConfig reads and validates configuration values from viper.
 func loadConfig() (*Config, error) {
 	cfg := &Config{
 		APIURL:        viper.GetString("api-url"),

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// config holds the configuration for the web frontend server.
 type config struct {
 	Port          string
 	AdminPassword string
@@ -18,6 +19,7 @@ type config struct {
 	TagFilters    []tagFilter
 }
 
+// bindConfig registers CLI flags and environment variable bindings.
 func bindConfig(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
@@ -35,6 +37,7 @@ func bindConfig(cmd *cobra.Command) {
 	_ = viper.BindPFlags(flags)
 }
 
+// loadConfig reads and validates configuration values from viper.
 func loadConfig() (*config, error) {
 	tagFilters, err := parseTagFilters(viper.GetString("tag-filters"))
 	if err != nil {
@@ -50,6 +53,7 @@ func loadConfig() (*config, error) {
 	}, nil
 }
 
+// parseTagFilters parses a JSON string into a slice of tag filter definitions.
 func parseTagFilters(jsonStr string) ([]tagFilter, error) {
 	if jsonStr == "" {
 		return nil, nil

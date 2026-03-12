@@ -9,6 +9,7 @@ import (
 	"github.com/dharmab/hyperboard/pkg/types"
 )
 
+// handleTags serves the tags listing page.
 func (a *app) handleTags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -53,6 +54,7 @@ func (a *app) handleTags(w http.ResponseWriter, r *http.Request) {
 	a.renderTemplate(w, r, "tags", tagsData{Tags: allTags, CategoryColors: colorMap, Error: strings.Join(errs, "; ")})
 }
 
+// handleTagEdit serves the tag edit form and handles tag creation, updates, and deletion.
 func (a *app) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := r.PathValue("name")

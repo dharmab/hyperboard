@@ -10,6 +10,7 @@ import (
 	"github.com/dharmab/hyperboard/pkg/client"
 )
 
+// newAPIClient creates an authenticated OpenAPI client for the Hyperboard API.
 func newAPIClient(baseURL, password string) (*client.ClientWithResponses, error) {
 	return client.NewClientWithResponses(
 		baseURL,
@@ -28,6 +29,7 @@ type mediaClient struct {
 	http     *http.Client
 }
 
+// newMediaClient creates an HTTP client for proxying media requests to the API.
 func newMediaClient(baseURL, password string) *mediaClient {
 	return &mediaClient{
 		baseURL:  baseURL,
@@ -36,6 +38,7 @@ func newMediaClient(baseURL, password string) *mediaClient {
 	}
 }
 
+// getRaw performs an authenticated GET request to the API.
 func (c *mediaClient) getRaw(ctx context.Context, path string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
@@ -45,6 +48,7 @@ func (c *mediaClient) getRaw(ctx context.Context, path string) (*http.Response, 
 	return c.http.Do(req)
 }
 
+// head performs an authenticated HEAD request to the API.
 func (c *mediaClient) head(ctx context.Context, path string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.baseURL+path, nil)
 	if err != nil {

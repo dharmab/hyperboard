@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// handleNotes serves the notes listing page and handles note creation.
 func (a *app) handleNotes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -48,6 +49,7 @@ func (a *app) handleNotes(w http.ResponseWriter, r *http.Request) {
 	a.renderTemplate(w, r, "notes", notesData{Notes: notes, Error: loadErr})
 }
 
+// handleNote serves the single note view and handles note updates and deletion.
 func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")

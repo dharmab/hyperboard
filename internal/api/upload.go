@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// UploadPost handles uploading new media content as a post.
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {
 	ctx := r.Context()
 	logger := *zerolog.Ctx(ctx)

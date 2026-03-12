@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// handleMedia proxies media requests to the API server.
 func (a *app) handleMedia(w http.ResponseWriter, r *http.Request) {
 	// /media/{key...} → proxy to API /media/{key...}
 	path := strings.TrimPrefix(r.URL.Path, "/media/")

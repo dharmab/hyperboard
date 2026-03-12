@@ -27,8 +27,10 @@ import (
 //go:embed templates static
 var embeddedFiles embed.FS
 
+// newResourceName is a sentinel path value indicating a new resource is being created.
 const newResourceName = "_new"
 
+// configPath is the path to the configuration file, set via CLI flag.
 var configPath string
 
 // NewCommand returns the cobra command for the hyperboard-web server.
@@ -44,6 +46,7 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
+// initConfig reads the config file if configPath is set.
 func initConfig() {
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
@@ -53,6 +56,7 @@ func initConfig() {
 	}
 }
 
+// app holds the web application state including configuration, API client, and templates.
 type app struct {
 	cfg   *config
 	api   *client.ClientWithResponses
@@ -60,6 +64,7 @@ type app struct {
 	tmpls map[string]*template.Template
 }
 
+// run initializes configuration, templates, and starts the web server.
 func run() error {
 	cfg, err := loadConfig()
 	if err != nil {

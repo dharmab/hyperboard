@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// handlePosts serves the posts listing page with search and infinite scroll support.
 func (a *app) handlePosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	search := r.URL.Query().Get("search")
@@ -69,6 +70,7 @@ func (a *app) handlePosts(w http.ResponseWriter, r *http.Request) {
 	a.renderTemplate(w, r, "posts", data)
 }
 
+// handlePost serves the single post view and handles post deletion.
 func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")

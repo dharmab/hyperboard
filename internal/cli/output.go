@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// printTable writes key-value pairs as a tab-aligned table to stdout.
 func printTable(rows [][2]string) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for _, row := range rows {
@@ -19,6 +20,7 @@ func printTable(rows [][2]string) {
 	_ = w.Flush()
 }
 
+// printListTable writes a table with headers and rows to stdout.
 func printListTable(headers []string, rows [][]string) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for i, h := range headers {
@@ -40,6 +42,7 @@ func printListTable(headers []string, rows [][]string) {
 	_ = w.Flush()
 }
 
+// printYAML marshals a value as YAML and writes it to stdout.
 func printYAML(v any) error {
 	data, err := yaml.Marshal(v)
 	if err != nil {
@@ -49,6 +52,7 @@ func printYAML(v any) error {
 	return err
 }
 
+// printJSON marshals a value as indented JSON and writes it to stdout.
 func printJSON(v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -58,6 +62,7 @@ func printJSON(v any) error {
 	return err
 }
 
+// PrintResource outputs a single resource in the configured format.
 func (a *App) PrintResource(v any, tableRows func() [][2]string) error {
 	switch a.OutputFormat {
 	case "yaml":
@@ -70,6 +75,7 @@ func (a *App) PrintResource(v any, tableRows func() [][2]string) error {
 	}
 }
 
+// PrintList outputs a list of resources in the configured format.
 func (a *App) PrintList(v any, headers []string, rowFn func() [][]string) error {
 	switch a.OutputFormat {
 	case "yaml":

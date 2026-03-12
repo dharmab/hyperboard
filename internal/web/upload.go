@@ -19,6 +19,7 @@ type uploadConflict struct {
 	Body     []byte
 }
 
+// handleUpload serves the upload page and handles multipart file uploads.
 func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	isXHR := r.Header.Get("X-Requested-With") == "XMLHttpRequest"

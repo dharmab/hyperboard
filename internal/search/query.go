@@ -2,6 +2,7 @@ package search
 
 import "github.com/dharmab/hyperboard/pkg/types"
 
+// Query represents parsed search parameters including tag filters, sort order, and type filters.
 type Query struct {
 	IncludedTags []types.TagName
 	ExcludedTags []types.TagName

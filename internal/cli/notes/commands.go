@@ -15,11 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// editableNote is a YAML-serializable subset of note fields for interactive editing.
 type editableNote struct {
 	Title   string `yaml:"title"`
 	Content string `yaml:"content"`
 }
 
+// Register adds note CRUD subcommands to the CLI application.
 func Register(app *cli.App) {
 	getNoteCmd := &cobra.Command{
 		Use:   "note [id]",

@@ -4,6 +4,7 @@ import (
 	"net/http"
 )
 
+// handleLogin serves the login page and processes login form submissions.
 func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		a.renderTemplate(w, r, "login.html", nil)
@@ -22,11 +23,13 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+// handleLogout clears the session cookie and redirects to the login page.
 func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 	clearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
+// sessionMiddleware is HTTP middleware that requires a valid session cookie.
 func (a *app) sessionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(sessionCookieName)

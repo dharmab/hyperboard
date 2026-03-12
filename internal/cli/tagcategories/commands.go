@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// editableTagCategory is a YAML-serializable subset of tag category fields for interactive editing.
 type editableTagCategory struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Color       string `yaml:"color"`
 }
 
+// Register adds tag category CRUD subcommands to the CLI application.
 func Register(app *cli.App) {
 	getTagCategoryCmd := &cobra.Command{
 		Use:   "tagcategory [name]",

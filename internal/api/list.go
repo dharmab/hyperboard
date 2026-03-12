@@ -2,6 +2,7 @@ package api
 
 import "encoding/base64"
 
+// MaxLimit is the maximum number of items that can be returned per page.
 const MaxLimit = 64
 
 // obfuscateCursor encodes a string into an opaque cursor.

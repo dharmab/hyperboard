@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Register adds content and thumbnail replacement subcommands to the CLI application.
 func Register(app *cli.App) {
 	var contentFile string
 

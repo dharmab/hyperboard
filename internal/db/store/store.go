@@ -6,7 +6,9 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("not found")
+	// ErrNotFound is returned when a requested resource does not exist.
+	ErrNotFound = errors.New("not found")
+	// ErrAliasConflict is returned when an alias conflicts with an existing tag name.
 	ErrAliasConflict = errors.New("alias conflicts with existing tag name")
 )
 
