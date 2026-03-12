@@ -118,6 +118,23 @@ func TestPutPost(t *testing.T) {
 	if len(got.Tags) != 1 || got.Tags[0] != tagName {
 		t.Errorf("Tags = %v, want [%q]", got.Tags, tagName)
 	}
+
+	t.Run("put post with zero ID returns bad request", func(t *testing.T) {
+		zeroBody := pkgtypes.Post{
+			ID:       pkgtypes.ID(uuid.Nil),
+			MimeType: post.MimeType,
+			Note:     "test",
+		}
+		zb, _ := json.Marshal(zeroBody)
+		zReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+uuid.Nil.String(), bytes.NewReader(zb))
+		zReq.Header.Set("Content-Type", "application/json")
+		zW := httptest.NewRecorder()
+		srv.PutPost(zW, zReq, pkgtypes.ID(uuid.Nil))
+
+		if zW.Code != http.StatusBadRequest {
+			t.Fatalf("PutPost zero ID status = %d, want %d; body = %s", zW.Code, http.StatusBadRequest, zW.Body.String())
+		}
+	})
 }
 
 func TestDeletePost(t *testing.T) {

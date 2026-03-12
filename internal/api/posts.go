@@ -470,6 +470,11 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	if uuid.UUID(post.ID) == uuid.Nil {
+		respondWithError(w, http.StatusBadRequest, "Post ID is required")
+		return
+	}
+
 	if uuid.UUID(post.ID) != postID {
 		respondWithError(w, http.StatusBadRequest, "Post ID mismatch: got %q in body but %q in URL", post.ID, postID)
 		return

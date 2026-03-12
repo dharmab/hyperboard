@@ -51,6 +51,11 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.Title == "" {
+		respondWithError(w, http.StatusBadRequest, "Title is required")
+		return
+	}
+
 	model, err := s.sqlStore.CreateNote(ctx, body.Title, body.Content)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create note")
@@ -83,6 +88,11 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 	var body PutNoteJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if body.Title == "" {
+		respondWithError(w, http.StatusBadRequest, "Title is required")
 		return
 	}
 

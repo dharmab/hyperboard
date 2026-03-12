@@ -125,6 +125,38 @@ func TestNotesIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("create note with empty title returns bad request", func(t *testing.T) {
+		body := CreateNoteJSONBody{
+			Title:   "",
+			Content: "Some content",
+		}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/notes", bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.CreateNote(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("CreateNote status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+
+	t.Run("update note with empty title returns bad request", func(t *testing.T) {
+		body := PutNoteJSONBody{
+			Title:   "",
+			Content: "Some content",
+		}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/notes/"+uuid.UUID(noteID).String(), bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutNote(w, req, noteID)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("PutNote status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+
 	t.Run("get nonexistent note returns not found", func(t *testing.T) {
 		fakeID := types.ID(uuid.Must(uuid.NewV4()))
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes/"+uuid.UUID(fakeID).String(), nil)
