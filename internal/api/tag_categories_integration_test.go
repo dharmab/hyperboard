@@ -124,6 +124,32 @@ func TestTagCategoriesIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("create tag category with empty color defaults color", func(t *testing.T) {
+		defaultColorCat := "default-color-cat-" + uuid.Must(uuid.NewV4()).String()[:8]
+		body := types.TagCategory{
+			Name:        defaultColorCat,
+			Description: "No color specified",
+			Color:       "",
+		}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+defaultColorCat, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutTagCategory(w, req, defaultColorCat)
+
+		if w.Code != http.StatusCreated {
+			t.Fatalf("PutTagCategory status = %d, want %d; body = %s", w.Code, http.StatusCreated, w.Body.String())
+		}
+
+		var cat types.TagCategory
+		if err := json.NewDecoder(w.Body).Decode(&cat); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if cat.Color != "#888888" {
+			t.Errorf("Color = %q, want %q", cat.Color, "#888888")
+		}
+	})
+
 	t.Run("delete tag category", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/tagCategories/"+catName, nil)
 		w := httptest.NewRecorder()

@@ -237,6 +237,21 @@ func TestTagsIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("convert tag to alias with empty target returns bad request", func(t *testing.T) {
+		body := ConvertTagToAliasJSONRequestBody{
+			Target: "",
+		}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/tags/"+tagName+"/convert-to-alias", bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ConvertTagToAlias(w, req, tagName)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("ConvertTagToAlias status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+
 	t.Run("delete tag", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/tags/"+tagName, nil)
 		w := httptest.NewRecorder()

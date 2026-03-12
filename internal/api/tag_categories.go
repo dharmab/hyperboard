@@ -121,6 +121,10 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		}
 	}
 
+	if req.Color == "" {
+		req.Color = "#888888"
+	}
+
 	logger := zerolog.Ctx(ctx).With().Str("category", name).Logger()
 	now := time.Now().UTC()
 	model, isCreate, err := s.sqlStore.UpsertTagCategory(ctx, name, store.TagCategoryInput{

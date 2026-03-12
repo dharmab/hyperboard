@@ -280,8 +280,12 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 		return
 	}
 
-	if body.Target == "" || body.Target == name {
-		respondWithError(w, http.StatusBadRequest, "Invalid target tag")
+	if body.Target == "" {
+		respondWithError(w, http.StatusBadRequest, "Target tag name is required")
+		return
+	}
+	if body.Target == name {
+		respondWithError(w, http.StatusBadRequest, "Target must differ from source")
 		return
 	}
 
