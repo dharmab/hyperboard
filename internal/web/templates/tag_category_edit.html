@@ -23,6 +23,7 @@
   <button type="button" class="btn btn-danger"
     hx-delete="/tag-categories/{{.CurrentName}}"
     hx-confirm="Delete category {{.CurrentName}}?"
+    hx-target="body"
     hx-push-url="/tag-categories">Delete</button>
   {{end}}
 </form>
