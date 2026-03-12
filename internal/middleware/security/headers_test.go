@@ -1,17 +1,20 @@
 package security
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestSecurityHeadersMiddleware(t *testing.T) {
+	t.Parallel()
+
 	handler := SecurityHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -27,6 +30,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.header, func(t *testing.T) {
+			t.Parallel()
 			got := rec.Header().Get(tt.header)
 			if got != tt.want {
 				t.Errorf("header %s = %q, want %q", tt.header, got, tt.want)
