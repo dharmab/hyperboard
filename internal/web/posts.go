@@ -15,7 +15,7 @@ import (
 func (a *app) handlePosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	search := r.URL.Query().Get("search")
-	if search == "" {
+	if search == "" && !r.URL.Query().Has("search") {
 		search = "sort:random"
 	}
 	cursor := r.URL.Query().Get("cursor")

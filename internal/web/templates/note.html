@@ -22,32 +22,13 @@
 </div>
 <div class="flex gap-2 mt-1">
   <button id="note-edit-btn" class="btn"{{if .IsNew}} style="display:none"{{end}}
-    onclick="enterEditMode()">Edit</button>
+    >Edit</button>
   <button id="note-save-btn" class="btn btn-primary"{{if not .IsNew}} style="display:none"{{end}}
     hx-put="/notes/{{.Note.ID}}"
     hx-include="#note-content,#note-title"
     hx-target="#note-view"
     hx-swap="outerHTML"
-    onclick="exitEditMode()">Save</button>
+    >Save</button>
 </div>
-<script>
-function enterEditMode() {
-  document.getElementById('note-title-view').style.display = 'none';
-  document.getElementById('note-title').style.display = '';
-  document.getElementById('note-title').value = document.getElementById('note-title-view').textContent.trim();
-  document.getElementById('note-edit').style.display = '';
-  document.getElementById('note-view').style.display = 'none';
-  document.getElementById('note-edit-btn').style.display = 'none';
-  document.getElementById('note-save-btn').style.display = '';
-}
-function exitEditMode() {
-  document.getElementById('note-title-view').textContent = document.getElementById('note-title').value;
-  document.getElementById('note-title-view').style.display = '';
-  document.getElementById('note-title').style.display = 'none';
-  document.getElementById('note-edit').style.display = 'none';
-  document.getElementById('note-view').style.display = '';
-  document.getElementById('note-edit-btn').style.display = '';
-  document.getElementById('note-save-btn').style.display = 'none';
-}
-</script>
+<script src="/static/note.js"></script>
 {{end}}
