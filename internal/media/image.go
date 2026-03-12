@@ -89,6 +89,9 @@ func FitImage(img image.Image, maxW, maxH int) image.Image {
 // MIMEWebP is the MIME type for WebP images.
 const MIMEWebP = "image/webp"
 
+// MIMEGif is the MIME type for GIF images.
+const MIMEGif = "image/gif"
+
 // MaxWebPDimension is the maximum width/height allowed by the WebP specification.
 const MaxWebPDimension = 16383
 
@@ -107,7 +110,11 @@ func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 	var content []byte
 	var mime string
 
-	if w > MaxWebPDimension || h > MaxWebPDimension {
+	if detectedMIME == MIMEGif {
+		// Store GIF as-is; skip WebP conversion.
+		content = data
+		mime = MIMEGif
+	} else if w > MaxWebPDimension || h > MaxWebPDimension {
 		// Too large to convert — store original.
 		content = data
 		mime = detectedMIME
