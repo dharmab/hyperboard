@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -376,25 +377,38 @@ func TestHandleTagSuggestions(t *testing.T) {
 func TestHandleTagSuggestions_Pagination(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
-	page1 := []types.Tag{
-		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
-		{Name: "beta", CreatedAt: now, UpdatedAt: now},
+
+	const totalTags = 3500
+	const pageSize = 1000
+
+	// Generate all tags
+	allTags := make([]types.Tag, totalTags)
+	for i := range allTags {
+		allTags[i] = types.Tag{Name: fmt.Sprintf("tag-%04d", i), CreatedAt: now, UpdatedAt: now}
 	}
-	page2 := []types.Tag{
-		{Name: "gamma", CreatedAt: now, UpdatedAt: now},
-		{Name: "delta", CreatedAt: now, UpdatedAt: now},
+
+	// Split into pages
+	var pages [][]types.Tag
+	for i := 0; i < len(allTags); i += pageSize {
+		end := min(i+pageSize, len(allTags))
+		pages = append(pages, allTags[i:end])
 	}
-	cursor := "page2cursor"
 
 	callCount := 0
 	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
 			callCount++
-			if r.URL.Query().Get("cursor") == "" {
-				jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &page1, Cursor: &cursor})
-			} else {
-				jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &page2})
+			cursorParam := r.URL.Query().Get("cursor")
+			pageIdx := 0
+			if cursorParam != "" {
+				_, _ = fmt.Sscanf(cursorParam, "page%d", &pageIdx)
 			}
+			resp := client.TagsResponse{Items: &pages[pageIdx]}
+			if pageIdx+1 < len(pages) {
+				next := fmt.Sprintf("page%d", pageIdx+1)
+				resp.Cursor = &next
+			}
+			jsonResponse(w, http.StatusOK, resp)
 			return
 		}
 		http.NotFound(w, r)
@@ -408,13 +422,14 @@ func TestHandleTagSuggestions_Pagination(t *testing.T) {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	body := w.Body.String()
-	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
-		if !strings.Contains(body, name) {
-			t.Errorf("expected %q in response body", name)
+	for _, tag := range allTags {
+		if !strings.Contains(body, fmt.Sprintf("value=%q", tag.Name)) {
+			t.Errorf("expected %q in response body", tag.Name)
 		}
 	}
-	if callCount != 2 {
-		t.Errorf("expected 2 API calls, got %d", callCount)
+	expectedCalls := len(pages)
+	if callCount != expectedCalls {
+		t.Errorf("expected %d API calls, got %d", expectedCalls, callCount)
 	}
 }
 
