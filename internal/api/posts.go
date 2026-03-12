@@ -343,34 +343,37 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	}
 
 	// Compute perceptual hash from the thumbnail.
+	// GIFs are excluded from perceptual hashing and similarity detection.
 	var phashVal *sql.Null[int64]
-	pHash, phashErr := media.DhashFromBytes(thumbnailData)
-	if phashErr != nil {
-		logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
-	} else {
-		phashVal = &sql.Null[int64]{V: pHash, Valid: true}
-
-		// Check for visually similar posts (unless force is set).
-		if !force {
-			logger.Info().Msg("checking for visually similar posts")
-			similar, err := s.sqlStore.FindSimilarPosts(ctx, uuid.Nil, pHash, 5)
-			if err != nil {
-				logger.Error().Err(err).Msg("failed to check for similar posts")
-			} else if len(similar) > 0 {
-				logger.Info().Int("count", len(similar)).Msg("similar posts found, rejecting upload")
-				items := make([]types.Post, 0, len(similar))
-				for _, p := range similar {
-					items = append(items, postFromModel(p))
-				}
-				respond(w, http.StatusConflict, SimilarPostsResponse{
-					Message: "Similar posts found",
-					Similar: items,
-				})
-				return
-			}
-			logger.Info().Msg("no similar posts found")
+	if contentMIME != media.MIMEGif {
+		pHash, phashErr := media.DhashFromBytes(thumbnailData)
+		if phashErr != nil {
+			logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 		} else {
-			logger.Info().Msg("skipping similarity check (force=true)")
+			phashVal = &sql.Null[int64]{V: pHash, Valid: true}
+
+			// Check for visually similar posts (unless force is set).
+			if !force {
+				logger.Info().Msg("checking for visually similar posts")
+				similar, err := s.sqlStore.FindSimilarPosts(ctx, uuid.Nil, pHash, 5)
+				if err != nil {
+					logger.Error().Err(err).Msg("failed to check for similar posts")
+				} else if len(similar) > 0 {
+					logger.Info().Int("count", len(similar)).Msg("similar posts found, rejecting upload")
+					items := make([]types.Post, 0, len(similar))
+					for _, p := range similar {
+						items = append(items, postFromModel(p))
+					}
+					respond(w, http.StatusConflict, SimilarPostsResponse{
+						Message: "Similar posts found",
+						Similar: items,
+					})
+					return
+				}
+				logger.Info().Msg("no similar posts found")
+			} else {
+				logger.Info().Msg("skipping similarity check (force=true)")
+			}
 		}
 	}
 
