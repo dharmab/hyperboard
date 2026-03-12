@@ -141,6 +141,7 @@ updateTagFilterButtons();
 <div class="posts-item">
   <a href="/posts/{{.ID}}">
     <img src="{{.ThumbnailUrl | mediaUrl}}" alt="Post {{.ID}}" loading="lazy">
+    {{if hasPrefix .MimeType "video/"}}<span class="video-indicator" aria-label="Video"></span>{{end}}
   </a>
 </div>
 {{end}}

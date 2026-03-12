@@ -68,6 +68,7 @@ func templateFuncs() template.FuncMap {
 			}
 			return string(b)
 		},
+		"hasPrefix": strings.HasPrefix,
 		"mediaUrl": func(rawURL string) string {
 			u, err := url.Parse(rawURL)
 			if err != nil {
