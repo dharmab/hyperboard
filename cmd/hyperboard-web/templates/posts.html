@@ -133,29 +133,6 @@ updateTagFilterButtons();
     }, 200);
   });
 })();
-
-(function() {
-  var observer = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        htmx.trigger(entry.target, 'prefetch');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { rootMargin: '200%' });
-
-  function observeTriggers() {
-    document.querySelectorAll('.scroll-trigger').forEach(function(el) {
-      observer.observe(el);
-    });
-  }
-
-  new MutationObserver(function() {
-    observeTriggers();
-  }).observe(document.getElementById('posts-grid'), { childList: true, subtree: true });
-
-  observeTriggers();
-})();
 </script>
 {{end}}
 
@@ -168,9 +145,8 @@ updateTagFilterButtons();
 </div>
 {{end}}
 {{if .NextCursor}}
-<div class="scroll-trigger"
-     hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
-     hx-trigger="prefetch"
+<div hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
+     hx-trigger="revealed"
      hx-swap="afterend"
      hx-target="this">
 </div>
