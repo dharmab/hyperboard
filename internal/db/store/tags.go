@@ -13,6 +13,35 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+// TagStore provides CRUD operations for tags.
+type TagStore interface {
+	ListTags(ctx context.Context, cursor *string, limit int) (models.TagSlice, bool, error)
+	GetTag(ctx context.Context, name string) (*models.Tag, error)
+	UpsertTag(ctx context.Context, urlName string, input TagInput, now time.Time) (*models.Tag, bool, error)
+	DeleteTag(ctx context.Context, name string) error
+	GetTagPostCounts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int, error)
+	GetTagAliases(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
+	GetTagCascades(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
+	ResolveAlias(ctx context.Context, name string) (string, error)
+	ConvertTagToAlias(ctx context.Context, sourceName, targetName string) (*ConvertTagToAliasResult, error)
+}
+
+// TagInput holds the fields for creating or updating a tag.
+type TagInput struct {
+	Name          string
+	Description   string
+	Category      *string
+	Aliases       []string
+	CascadingTags []string
+	TagCategoryID sql.Null[uuid.UUID]
+}
+
+// ConvertTagToAliasResult holds the result of converting a tag to an alias.
+type ConvertTagToAliasResult struct {
+	Tag     *models.Tag
+	Aliases []string
+}
+
 func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit int) (models.TagSlice, bool, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
