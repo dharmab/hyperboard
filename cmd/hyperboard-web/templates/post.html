@@ -77,8 +77,9 @@ function setMediaMode(mode) {
   <h3>Similar Posts</h3>
   <div class="similar-posts-grid">
     {{range .SimilarPosts}}
-    <a href="/posts/{{.ID}}">
+    <a href="/posts/{{.ID}}" class="similar-post-link">
       <img class="similar-thumb" src="{{.ThumbnailUrl | mediaUrl}}" alt="Similar post">
+      {{if hasPrefix .MimeType "video/"}}<span class="video-indicator" aria-label="Video"></span>{{end}}
     </a>
     {{end}}
   </div>
