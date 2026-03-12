@@ -147,7 +147,7 @@ updateTagFilterButtons();
 {{if .NextCursor}}
 <div hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
      hx-trigger="revealed"
-     hx-swap="afterend"
+     hx-swap="outerHTML"
      hx-target="this">
 </div>
 {{end}}
