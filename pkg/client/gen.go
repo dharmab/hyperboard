@@ -294,6 +294,9 @@ type ClientInterface interface {
 	// GetSimilarPosts request
 	GetSimilarPosts(ctx context.Context, id Id, params *GetSimilarPostsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RegeneratePostThumbnail request
+	RegeneratePostThumbnail(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ReplacePostThumbnailWithBody request with any body
 	ReplacePostThumbnailWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -501,6 +504,18 @@ func (c *Client) ReplacePostContentWithBody(ctx context.Context, id Id, contentT
 
 func (c *Client) GetSimilarPosts(ctx context.Context, id Id, params *GetSimilarPostsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSimilarPostsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegeneratePostThumbnail(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegeneratePostThumbnailRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1185,6 +1200,40 @@ func NewGetSimilarPostsRequest(server string, id Id, params *GetSimilarPostsPara
 	return req, nil
 }
 
+// NewRegeneratePostThumbnailRequest generates requests for RegeneratePostThumbnail
+func NewRegeneratePostThumbnailRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/posts/%s/thumbnail", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewReplacePostThumbnailRequestWithBody generates requests for ReplacePostThumbnail with any type of body
 func NewReplacePostThumbnailRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
@@ -1842,6 +1891,9 @@ type ClientWithResponsesInterface interface {
 	// GetSimilarPostsWithResponse request
 	GetSimilarPostsWithResponse(ctx context.Context, id Id, params *GetSimilarPostsParams, reqEditors ...RequestEditorFn) (*GetSimilarPostsResponse, error)
 
+	// RegeneratePostThumbnailWithResponse request
+	RegeneratePostThumbnailWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*RegeneratePostThumbnailResponse, error)
+
 	// ReplacePostThumbnailWithBodyWithResponse request with any body
 	ReplacePostThumbnailWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePostThumbnailResponse, error)
 
@@ -2182,6 +2234,35 @@ func (r GetSimilarPostsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetSimilarPostsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RegeneratePostThumbnailResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PostResponse
+	JSON400      *BadRequestResponse
+	JSON401      *UnauthorizedResponse
+	JSON403      *ForbiddenResponse
+	JSON404      *NotFoundResponse
+	JSON422      *BadRequestResponse
+	JSON429      *TooManyRequestsResponse
+	JSON500      *InternalServerErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RegeneratePostThumbnailResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegeneratePostThumbnailResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2677,6 +2758,15 @@ func (c *ClientWithResponses) GetSimilarPostsWithResponse(ctx context.Context, i
 		return nil, err
 	}
 	return ParseGetSimilarPostsResponse(rsp)
+}
+
+// RegeneratePostThumbnailWithResponse request returning *RegeneratePostThumbnailResponse
+func (c *ClientWithResponses) RegeneratePostThumbnailWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*RegeneratePostThumbnailResponse, error) {
+	rsp, err := c.RegeneratePostThumbnail(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegeneratePostThumbnailResponse(rsp)
 }
 
 // ReplacePostThumbnailWithBodyWithResponse request with arbitrary body returning *ReplacePostThumbnailResponse
@@ -3480,6 +3570,81 @@ func ParseGetSimilarPostsResponse(rsp *http.Response) (*GetSimilarPostsResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegeneratePostThumbnailResponse parses an HTTP response from a RegeneratePostThumbnailWithResponse call
+func ParseRegeneratePostThumbnailResponse(rsp *http.Response) (*RegeneratePostThumbnailResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegeneratePostThumbnailResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PostResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest UnauthorizedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ForbiddenResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest BadRequestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse

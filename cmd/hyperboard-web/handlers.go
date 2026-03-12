@@ -212,6 +212,29 @@ func (app *App) handlePostTags(w http.ResponseWriter, r *http.Request) {
 	app.renderTemplate(w, r, "post-tags", PostData{Post: *reResp.JSON200})
 }
 
+func (app *App) handleRegenerateThumbnail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := r.PathValue("id")
+
+	postID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := app.api.RegeneratePostThumbnailWithResponse(ctx, postID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to regenerate thumbnail: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if resp.StatusCode() >= 400 {
+		http.Error(w, fmt.Sprintf("Failed to regenerate thumbnail: %s", resp.Body), resp.StatusCode())
+		return
+	}
+
+	http.Redirect(w, r, "/posts/"+id, http.StatusSeeOther)
+}
+
 func (app *App) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query().Get("q")

@@ -116,6 +116,7 @@ func run() error {
 	protected.HandleFunc("/posts/{id}", app.handlePost)
 	protected.HandleFunc("/posts/{id}/note", app.handlePostNote)
 	protected.HandleFunc("/posts/{id}/tags", app.handlePostTags)
+	protected.HandleFunc("POST /posts/{id}/regenerate-thumbnail", app.handleRegenerateThumbnail)
 	protected.HandleFunc("/posts/{id}/tags/{tag}", app.handlePostTags)
 	protected.HandleFunc("/tag-suggestions", app.handleTagSuggestions)
 	protected.HandleFunc("/upload", app.handleUpload)
