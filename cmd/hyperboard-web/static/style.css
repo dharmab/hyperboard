@@ -51,6 +51,7 @@ nav {
   display: flex;
   gap: 1.5rem;
   align-items: center;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--base02);
 }
 
@@ -449,3 +450,29 @@ button:hover,
 .gap-1 { gap: 0.5rem; }
 .gap-2 { gap: 1rem; }
 .items-center { align-items: center; }
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  nav {
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  main {
+    padding: 1rem;
+  }
+
+  .posts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  main {
+    padding: 1rem;
+  }
+
+  .posts-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
