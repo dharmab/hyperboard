@@ -9,6 +9,7 @@ import (
 	"github.com/dharmab/hyperboard/pkg/types"
 )
 
+// parseSearch parses a comma-separated search query string into a Query.
 func parseSearch(query string) search.Query {
 	postSearch := search.Query{
 		IncludedTags: []types.TagName{},
@@ -52,17 +53,20 @@ func parseSearch(query string) search.Query {
 	return postSearch
 }
 
+// postCursor holds cursor state for deterministic post pagination.
 type postCursor struct {
 	Timestamp string `json:"t"`
 	ID        string `json:"id"`
 }
 
+// encodePostCursor serializes a postCursor to a base64-encoded string.
 func encodePostCursor(pc postCursor) string {
 	//nolint:errchkjson // postCursor contains only string fields, json.Marshal cannot fail
 	data, _ := json.Marshal(pc)
 	return base64.URLEncoding.EncodeToString(data)
 }
 
+// decodePostCursor deserializes a base64-encoded string into a postCursor.
 func decodePostCursor(s string) (postCursor, error) {
 	data, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
@@ -72,17 +76,20 @@ func decodePostCursor(s string) (postCursor, error) {
 	return pc, json.Unmarshal(data, &pc)
 }
 
+// randomCursor holds cursor state for random-order post pagination.
 type randomCursor struct {
 	Seed   int64 `json:"seed"`
 	Offset int   `json:"offset"`
 }
 
+// encodeRandomCursor serializes a randomCursor to a base64-encoded string.
 func encodeRandomCursor(rc randomCursor) string {
 	//nolint:errchkjson // randomCursor contains only primitive fields, json.Marshal cannot fail
 	data, _ := json.Marshal(rc)
 	return base64.URLEncoding.EncodeToString(data)
 }
 
+// decodeRandomCursor deserializes a base64-encoded string into a randomCursor.
 func decodeRandomCursor(s string, rc *randomCursor) error {
 	data, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {

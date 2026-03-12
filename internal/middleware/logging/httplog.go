@@ -9,20 +9,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// contextKey is a string type used for context value keys to avoid collisions.
 type contextKey string
 
+// requestIDKey is the context key for storing the request ID.
 const requestIDKey contextKey = "requestID"
 
+// statusWriter wraps http.ResponseWriter to capture the response status code.
 type statusWriter struct {
 	http.ResponseWriter
 	status int
 }
 
+// WriteHeader records the status code and delegates to the underlying ResponseWriter.
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// RequestLoggingMiddleware is HTTP middleware that assigns a request ID and logs each request.
 func RequestLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := r.Header.Get("X-Request-Id")

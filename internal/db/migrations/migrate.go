@@ -11,9 +11,12 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
+// data is an embedded filesystem containing SQL migration files.
+//
 //go:embed data/*.sql
 var data embed.FS
 
+// Migrate runs all pending database migrations against the given DSN.
 func Migrate(dsn string) error {
 	migrationDriver, err := iofs.New(data, "data")
 	if err != nil {

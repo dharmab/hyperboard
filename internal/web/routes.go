@@ -15,6 +15,7 @@ func maxBody(limit int64, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// registerRoutes registers all route handlers on the given ServeMux.
 func (a *app) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/", a.handlePosts)
 	mux.HandleFunc("/media/", a.handleMedia)

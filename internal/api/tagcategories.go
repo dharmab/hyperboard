@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// tagCategoryFromModel converts a database TagCategory model to an API TagCategory type.
 func tagCategoryFromModel(model *models.TagCategory) types.TagCategory {
 	return types.TagCategory{
 		Name:        model.Name,
@@ -23,6 +24,7 @@ func tagCategoryFromModel(model *models.TagCategory) types.TagCategory {
 	}
 }
 
+// GetTagCategories handles paginated tag category listing with cursor-based pagination.
 func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params GetTagCategoriesParams) {
 	ctx := r.Context()
 

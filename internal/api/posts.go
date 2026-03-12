@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// postFromModel converts a database Post model to an API Post type.
 func postFromModel(model *models.Post) types.Post {
 	post := types.Post{
 		ID:           types.ID(model.ID),
@@ -43,6 +44,7 @@ func postFromModel(model *models.Post) types.Post {
 	return post
 }
 
+// GetPosts handles paginated post listing with search, filtering, and cursor-based pagination.
 func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams) {
 	ctx := r.Context()
 	logger := *zerolog.Ctx(ctx)

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// configPath is the path to the configuration file, set via the --config CLI flag.
 var configPath string
 
 // NewCommand returns the cobra command for the hyperboard-api server.
@@ -38,6 +39,7 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
+// initConfig reads the configuration file if configPath is set.
 func initConfig() {
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
@@ -47,6 +49,7 @@ func initConfig() {
 	}
 }
 
+// run initializes and starts the API server with the given context.
 func run(ctx context.Context) error {
 	cfg := loadConfig()
 
@@ -75,6 +78,7 @@ func run(ctx context.Context) error {
 	return serveAPI(ctx, cfg, dsn)
 }
 
+// serveAPI sets up the HTTP server, storage backends, database connection, and starts serving the API.
 func serveAPI(ctx context.Context, cfg *config, dsn string) error {
 	objStorage, err := s3storage.New(
 		ctx,

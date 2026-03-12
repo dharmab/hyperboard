@@ -17,6 +17,7 @@ type SimilarPostsResponse struct {
 	Similar []types.Post `json:"similar"`
 }
 
+// GetSimilarPosts handles requests to find posts visually similar to a given post.
 func (s *Server) GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, params GetSimilarPostsParams) {
 	ctx := r.Context()
 

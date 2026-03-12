@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
+// GetHealth handles liveness probe requests.
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, "OK")
 }
 
+// GetReadiness handles readiness probe requests by checking connectivity to the database and object store.
 func (s *Server) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()

@@ -9,6 +9,7 @@ import (
 	"github.com/dharmab/hyperboard/pkg/client"
 )
 
+// NewClient creates an authenticated API client using the app's configuration.
 func (a *App) NewClient() (*client.ClientWithResponses, error) {
 	return client.NewClientWithResponses(
 		a.Config.APIURL,
@@ -19,6 +20,7 @@ func (a *App) NewClient() (*client.ClientWithResponses, error) {
 	)
 }
 
+// CheckResponse returns an error if the HTTP status code indicates a failure.
 func CheckResponse(statusCode int, body []byte) error {
 	if statusCode >= 400 {
 		return fmt.Errorf("server returned %d: %s", statusCode, body)

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// App holds CLI application state including configuration, commands, and output format.
 type App struct {
 	Config       *Config
 	OutputFormat string
@@ -21,6 +22,7 @@ type App struct {
 	configPath string
 }
 
+// NewApp creates and configures a new CLI application with all root-level commands.
 func NewApp() *App {
 	a := &App{}
 

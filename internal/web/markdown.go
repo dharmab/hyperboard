@@ -8,6 +8,7 @@ import (
 	"github.com/yuin/goldmark"
 )
 
+// renderMarkdown converts a Markdown string to sanitized HTML.
 func renderMarkdown(src string) template.HTML {
 	var buf bytes.Buffer
 	if err := goldmark.Convert([]byte(src), &buf); err != nil {

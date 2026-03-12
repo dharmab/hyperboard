@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
+// sessionCookieName is the name of the HTTP cookie used for session tracking.
 const sessionCookieName = "session"
+
+// sessionExpiry is the duration before a session cookie expires.
 const sessionExpiry = 30 * 24 * time.Hour
 
 // signSession creates an HMAC-signed session token: base64(timestamp) + "." + base64(hmac)
@@ -51,6 +54,7 @@ func verifySession(secret, token string) bool {
 	return time.Since(time.Unix(ts, 0)) < sessionExpiry
 }
 
+// setSessionCookie creates and sets an HMAC-signed session cookie.
 func setSessionCookie(w http.ResponseWriter, secret string) {
 	token := signSession(secret)
 	http.SetCookie(w, &http.Cookie{
@@ -63,6 +67,7 @@ func setSessionCookie(w http.ResponseWriter, secret string) {
 	})
 }
 
+// clearSessionCookie removes the session cookie by setting MaxAge to -1.
 func clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,

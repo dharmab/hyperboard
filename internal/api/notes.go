@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// noteFromModel converts a database Note model to an API Note type.
 func noteFromModel(model *models.Note) types.Note {
 	return types.Note{
 		ID:        types.ID(model.ID),
@@ -22,6 +23,7 @@ func noteFromModel(model *models.Note) types.Note {
 	}
 }
 
+// GetNotes handles listing all notes.
 func (s *Server) GetNotes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -42,6 +44,7 @@ func (s *Server) GetNotes(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, resp)
 }
 
+// CreateNote handles creating a new note.
 func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -66,6 +69,7 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, noteFromModel(model))
 }
 
+// GetNote handles retrieving a single note by ID.
 func (s *Server) GetNote(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 
@@ -82,6 +86,7 @@ func (s *Server) GetNote(w http.ResponseWriter, r *http.Request, id Id) {
 	respond(w, http.StatusOK, noteFromModel(model))
 }
 
+// PutNote handles updating an existing note.
 func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 

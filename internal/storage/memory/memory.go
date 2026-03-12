@@ -10,6 +10,7 @@ import (
 	"github.com/dharmab/hyperboard/internal/storage"
 )
 
+// entry holds stored data and content type for an in-memory object.
 type entry struct {
 	data        []byte
 	contentType string
@@ -26,10 +27,12 @@ func New() *Storage {
 	return &Storage{objects: make(map[string]entry)}
 }
 
+// Ping always returns nil (no-op connectivity check).
 func (s *Storage) Ping(_ context.Context) error {
 	return nil
 }
 
+// Upload stores data in memory and returns a fake URL.
 func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -37,6 +40,7 @@ func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType
 	return "http://fake-storage/" + key, nil
 }
 
+// Download retrieves data from memory by key.
 func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -51,6 +55,7 @@ func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error
 	}, nil
 }
 
+// Delete removes data from memory by key.
 func (s *Storage) Delete(_ context.Context, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

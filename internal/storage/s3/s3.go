@@ -50,6 +50,7 @@ func New(ctx context.Context, endpoint, bucket, accessKey, secretKey, region str
 	return st, nil
 }
 
+// ensureBucketExists creates the configured S3 bucket if it does not already exist.
 func (st *Storage) ensureBucketExists(ctx context.Context) error {
 	_, err := st.client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(st.bucket),
@@ -77,6 +78,7 @@ func (st *Storage) ensureBucketExists(ctx context.Context) error {
 	return nil
 }
 
+// isNotFoundError checks whether an error represents an HTTP 404 response.
 func isNotFoundError(err error) bool {
 	// Fallback check for providers that return untyped 404 errors.
 	var respErr interface{ HTTPStatusCode() int }
