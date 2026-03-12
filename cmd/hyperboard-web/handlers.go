@@ -19,6 +19,9 @@ const newResourceName = "_new"
 func (app *App) handlePosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	search := r.URL.Query().Get("search")
+	if search == "" {
+		search = "sort:random"
+	}
 	cursor := r.URL.Query().Get("cursor")
 
 	limit := 24
