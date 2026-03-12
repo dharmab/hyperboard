@@ -45,6 +45,35 @@ func TestIsValidName(t *testing.T) {
 	}
 }
 
+func TestIsValidHexColor(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		input string
+		valid bool
+	}{
+		{"#ff0000", true},
+		{"#FF0000", true},
+		{"#000000", true},
+		{"#ffffff", true},
+		{"#aAbBcC", true},
+		{"", false},
+		{"ff0000", false},
+		{"#fff", false},
+		{"#gggggg", false},
+		{"banana", false},
+		{"#1234567", false},
+		{"#12345", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			if got := isValidHexColor(tc.input); got != tc.valid {
+				t.Errorf("isValidHexColor(%q) = %v, want %v", tc.input, got, tc.valid)
+			}
+		})
+	}
+}
+
 func TestPutTagValidation(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)

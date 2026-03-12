@@ -31,6 +31,19 @@ func isValidName(name string) bool {
 	return prev != 0 && !unicode.IsSpace(prev)
 }
 
+// isValidHexColor reports whether s is a valid 6-digit hex color (e.g. "#ff0000").
+func isValidHexColor(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, c := range s[1:] {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 func tagFromModel(model *models.Tag) types.Tag {
 	tag := types.Tag{
 		Name:        model.Name,

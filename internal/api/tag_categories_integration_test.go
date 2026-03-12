@@ -32,6 +32,27 @@ func TestPutTagCategoryValidation(t *testing.T) {
 	}
 }
 
+func TestPutTagCategoryColorValidation(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	for _, color := range []string{"banana", "ff0000", "#fff", "#gggggg"} {
+		t.Run(color, func(t *testing.T) {
+			t.Parallel()
+			name := "color-test-" + uuid.Must(uuid.NewV4()).String()[:8]
+			body := types.TagCategory{Name: name, Description: "test", Color: color}
+			b, _ := json.Marshal(body)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+name, bytes.NewReader(b))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.PutTagCategory(w, req, name)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("PutTagCategory(color=%q) status = %d, want %d", color, w.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
 func TestTagCategoriesIntegration(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
