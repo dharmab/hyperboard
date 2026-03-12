@@ -75,7 +75,7 @@ linters:
       - linters:
           - paralleltest
           - tparallel
-        path: "cmd/hyperboardctl/output_test\\.go"
+        path: "internal/cli/output_test\\.go"
       # HX-Request is the standard HTMX header name. The canonical Go casing
       # does not match the HTMX spec.
       - linters:
@@ -85,7 +85,7 @@ linters:
       # template.HTML. The gosec G203 warning is a false positive here.
       - linters:
           - gosec
-        path: "cmd/hyperboard-web/markdown\\.go"
+        path: "internal/web/markdown\\.go"
         text: "G203"
       # The media processing commands use temporary file paths, not user input.
       - linters:
@@ -96,32 +96,32 @@ linters:
       # not user input. SSRF is not a concern here.
       - linters:
           - gosec
-        path: "cmd/hyperboard-web/apiclient\\.go"
+        path: "internal/web/apiclient\\.go"
         text: "G704"
-      # G120 (FormValue without MaxBytesReader) is a false positive for this
-      # application. The web frontend is behind session auth and the multipart
-      # form handler already enforces a 32MB limit.
+      # G120 (FormValue without MaxBytesReader): request body size is limited
+      # by the maxBody middleware wrapper in internal/web/routes.go. Gosec
+      # cannot trace MaxBytesReader across function boundaries.
       - linters:
           - gosec
-        path: "cmd/hyperboard-web/"
+        path: "internal/web/"
         text: "G120"
-      # G705 (XSS via taint): the web frontend proxies API responses and the
-      # content is trusted.
+      # G705 (XSS via taint): the rendered markdown content is sanitized by
+      # bluemonday before being written to the response.
       - linters:
           - gosec
-        path: "cmd/hyperboard-web/"
+        path: "internal/web/"
         text: "G705"
       # musttag on generated types (types.Tag) used in yaml.Unmarshal in tests.
       # The generated types only have json tags, and adding yaml tags is not
       # appropriate for generated code.
       - linters:
           - musttag
-        path: "cmd/hyperboardctl/output_test\\.go"
+        path: "internal/cli/output_test\\.go"
       # G702 (command injection): the editor command comes from the user's
       # EDITOR environment variable, which is standard Unix behavior.
       - linters:
           - gosec
-        path: "cmd/hyperboardctl/output\\.go"
+        path: "internal/cli/output\\.go"
         text: "G702"
       # G115 (integer overflow int->uint32): port numbers from net.Listen are
       # always in valid uint16 range.

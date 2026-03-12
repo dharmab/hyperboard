@@ -10,6 +10,15 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+// NoteStore provides CRUD operations for notes.
+type NoteStore interface {
+	ListNotes(ctx context.Context) (models.NoteSlice, error)
+	GetNote(ctx context.Context, id uuid.UUID) (*models.Note, error)
+	CreateNote(ctx context.Context, title, content string) (*models.Note, error)
+	UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error)
+	DeleteNote(ctx context.Context, id uuid.UUID) error
+}
+
 func (s *PostgresSQLStore) ListNotes(ctx context.Context) (models.NoteSlice, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, title, content, created_at, updated_at FROM notes ORDER BY created_at DESC`)
 	if err != nil {
