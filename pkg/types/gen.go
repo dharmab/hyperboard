@@ -26,16 +26,17 @@ type Note struct {
 
 // Post defines model for Post.
 type Post struct {
-	CascadingTags *[]TagName `json:"cascadingTags,omitempty"`
-	ContentUrl    URL        `json:"contentUrl"`
-	CreatedAt     Timestamp  `json:"createdAt"`
-	HasAudio      bool       `json:"hasAudio"`
-	ID            ID         `json:"id"`
-	MimeType      string     `json:"mimeType"`
-	Note          string     `json:"note"`
-	Tags          []TagName  `json:"tags"`
-	ThumbnailUrl  URL        `json:"thumbnailUrl"`
-	UpdatedAt     Timestamp  `json:"updatedAt"`
+	CascadingTags *[]TagName         `json:"cascadingTags,omitempty"`
+	ContentUrl    URL                `json:"contentUrl"`
+	CreatedAt     Timestamp          `json:"createdAt"`
+	HasAudio      bool               `json:"hasAudio"`
+	ID            ID                 `json:"id"`
+	MimeType      string             `json:"mimeType"`
+	Note          string             `json:"note"`
+	TagColors     *map[string]string `json:"tagColors,omitempty"`
+	Tags          []TagName          `json:"tags"`
+	ThumbnailUrl  URL                `json:"thumbnailUrl"`
+	UpdatedAt     Timestamp          `json:"updatedAt"`
 }
 
 // Tag defines model for Tag.

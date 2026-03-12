@@ -34,12 +34,19 @@ func postFromModel(model *models.Post) types.Post {
 		UpdatedAt:    model.UpdatedAt,
 	}
 
-	// Extract tag names from loaded tags
+	// Extract tag names and colors from loaded tags
 	tagNames := make([]types.TagName, 0, len(model.Tags))
+	tagColors := make(map[string]string)
 	for _, tag := range model.Tags {
 		tagNames = append(tagNames, tag.Name)
+		if tag.TagCategory != nil && tag.TagCategory.Color != "" {
+			tagColors[tag.Name] = tag.TagCategory.Color
+		}
 	}
 	post.Tags = tagNames
+	if len(tagColors) > 0 {
+		post.TagColors = &tagColors
+	}
 
 	return post
 }

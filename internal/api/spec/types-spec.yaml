@@ -98,6 +98,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TagName"
+        tagColors:
+          type: object
+          additionalProperties:
+            type: string
         cascadingTags:
           type: array
           items:

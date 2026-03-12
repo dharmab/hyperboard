@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+const defaultColor = "var(--base03)"
+
 func mediaPath(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -41,12 +43,21 @@ func templateFuncs() template.FuncMap {
 		},
 		"catColor": func(colors map[string]string, cat *string) string {
 			if cat == nil || colors == nil {
-				return "var(--base03)"
+				return defaultColor
 			}
 			if c, ok := colors[*cat]; ok {
 				return c
 			}
-			return "var(--base03)"
+			return defaultColor
+		},
+		"tagColor": func(colors *map[string]string, tag string) string {
+			if colors == nil {
+				return defaultColor
+			}
+			if c, ok := (*colors)[tag]; ok {
+				return c
+			}
+			return defaultColor
 		},
 		"not": func(b bool) bool { return !b },
 		"formatSize": func(bytes int64) string {

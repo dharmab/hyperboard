@@ -43,7 +43,7 @@ func loadPostTags(ctx context.Context, querier interface {
 	}
 
 	query := fmt.Sprintf(
-		"SELECT pt.post_id, t.id, t.name FROM posts_tags pt JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id IN (%s) ORDER BY t.name",
+		"SELECT pt.post_id, t.id, t.name, tc.color FROM posts_tags pt JOIN tags t ON pt.tag_id = t.id LEFT JOIN tag_categories tc ON t.tag_category_id = tc.id WHERE pt.post_id IN (%s) ORDER BY t.name",
 		strings.Join(placeholders, ", "),
 	)
 
@@ -56,8 +56,12 @@ func loadPostTags(ctx context.Context, querier interface {
 	for rows.Next() {
 		var postID uuid.UUID
 		var tag models.Tag
-		if err := rows.Scan(&postID, &tag.ID, &tag.Name); err != nil {
+		var color sql.NullString
+		if err := rows.Scan(&postID, &tag.ID, &tag.Name, &color); err != nil {
 			return err
+		}
+		if color.Valid {
+			tag.TagCategory = &models.TagCategory{Color: color.String}
 		}
 		if p, ok := postsByID[postID]; ok {
 			p.Tags = append(p.Tags, &tag)
