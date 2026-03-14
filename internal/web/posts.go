@@ -101,17 +101,21 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 			fileSize = headResp.ContentLength
 		}
 
+		isVideo := strings.HasPrefix(post.MimeType, "video/")
+
 		var similarPosts []types.Post
-		similarLimit := 12
-		if similarResp, err := a.api.GetSimilarPostsWithResponse(ctx, postID, &client.GetSimilarPostsParams{Limit: &similarLimit}); err == nil && similarResp.JSON200 != nil {
-			if similarResp.JSON200.Items != nil {
-				similarPosts = *similarResp.JSON200.Items
+		if !isVideo {
+			similarLimit := 12
+			if similarResp, err := a.api.GetSimilarPostsWithResponse(ctx, postID, &client.GetSimilarPostsParams{Limit: &similarLimit}); err == nil && similarResp.JSON200 != nil {
+				if similarResp.JSON200.Items != nil {
+					similarPosts = *similarResp.JSON200.Items
+				}
 			}
 		}
 
 		a.renderTemplate(w, r, "post", postData{
 			Post:         post,
-			IsVideo:      strings.HasPrefix(post.MimeType, "video/"),
+			IsVideo:      isVideo,
 			FileSize:     fileSize,
 			SimilarPosts: similarPosts,
 		})

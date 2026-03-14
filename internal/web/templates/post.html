@@ -38,7 +38,7 @@
   {{end}}
 </div>
 
-{{if .SimilarPosts}}
+{{if and .SimilarPosts (not .IsVideo)}}
 <div class="mt-2">
   <h3>Similar Posts</h3>
   <div class="similar-posts-grid">
