@@ -12,7 +12,7 @@
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
-  <video controls src="{{.Post.ContentUrl | mediaUrl}}"></video>
+  <video controls loop src="{{.Post.ContentUrl | mediaUrl}}"></video>
   {{else}}
   <a href="{{.Post.ContentUrl | mediaUrl}}"><img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post"></a>
   {{end}}
