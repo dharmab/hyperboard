@@ -6,9 +6,6 @@
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls">
   <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}</span>
-  <span id="media-mode-fit" class="media-mode-option media-mode-option--active">Fit</span>
-  <span class="media-mode-sep">/</span>
-  <span id="media-mode-fill" class="media-mode-option">Fill</span>
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
@@ -29,7 +26,7 @@
     <textarea id="note" name="note" rows="4" style="width:100%">{{.Post.Note}}</textarea>
   </form>
   {{else}}
-  <span class="media-mode-option" id="btn-add-note" style="cursor:pointer">+ Note</span>
+  <span class="text-btn" id="btn-add-note" style="cursor:pointer">+ Note</span>
   <template id="note-editor-tpl">
     <form hx-put="/posts/{{.Post.ID}}/note"
       hx-trigger="input changed delay:500ms"

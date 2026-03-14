@@ -287,22 +287,13 @@ button:hover,
   color: inherit;
 }
 
-.media-mode-option {
+.text-btn {
   color: var(--base03);
   cursor: pointer;
 }
 
-.media-mode-option:hover {
+.text-btn:hover {
   color: var(--base04);
-}
-
-.media-mode-option--active {
-  color: var(--base05);
-  font-weight: 600;
-}
-
-.media-mode-sep {
-  color: var(--base03);
 }
 
 .post-media {
@@ -318,12 +309,6 @@ button:hover,
   border-radius: 6px;
 }
 
-.post-media.post-media--fill img,
-.post-media.post-media--fill video {
-  width: 100%;
-  max-height: 85vh;
-  object-fit: contain;
-}
 
 .post-tags {
   margin-bottom: 1rem;
