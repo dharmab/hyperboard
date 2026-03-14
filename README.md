@@ -13,7 +13,9 @@ It's for me. I made it:
 1. To replace a very old and somewhat complicated Python+Javascript webapp I used to self-host my personal photography on my home server. My data is in the 100s of GB range. When I built my home server, SSDs were cheap, so self-hosting my photos was a tiny fraction of the price of using paid cloud services at this scale. I back the data up locally onto an old hard drive, plus an additional backup in Amazon Glacier that costs me less than a cheeseburger per year to maintain.
 2. To learn about building web applications based on the principles of [Hypermedia Systems](https://hypermedia.systems), i.e. how to build a modern, responsive application without a full JavaScript framework or a lot of complicated JavaScript.
 
-Notably, the security model in Hyperboard is very simple; it uses HTTP Basic Authentication and only supports a single, all-powerful user. It must be deployed behind other security services, such as an authenticating VPN endpoint or proxy (think Tailscale or Keycloak). It would require modification to support multiple users or an authorization check.
+Hyperboard uses a flexible image tagging system which is very easy to use and maintain; I use hundreds of tags to make my photos easily and quickly searchable, with virtually instant search results.
+
+Note that the security model in Hyperboard is very simple; it uses HTTP Basic Authentication and only supports a single, all-powerful user. It must be deployed behind other security services, such as an authenticating VPN endpoint or proxy (think Tailscale or Keycloak), ideally with multi-factor authentication. It would require modification to support multiple users or an authorization (permissions) system.
 
 ## Things I Learned
 
