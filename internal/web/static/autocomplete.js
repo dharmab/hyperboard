@@ -9,8 +9,9 @@
   }
 
   function selectItem(input, value) {
+    var originalValue = input.value;
     input.value = value;
-    input.dispatchEvent(new CustomEvent('ac-select', { bubbles: true, detail: { value: value } }));
+    input.dispatchEvent(new CustomEvent('ac-select', { bubbles: true, detail: { value: value, originalValue: originalValue } }));
     var dropdown = input.parentElement.querySelector('.ac-dropdown');
     if (dropdown) clearDropdown(dropdown);
   }
