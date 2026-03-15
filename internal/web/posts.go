@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dharmab/hyperboard/pkg/client"
@@ -119,6 +120,7 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 			IsVideo:      isVideo,
 			FileSize:     fileSize,
 			SimilarPosts: similarPosts,
+			QuickTag:     a.cfg.QuickTag,
 		})
 
 	case http.MethodDelete:
@@ -136,7 +138,8 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Failed to delete post: %s", resp.Body), http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		w.Header().Set("HX-Redirect", "/")
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -214,7 +217,40 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to reload post", http.StatusInternalServerError)
 		return
 	}
-	a.renderTemplate(w, r, "post-tags", postData{Post: *reResp.JSON200})
+	a.renderTemplate(w, r, "post-tags", postData{Post: *reResp.JSON200, QuickTag: a.cfg.QuickTag})
+}
+
+func (a *app) handleSearchJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	search := r.URL.Query().Get("search")
+	cursor := r.URL.Query().Get("cursor")
+	limit := 24
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	params := &client.GetPostsParams{Limit: &limit}
+	if search != "" {
+		params.Search = &search
+	}
+	if cursor != "" {
+		params.Cursor = &cursor
+	}
+
+	resp, err := a.api.GetPostsWithResponse(ctx, params)
+	if err != nil {
+		http.Error(w, "Failed to search posts", http.StatusInternalServerError)
+		return
+	}
+	if resp.StatusCode() >= 400 {
+		http.Error(w, string(resp.Body), resp.StatusCode())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(resp.Body)
 }
 
 func (a *app) handleRegenerateThumbnail(w http.ResponseWriter, r *http.Request) {

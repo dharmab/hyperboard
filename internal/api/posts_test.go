@@ -2,6 +2,7 @@ package api
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/search"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -122,6 +123,55 @@ func TestParseSearch(t *testing.T) {
 			},
 		},
 		{
+			name:  "order asc",
+			input: "order:asc",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Order:        search.OrderAsc,
+			},
+		},
+		{
+			name:  "order desc",
+			input: "order:desc",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Order:        search.OrderDesc,
+			},
+		},
+		{
+			name:  "order invalid ignored",
+			input: "order:invalid",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+			},
+		},
+		{
+			name:  "created_after",
+			input: "created_after:2025-01-01T00:00:00Z",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				CreatedAfter: func() *time.Time { t := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC); return &t }(),
+			},
+		},
+		{
+			name:  "created_before",
+			input: "created_before:2025-06-15T12:30:00Z",
+			expect: search.Query{
+				IncludedTags:  []types.TagName{},
+				CreatedBefore: func() *time.Time { t := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC); return &t }(),
+			},
+		},
+		{
+			name:  "combined order and created_after with sort",
+			input: "sort:created,order:asc,created_after:2025-01-01T00:00:00Z",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Sort:         search.SortCreatedAt,
+				Order:        search.OrderAsc,
+				CreatedAfter: func() *time.Time { t := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC); return &t }(),
+			},
+		},
+		{
 			name:  "excluded tag",
 			input: "-nsfw",
 			expect: search.Query{
@@ -155,6 +205,19 @@ func TestParseSearch(t *testing.T) {
 			got := parseSearch(tt.input)
 			if got.Sort != tt.expect.Sort {
 				t.Errorf("Sort = %q, want %q", got.Sort, tt.expect.Sort)
+			}
+			if got.Order != tt.expect.Order {
+				t.Errorf("Order = %q, want %q", got.Order, tt.expect.Order)
+			}
+			if (got.CreatedAfter == nil) != (tt.expect.CreatedAfter == nil) {
+				t.Errorf("CreatedAfter nil = %v, want nil = %v", got.CreatedAfter == nil, tt.expect.CreatedAfter == nil)
+			} else if got.CreatedAfter != nil && !got.CreatedAfter.Equal(*tt.expect.CreatedAfter) {
+				t.Errorf("CreatedAfter = %v, want %v", got.CreatedAfter, tt.expect.CreatedAfter)
+			}
+			if (got.CreatedBefore == nil) != (tt.expect.CreatedBefore == nil) {
+				t.Errorf("CreatedBefore nil = %v, want nil = %v", got.CreatedBefore == nil, tt.expect.CreatedBefore == nil)
+			} else if got.CreatedBefore != nil && !got.CreatedBefore.Equal(*tt.expect.CreatedBefore) {
+				t.Errorf("CreatedBefore = %v, want %v", got.CreatedBefore, tt.expect.CreatedBefore)
 			}
 			if (got.Tagged == nil) != (tt.expect.Tagged == nil) || (got.Tagged != nil && *got.Tagged != *tt.expect.Tagged) {
 				t.Errorf("Tagged = %v, want %v", got.Tagged, tt.expect.Tagged)
@@ -259,6 +322,12 @@ func FuzzParseSearch(f *testing.F) {
 		"-nsfw",
 		"landscape,-nsfw,sort:random,tagged:true,type:image",
 		"landscape,,portrait,",
+		"order:asc",
+		"order:desc",
+		"order:invalid",
+		"created_after:2025-01-01T00:00:00Z",
+		"created_before:2025-06-15T12:30:00Z",
+		"sort:created,order:asc,created_after:2025-01-01T00:00:00Z",
 	}
 	for _, s := range seeds {
 		f.Add(s)

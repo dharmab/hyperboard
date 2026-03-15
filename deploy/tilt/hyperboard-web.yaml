@@ -25,6 +25,7 @@ spec:
             - --api-url=http://hyperboard-api
             - --log-level=debug
             - --tag-filters=[{"label":"Favorites","tags":["favorite"]}]
+            - --quick-tag=favorite
           ports:
             - name: http
               containerPort: 8080

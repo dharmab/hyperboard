@@ -27,6 +27,7 @@ type postData struct {
 	IsVideo      bool
 	FileSize     int64
 	SimilarPosts []types.Post
+	QuickTag     string
 	Error        string
 }
 
