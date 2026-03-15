@@ -8,6 +8,19 @@
   <h1>Tags</h1>
   <a href="/tags/_new" class="btn btn-primary">New Tag</a>
 </div>
+<div class="ac-wrapper" style="margin-top:0.5rem">
+  <input
+    type="text"
+    name="q"
+    placeholder="Search tags…"
+    hx-get="/tag-suggestions"
+    hx-trigger="input changed delay:200ms"
+    hx-target="next .ac-dropdown"
+    autocomplete="off"
+    id="tags-search"
+  >
+  <div class="ac-dropdown"></div>
+</div>
 <table class="data-table mt-2" id="tags-table">
   <thead>
     <tr>
@@ -20,31 +33,9 @@
     </tr>
   </thead>
   <tbody>
-  {{range .Tags}}
-    <tr>
-      <td data-value="{{.Name}}">
-        <a href="/tags/{{.Name}}">{{.Name}}</a>
-      </td>
-      <td data-value="{{deref .Category}}">
-        {{if .Category}}<span class="badge" style="border-left-color: {{catColor $.CategoryColors .Category}}"><a href="/tag-categories/{{deref .Category}}" class="badge-link">{{deref .Category}}</a></span>{{end}}
-      </td>
-      <td data-value="{{.Description}}">{{.Description}}</td>
-      <td data-value="{{if .Aliases}}{{join_strings (deref_strings .Aliases) ", "}}{{end}}" style="color:var(--base03);font-size:0.9rem">
-        {{if .Aliases}}{{join_strings (deref_strings .Aliases) ", "}}{{end}}
-      </td>
-      <td data-value="{{if .CascadingTags}}{{join_strings (deref_strings .CascadingTags) ", "}}{{end}}" style="color:var(--base03);font-size:0.9rem">
-        {{if .CascadingTags}}{{join_strings (deref_strings .CascadingTags) ", "}}{{end}}
-      </td>
-      <td data-value="{{if .PostCount}}{{deref_int .PostCount}}{{else}}0{{end}}">
-        {{if and .PostCount (gt (deref_int .PostCount) 0)}}
-          <a href="/?search={{.Name}}">{{deref_int .PostCount}}</a>
-        {{else}}
-          0
-        {{end}}
-      </td>
-    </tr>
-  {{end}}
+  {{template "tags_rows" .}}
   </tbody>
 </table>
 <script src="/static/table-sort.js"></script>
+<script src="/static/tags-search.js"></script>
 {{end}}

@@ -156,7 +156,6 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"templates/posts.html",
 		"templates/post.html",
 		"templates/upload.html",
-		"templates/tags.html",
 		"templates/tag_edit.html",
 		"templates/tag_categories.html",
 		"templates/tag_category_edit.html",
@@ -164,10 +163,28 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"templates/note.html",
 	}
 
+	// Templates that need additional partial templates
+	pagesWithPartials := map[string][]string{
+		"templates/tags.html": {"templates/tags_rows.html"},
+	}
+
 	tmpls := make(map[string]*template.Template)
 
 	for _, page := range pages {
 		t, err := template.New("").Funcs(funcs).ParseFS(embeddedFiles, base, page)
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", page, err)
+		}
+		for _, dt := range t.Templates() {
+			if dt.Name() != "" {
+				tmpls[dt.Name()] = t
+			}
+		}
+	}
+
+	for page, partials := range pagesWithPartials {
+		files := append([]string{base, page}, partials...)
+		t, err := template.New("").Funcs(funcs).ParseFS(embeddedFiles, files...)
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", page, err)
 		}
