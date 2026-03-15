@@ -21,6 +21,7 @@ func (a *app) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/media/", a.handleMedia)
 	mux.HandleFunc("/posts-partial", a.handlePosts)
 	mux.HandleFunc("/posts/{id}", maxBody(maxFormBody, a.handlePost))
+	mux.HandleFunc("GET /search.json", a.handleSearchJSON)
 	mux.HandleFunc("/posts/{id}/note", maxBody(maxFormBody, a.handlePostNote))
 	mux.HandleFunc("/posts/{id}/tags", maxBody(maxFormBody, a.handlePostTags))
 	mux.HandleFunc("POST /posts/{id}/regenerate-thumbnail", a.handleRegenerateThumbnail)

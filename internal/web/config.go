@@ -17,6 +17,7 @@ type config struct {
 	APIURL        string
 	LogLevel      string
 	TagFilters    []tagFilter
+	QuickTag      string
 }
 
 // bindConfig registers CLI flags and environment variable bindings.
@@ -29,6 +30,7 @@ func bindConfig(cmd *cobra.Command) {
 	flags.String("api-url", "", "Hyperboard API URL")
 	flags.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
 	flags.String("tag-filters", "", "Tag filter buttons as JSON array")
+	flags.String("quick-tag", "", "Tag name to toggle with the 'f' hotkey")
 
 	viper.SetEnvPrefix("HYPERBOARD_WEB")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -50,6 +52,7 @@ func loadConfig() (*config, error) {
 		APIURL:        viper.GetString("api-url"),
 		LogLevel:      viper.GetString("log-level"),
 		TagFilters:    tagFilters,
+		QuickTag:      viper.GetString("quick-tag"),
 	}, nil
 }
 

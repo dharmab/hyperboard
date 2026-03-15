@@ -4,7 +4,7 @@
 
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
-<div class="post-media-controls">
+<div class="post-media-controls" data-post-id="{{.Post.ID}}" data-created-at="{{.Post.CreatedAt.Format "2006-01-02T15:04:05.999999999Z07:00"}}">
   <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}</span>
 </div>
 <div class="post-media" id="post-media">
@@ -59,15 +59,13 @@
     hx-target="body">Regenerate Thumbnail</button>
   <button class="btn btn-danger"
     hx-delete="/posts/{{.Post.ID}}"
-    hx-confirm="Delete this post?"
-    hx-push-url="/"
-    hx-target="body">Delete Post</button>
+    hx-confirm="Delete this post?">Delete Post</button>
 </div>
 <script src="/static/post.js"></script>
 {{end}}
 
 {{define "post-tags"}}
-<div class="post-tags">
+<div class="post-tags" data-post-id="{{.Post.ID}}"{{if .QuickTag}} data-quick-tag="{{.QuickTag}}"{{end}}>
   {{if or .Post.Tags .Post.CascadingTags}}
   <div class="post-tags-list">
     {{range .Post.Tags}}

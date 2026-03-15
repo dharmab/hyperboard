@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/dharmab/hyperboard/internal/search"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -37,6 +38,24 @@ func parseSearch(query string) search.Query {
 			postSearch.Tagged = new(true)
 		} else if term == search.TagTaggedFalse {
 			postSearch.Tagged = new(false)
+		} else if term == string(search.OrderAsc) {
+			postSearch.Order = search.OrderAsc
+		} else if term == string(search.OrderDesc) {
+			postSearch.Order = search.OrderDesc
+		} else if strings.HasPrefix(term, "order:") {
+			// Ignore unknown order values
+		} else if after, ok := strings.CutPrefix(term, "created_after:"); ok {
+			if ts, err := time.Parse(time.RFC3339Nano, after); err == nil {
+				postSearch.CreatedAfter = &ts
+			} else if ts, err := time.Parse(time.RFC3339, after); err == nil {
+				postSearch.CreatedAfter = &ts
+			}
+		} else if before, ok := strings.CutPrefix(term, "created_before:"); ok {
+			if ts, err := time.Parse(time.RFC3339Nano, before); err == nil {
+				postSearch.CreatedBefore = &ts
+			} else if ts, err := time.Parse(time.RFC3339, before); err == nil {
+				postSearch.CreatedBefore = &ts
+			}
 		} else if term == search.TagImage {
 			postSearch.TypeImage = true
 		} else if term == search.TagVideo {

@@ -101,8 +101,11 @@ func TestHandlePost_DELETE(t *testing.T) {
 	if !deleteCalled {
 		t.Error("expected delete to be called")
 	}
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
+	}
+	if loc := w.Header().Get("HX-Redirect"); loc != "/" {
+		t.Fatalf("HX-Redirect = %q, want %q", loc, "/")
 	}
 }
 

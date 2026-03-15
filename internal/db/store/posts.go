@@ -189,6 +189,18 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 		queryBuilder.WriteString(" AND has_audio = true")
 	}
 
+	// Apply created_after / created_before filters
+	if params.Query.CreatedAfter != nil {
+		fmt.Fprintf(&queryBuilder, " AND created_at > $%d", paramIdx)
+		args = append(args, *params.Query.CreatedAfter)
+		paramIdx++
+	}
+	if params.Query.CreatedBefore != nil {
+		fmt.Fprintf(&queryBuilder, " AND created_at < $%d", paramIdx)
+		args = append(args, *params.Query.CreatedBefore)
+		paramIdx++
+	}
+
 	// Random sort
 	if params.Query.Sort == search.SortRandom {
 		seed := params.RandomSeed
@@ -239,16 +251,29 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 		sortCol = "updated_at"
 	}
 
+	ascending := params.Query.Order == search.OrderAsc
+
 	if params.CursorTime != nil && params.CursorID != nil {
-		fmt.Fprintf(&queryBuilder,
-			" AND (%s < $%d OR (%s = $%d AND id < $%d))",
-			sortCol, paramIdx, sortCol, paramIdx, paramIdx+1,
-		)
+		if ascending {
+			fmt.Fprintf(&queryBuilder,
+				" AND (%s > $%d OR (%s = $%d AND id > $%d))",
+				sortCol, paramIdx, sortCol, paramIdx, paramIdx+1,
+			)
+		} else {
+			fmt.Fprintf(&queryBuilder,
+				" AND (%s < $%d OR (%s = $%d AND id < $%d))",
+				sortCol, paramIdx, sortCol, paramIdx, paramIdx+1,
+			)
+		}
 		args = append(args, *params.CursorTime, *params.CursorID)
 		paramIdx += 2
 	}
 
-	fmt.Fprintf(&queryBuilder, " ORDER BY %s DESC, id DESC", sortCol)
+	if ascending {
+		fmt.Fprintf(&queryBuilder, " ORDER BY %s ASC, id ASC", sortCol)
+	} else {
+		fmt.Fprintf(&queryBuilder, " ORDER BY %s DESC, id DESC", sortCol)
+	}
 	fmt.Fprintf(&queryBuilder, " LIMIT $%d", paramIdx)
 	args = append(args, params.Limit+1)
 
