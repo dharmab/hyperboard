@@ -7,7 +7,13 @@
       th.addEventListener('click', function() {
         var col = th.cellIndex;
         var type = th.dataset.type;
-        var asc = !th.classList.contains('sorted-asc');
+        var wasUnsorted = !th.classList.contains('sorted-asc') && !th.classList.contains('sorted-desc');
+        var asc;
+        if (wasUnsorted) {
+          asc = type !== 'number';
+        } else {
+          asc = !th.classList.contains('sorted-asc');
+        }
         headers.forEach(function(h) { h.classList.remove('sorted-asc', 'sorted-desc'); });
         th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
         var tbody = table.querySelector('tbody');
