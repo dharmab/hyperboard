@@ -53,13 +53,15 @@
   data-confirm-message="Convert &quot;{{.CurrentName}}&quot; into an alias? This cannot be undone.">
   <div class="form-group" style="max-width:400px">
     <label>Target tag</label>
-    <input type="text" name="target" id="convert-target-input" required
-      list="convert-target-suggestions" placeholder="type to search…"
-      hx-get="/tag-suggestions?exclude={{.CurrentName}}"
-      hx-trigger="input changed delay:300ms"
-      hx-target="#convert-target-suggestions"
-      autocomplete="off">
-    <datalist id="convert-target-suggestions"></datalist>
+    <div class="ac-wrapper">
+      <input type="text" name="target" id="convert-target-input" required
+        placeholder="type to search…"
+        hx-get="/tag-suggestions?exclude={{.CurrentName}}"
+        hx-trigger="input changed delay:300ms"
+        hx-target="next .ac-dropdown"
+        autocomplete="off">
+      <div class="ac-dropdown"></div>
+    </div>
   </div>
   <button type="submit" class="btn btn-danger">Convert to Alias</button>
 </form>

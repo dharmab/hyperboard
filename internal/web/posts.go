@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/dharmab/hyperboard/pkg/client"
@@ -279,14 +280,47 @@ func (a *app) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 		cursor = resp.JSON200.Cursor
 	}
 
-	w.Header().Set("Content-Type", "text/html")
+	// Return empty response when query is empty
+	if q == "" {
+		w.Header().Set("Content-Type", "text/html")
+		return
+	}
+
+	// Filter and collect matching tags
+	var filtered []types.Tag
 	for _, tag := range allTags {
 		if excludeTags[tag.Name] {
 			continue
 		}
-		if q != "" && !strings.Contains(strings.ToLower(tag.Name), strings.ToLower(q)) {
+		if !strings.Contains(strings.ToLower(tag.Name), strings.ToLower(q)) {
 			continue
 		}
-		_, _ = fmt.Fprintf(w, "<option value=%q>", tag.Name)
+		filtered = append(filtered, tag)
+	}
+
+	// Sort by post count descending
+	sort.Slice(filtered, func(i, j int) bool {
+		ci, cj := 0, 0
+		if filtered[i].PostCount != nil {
+			ci = *filtered[i].PostCount
+		}
+		if filtered[j].PostCount != nil {
+			cj = *filtered[j].PostCount
+		}
+		return ci > cj
+	})
+
+	// Cap at 20 results
+	if len(filtered) > 20 {
+		filtered = filtered[:20]
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	for _, tag := range filtered {
+		count := 0
+		if tag.PostCount != nil {
+			count = *tag.PostCount
+		}
+		_, _ = fmt.Fprintf(w, `<div class="ac-item" data-value=%q>%s <span class="ac-count">(%d)</span></div>`, tag.Name, tag.Name, count)
 	}
 }

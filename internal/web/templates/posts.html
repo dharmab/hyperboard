@@ -5,10 +5,14 @@
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <form class="posts-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#posts-grid" hx-trigger="submit">
-  <input type="text" name="search" id="posts-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
-    list="search-suggestions"
-    autocomplete="off">
-  <datalist id="search-suggestions"></datalist>
+  <div class="ac-wrapper" style="flex:1;min-width:200px">
+    <input type="text" name="search" id="posts-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
+      hx-get="/tag-suggestions"
+      hx-trigger="input changed delay:200ms"
+      hx-target="next .ac-dropdown"
+      autocomplete="off">
+    <div class="ac-dropdown"></div>
+  </div>
   <button type="submit" class="btn btn-primary">Search</button>
   <button type="button" class="btn" id="btn-random">Random</button>
 </form>

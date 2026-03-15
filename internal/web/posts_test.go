@@ -184,10 +184,11 @@ func TestHandlePosts_WithoutTagFilters(t *testing.T) {
 func TestHandleTagSuggestions(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
+	pc1, pc2, pc3 := 10, 5, 1
 	tags := []types.Tag{
-		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
-		{Name: "beta", CreatedAt: now, UpdatedAt: now},
-		{Name: "gamma", CreatedAt: now, UpdatedAt: now},
+		{Name: "alpha", PostCount: &pc1, CreatedAt: now, UpdatedAt: now},
+		{Name: "apex", PostCount: &pc2, CreatedAt: now, UpdatedAt: now},
+		{Name: "zulu", PostCount: &pc3, CreatedAt: now, UpdatedAt: now},
 	}
 
 	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +199,7 @@ func TestHandleTagSuggestions(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=a", nil)
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
@@ -206,10 +207,13 @@ func TestHandleTagSuggestions(t *testing.T) {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	body := w.Body.String()
-	for _, name := range []string{"alpha", "beta", "gamma"} {
-		if !strings.Contains(body, name) {
-			t.Errorf("expected %q in response body", name)
+	for _, name := range []string{"alpha", "apex"} {
+		if !strings.Contains(body, fmt.Sprintf(`data-value=%q`, name)) {
+			t.Errorf("expected ac-item with data-value %q in response body", name)
 		}
+	}
+	if strings.Contains(body, "zulu") {
+		t.Error("expected zulu to be filtered out by query")
 	}
 }
 
@@ -220,10 +224,11 @@ func TestHandleTagSuggestions_Pagination(t *testing.T) {
 	const totalTags = 3500
 	const pageSize = 1000
 
-	// Generate all tags
+	// Generate all tags with "tag-" prefix so they all match q=tag
 	allTags := make([]types.Tag, totalTags)
 	for i := range allTags {
-		allTags[i] = types.Tag{Name: fmt.Sprintf("tag-%04d", i), CreatedAt: now, UpdatedAt: now}
+		pc := totalTags - i
+		allTags[i] = types.Tag{Name: fmt.Sprintf("tag-%04d", i), PostCount: &pc, CreatedAt: now, UpdatedAt: now}
 	}
 
 	// Split into pages
@@ -253,7 +258,7 @@ func TestHandleTagSuggestions_Pagination(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=tag", nil)
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
@@ -261,10 +266,10 @@ func TestHandleTagSuggestions_Pagination(t *testing.T) {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	body := w.Body.String()
-	for _, tag := range allTags {
-		if !strings.Contains(body, fmt.Sprintf("value=%q", tag.Name)) {
-			t.Errorf("expected %q in response body", tag.Name)
-		}
+	// Results should be capped at 20
+	itemCount := strings.Count(body, "ac-item")
+	if itemCount != 20 {
+		t.Errorf("expected 20 ac-items, got %d", itemCount)
 	}
 	expectedCalls := len(pages)
 	if callCount != expectedCalls {
@@ -297,8 +302,8 @@ func TestHandleTagSuggestions_FilterByQuery(t *testing.T) {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, "alpha") {
-		t.Error("expected alpha in response")
+	if !strings.Contains(body, `data-value="alpha"`) {
+		t.Error("expected ac-item with alpha in response")
 	}
 	if strings.Contains(body, "beta") {
 		t.Error("expected beta to be filtered out")
@@ -321,7 +326,8 @@ func TestHandleTagSuggestions_ExcludeTags(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?exclude=alpha", nil)
+	// exclude=alpha, q=b so beta matches but alpha is excluded
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?exclude=alpha&q=b", nil)
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
@@ -332,7 +338,103 @@ func TestHandleTagSuggestions_ExcludeTags(t *testing.T) {
 	if strings.Contains(body, "alpha") {
 		t.Error("expected alpha to be excluded")
 	}
-	if !strings.Contains(body, "beta") {
-		t.Error("expected beta in response")
+	if !strings.Contains(body, `data-value="beta"`) {
+		t.Error("expected ac-item with beta in response")
+	}
+}
+
+func TestHandleTagSuggestions_EmptyQuery(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	tags := []types.Tag{
+		{Name: "alpha", CreatedAt: now, UpdatedAt: now},
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if w.Body.String() != "" {
+		t.Errorf("expected empty response for empty query, got %q", w.Body.String())
+	}
+}
+
+func TestHandleTagSuggestions_SortedByPostCount(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	pc1, pc2, pc3 := 5, 100, 50
+	tags := []types.Tag{
+		{Name: "rare", PostCount: &pc1, CreatedAt: now, UpdatedAt: now},
+		{Name: "popular", PostCount: &pc2, CreatedAt: now, UpdatedAt: now},
+		{Name: "medium", PostCount: &pc3, CreatedAt: now, UpdatedAt: now},
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	// "popular" and "rare" both contain "a", "medium" does not
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=a", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	popIdx := strings.Index(body, "popular")
+	rareIdx := strings.Index(body, "rare")
+	if popIdx < 0 || rareIdx < 0 {
+		t.Fatalf("expected both popular and rare in response, got %q", body)
+	}
+	if popIdx > rareIdx {
+		t.Error("expected popular (100 posts) before rare (5 posts)")
+	}
+}
+
+func TestHandleTagSuggestions_CappedAt20(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+
+	tags := make([]types.Tag, 30)
+	for i := range tags {
+		pc := 30 - i
+		tags[i] = types.Tag{Name: fmt.Sprintf("atag-%02d", i), PostCount: &pc, CreatedAt: now, UpdatedAt: now}
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/tags") {
+			jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=atag", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	itemCount := strings.Count(body, "ac-item")
+	if itemCount != 20 {
+		t.Errorf("expected 20 ac-items, got %d", itemCount)
 	}
 }

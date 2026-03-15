@@ -83,16 +83,15 @@
     {{end}}{{end}}
   </div>
   {{end}}
-  <div class="post-tags-add">
-    <input type="text" id="tag-input" placeholder="Add tag…" list="tag-suggestions"
+  <div class="ac-wrapper post-tags-add">
+    <input type="text" id="tag-input" placeholder="Add tag…"
       hx-get="/tag-suggestions?post={{$.Post.ID}}"
       hx-trigger="input changed delay:200ms"
-      hx-target="#tag-suggestions"
-      hx-include="this"
+      hx-target="next .ac-dropdown"
       name="q"
-      style="width:150px"
->
-    <datalist id="tag-suggestions"></datalist>
+      autocomplete="off"
+      style="width:150px">
+    <div class="ac-dropdown"></div>
     <button class="btn" hx-post="/posts/{{.Post.ID}}/tags" hx-include="#tag-input" hx-target=".post-tags" hx-swap="outerHTML">Add</button>
   </div>
 </div>
