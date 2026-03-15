@@ -1,10 +1,13 @@
 (function() {
+  var STORAGE_KEY = 'upload-queue';
   var form = document.getElementById('upload-form');
   var fileInput = document.getElementById('file-input');
   var previewZone = document.getElementById('preview-zone');
+  var pasteZone = document.getElementById('paste-zone');
 
   var fileMap = new Map();
   var pendingHashes = new Set();
+  var uploading = false;
 
   function hashFile(file) {
     return file.arrayBuffer().then(function(buf) {
@@ -19,18 +22,56 @@
     });
   }
 
-  function addFile(file) {
-    var placeholderKey = Symbol();
-    pendingHashes.add(placeholderKey);
-
-    hashFile(file).then(function(key) {
-      pendingHashes.delete(placeholderKey);
-      if (fileMap.has(key)) return;
-      renderPreview(file, key);
+  function fileToDataURL(file) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.readAsDataURL(file);
     });
   }
 
-  function renderPreview(file, key) {
+  function dataURLToFile(dataURL, name, type) {
+    var parts = dataURL.split(',');
+    var binary = atob(parts[1]);
+    var arr = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) {
+      arr[i] = binary.charCodeAt(i);
+    }
+    return new File([arr], name, { type: type });
+  }
+
+  function saveQueue() {
+    var items = [];
+    fileMap.forEach(function(entry, key) {
+      items.push({ key: key, name: entry.file.name, type: entry.file.type, dataURL: entry.dataURL });
+    });
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch(e) {
+      // sessionStorage full or unavailable — silently ignore
+    }
+  }
+
+  function clearQueue() {
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  }
+
+  function addFile(file) {
+    if (uploading) return;
+    var placeholderKey = Symbol();
+    pendingHashes.add(placeholderKey);
+
+    Promise.all([hashFile(file), fileToDataURL(file)]).then(function(results) {
+      var key = results[0];
+      var dataURL = results[1];
+      pendingHashes.delete(placeholderKey);
+      if (fileMap.has(key)) return;
+      renderPreview(file, key, dataURL);
+      saveQueue();
+    });
+  }
+
+  function renderPreview(file, key, dataURL) {
     var wrapper = document.createElement('div');
     wrapper.className = 'file-preview';
 
@@ -62,12 +103,27 @@
     btn.addEventListener('click', function() {
       fileMap.delete(key);
       wrapper.remove();
+      saveQueue();
     });
     wrapper.appendChild(btn);
 
     previewZone.appendChild(wrapper);
-    fileMap.set(key, { file: file, element: wrapper });
+    fileMap.set(key, { file: file, element: wrapper, dataURL: dataURL });
   }
+
+  // Restore queued files from sessionStorage
+  (function restoreQueue() {
+    var raw;
+    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch(e) { return; }
+    if (!raw) return;
+    var items;
+    try { items = JSON.parse(raw); } catch(e) { return; }
+    items.forEach(function(item) {
+      if (fileMap.has(item.key)) return;
+      var file = dataURLToFile(item.dataURL, item.name, item.type);
+      renderPreview(file, item.key, item.dataURL);
+    });
+  })();
 
   fileInput.addEventListener('change', function() {
     for (var i = 0; i < fileInput.files.length; i++) {
@@ -76,17 +132,29 @@
     fileInput.value = '';
   });
 
-  document.addEventListener('paste', function(e) {
+  var pasteZonePlaceholder = pasteZone.innerHTML;
+
+  function handlePaste(e) {
+    if (uploading) return;
     var items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
+    var handled = false;
     for (var i = 0; i < items.length; i++) {
       if (items[i].type.startsWith('image/')) {
         e.preventDefault();
         var file = items[i].getAsFile();
         if (file) addFile(file);
+        handled = true;
       }
     }
-  });
+    if (handled) {
+      // Clear contenteditable div to prevent pasted image from rendering inline, then restore placeholder
+      setTimeout(function() { pasteZone.innerHTML = pasteZonePlaceholder; }, 0);
+    }
+  }
+
+  pasteZone.addEventListener('paste', handlePaste);
+  document.addEventListener('paste', handlePaste);
 
   function mediaUrl(rawUrl) {
     try {
@@ -230,8 +298,11 @@
     e.preventDefault();
     if (fileMap.size === 0) return;
 
+    uploading = true;
     fileInput.disabled = true;
     form.querySelector('button[type="submit"]').disabled = true;
+    pasteZone.contentEditable = 'false';
+    pasteZone.classList.add('disabled');
 
     var entries = [];
     fileMap.forEach(function(entry) { entries.push(entry); });
@@ -243,6 +314,7 @@
     });
     chain.then(function() {
       fileMap.clear();
+      clearQueue();
     });
   });
 })();
