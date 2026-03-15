@@ -95,7 +95,7 @@ document.getElementById('posts-search').addEventListener('htmx:configRequest', f
 document.addEventListener('ac-select', function(e) {
   var search = document.getElementById('posts-search');
   if (e.target !== search) return;
-  var v = search.value;
+  var v = e.detail.originalValue;
   var lastComma = v.lastIndexOf(',');
   search.value = (lastComma >= 0 ? v.substring(0, lastComma + 1) + ' ' : '') + e.detail.value;
 });
