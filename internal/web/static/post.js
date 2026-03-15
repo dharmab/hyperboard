@@ -12,15 +12,10 @@
   });
 })();
 
-// Tag input Enter key handling
-(function() {
+// Tag autocomplete selection: click the Add button
+document.addEventListener('ac-select', function(e) {
   var tagInput = document.getElementById('tag-input');
-  if (!tagInput) return;
-
-  tagInput.addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.closest('.post-tags-add').querySelector('button').click();
-    }
-  });
-})();
+  if (e.target === tagInput) {
+    tagInput.closest('.post-tags-add').querySelector('button').click();
+  }
+});

@@ -77,40 +77,25 @@ document.querySelectorAll('.tag-filter-btn').forEach(function(btn) {
   btn.addEventListener('click', function() { cycleTagFilter(this); });
 });
 
-(function() {
-  var searchInput = document.getElementById('posts-search');
-  var datalist = document.getElementById('search-suggestions');
-  var debounceTimer;
+// Update random/filter buttons on input
+document.getElementById('posts-search').addEventListener('input', function() {
+  updateRandomButton();
+  updateTagFilterButtons();
+});
 
-  searchInput.addEventListener('input', function() {
-    updateRandomButton();
-    updateTagFilterButtons();
-    clearTimeout(debounceTimer);
-    var value = this.value;
-    var lastCommaIdx = value.lastIndexOf(',');
-    var lastWord = (lastCommaIdx >= 0 ? value.substring(lastCommaIdx + 1) : value).trim();
+// Extract last comma-separated term for autocomplete query
+document.getElementById('posts-search').addEventListener('htmx:configRequest', function(e) {
+  var value = this.value;
+  var lastComma = value.lastIndexOf(',');
+  var lastTerm = (lastComma >= 0 ? value.substring(lastComma + 1) : value).trim();
+  e.detail.parameters.q = lastTerm;
+});
 
-    if (!lastWord) {
-      datalist.innerHTML = '';
-      return;
-    }
-
-    debounceTimer = setTimeout(function() {
-      fetch('/tag-suggestions?q=' + encodeURIComponent(lastWord))
-        .then(function(r) { return r.text(); })
-        .then(function(html) {
-          if (lastCommaIdx >= 0) {
-            var prefix = value.substring(0, lastCommaIdx + 1) + ' ';
-            var temp = document.createElement('div');
-            temp.innerHTML = html;
-            temp.querySelectorAll('option').forEach(function(opt) {
-              opt.value = prefix + opt.value;
-            });
-            datalist.innerHTML = temp.innerHTML;
-          } else {
-            datalist.innerHTML = html;
-          }
-        });
-    }, 200);
-  });
-})();
+// Handle autocomplete selection: replace last term
+document.addEventListener('ac-select', function(e) {
+  var search = document.getElementById('posts-search');
+  if (e.target !== search) return;
+  var v = search.value;
+  var lastComma = v.lastIndexOf(',');
+  search.value = (lastComma >= 0 ? v.substring(0, lastComma + 1) + ' ' : '') + e.detail.value;
+});

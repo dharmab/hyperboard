@@ -455,6 +455,15 @@ button:hover,
 .gap-2 { gap: 1rem; }
 .items-center { align-items: center; }
 
+/* Autocomplete */
+.ac-wrapper { position: relative; width: fit-content; }
+.ac-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+  background: var(--base01); border: 1px solid var(--base02); border-top: none;
+  border-radius: 0 0 4px 4px; max-height: 240px; overflow-y: auto; }
+.ac-item { padding: 0.4rem 0.75rem; cursor: pointer; color: var(--base05); }
+.ac-item.ac-active, .ac-item:hover { background: var(--base02); }
+.ac-count { color: var(--base03); font-size: 0.85em; margin-left: 0.25rem; }
+
 /* Mobile responsive */
 @media (max-width: 480px) {
   nav {
