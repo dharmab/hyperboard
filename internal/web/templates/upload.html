@@ -10,11 +10,11 @@
     <label>Files</label>
     <input type="file" id="file-input" accept="image/*,video/*" multiple>
   </div>
-  <div id="paste-zone" tabindex="0">
-    <p>Or paste from clipboard (Ctrl+V / Cmd+V)</p>
+  <div id="paste-zone" contenteditable="true" tabindex="0">
+    <p>Or paste from clipboard (Ctrl+V / Cmd+V / right-click → Paste)</p>
   </div>
+  <button type="submit" class="btn btn-primary" style="margin-bottom: 1rem;">Upload</button>
   <div id="preview-zone"></div>
-  <button type="submit" class="btn btn-primary">Upload</button>
 </form>
 <style>
   #paste-zone {
@@ -28,6 +28,11 @@
   #paste-zone:focus {
     border-color: #4a9eff;
     outline: none;
+  }
+  #paste-zone.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
   }
   #preview-zone {
     display: flex;
