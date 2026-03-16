@@ -89,6 +89,12 @@ func templateFuncs() template.FuncMap {
 		"hasTag":        slices.Contains[[]string, string],
 		"quickTagEmoji": func() string { return quickTagEmoji },
 		"hasPrefix":     strings.HasPrefix,
+		"materialIcon": func(label string) string {
+			return strings.TrimPrefix(label, "material-icons-")
+		},
+		"isMaterialIcon": func(label string) bool {
+			return strings.HasPrefix(label, "material-icons-")
+		},
 		"mediaUrl": func(rawURL string) string {
 			u, err := url.Parse(rawURL)
 			if err != nil {

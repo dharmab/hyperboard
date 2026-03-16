@@ -19,7 +19,7 @@
 {{if .TagFilters}}
 <div class="tag-filters">
   {{range .TagFilters}}
-  <button type="button" class="btn tag-filter-btn" data-tags='{{.Tags | toJSON}}'>{{.Label}}</button>
+  <button type="button" class="btn tag-filter-btn" data-tags='{{.Tags | toJSON}}'>{{if isMaterialIcon .Label}}<span class="material-symbols-outlined">{{materialIcon .Label}}</span>{{else}}{{.Label}}{{end}}</button>
   {{end}}
 </div>
 {{end}}
