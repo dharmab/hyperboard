@@ -40,7 +40,7 @@
 {{end}}
 {{if .NextCursor}}
 <div hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
-     hx-trigger="revealed"
+     hx-trigger="intersect root-margin:0px 0px 100% 0px"
      hx-swap="outerHTML"
      hx-target="this">
 </div>
