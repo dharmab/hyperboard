@@ -6,6 +6,8 @@ Hyperboard is a self-hosted image and video hosting website.
 
 ![](docs/images/screenshot-posts.webp)
 
+I consider Hyperboard to be completed software. I may add minor features to the CLI, but the webapp is feature complete.
+
 ## Who is Hyperboard for?
 
 It's for me. I made it:
