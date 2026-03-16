@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"html/template"
 	"net/url"
+	"slices"
 	"strings"
 )
 
 // defaultColor is the CSS color value used when no category color is available.
 const defaultColor = "var(--base03)"
+
+// quickTagEmoji is the emoji displayed next to the file size when a post has the quick-tag.
+const quickTagEmoji = "⭐"
 
 // mediaPath extracts the URL path from a raw URL string, stripping scheme and host.
 func mediaPath(rawURL string) string {
@@ -82,7 +86,9 @@ func templateFuncs() template.FuncMap {
 			}
 			return string(b)
 		},
-		"hasPrefix": strings.HasPrefix,
+		"hasTag":        slices.Contains[[]string, string],
+		"quickTagEmoji": func() string { return quickTagEmoji },
+		"hasPrefix":     strings.HasPrefix,
 		"mediaUrl": func(rawURL string) string {
 			u, err := url.Parse(rawURL)
 			if err != nil {

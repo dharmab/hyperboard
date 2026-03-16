@@ -5,7 +5,7 @@
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls" data-post-id="{{.Post.ID}}" data-created-at="{{.Post.CreatedAt.Format "2006-01-02T15:04:05.999999999Z07:00"}}">
-  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}</span>
+  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}<span id="quick-tag-star">{{if and .QuickTag (hasTag .Post.Tags .QuickTag)}} · {{quickTagEmoji}}{{end}}</span></span>
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
@@ -66,6 +66,7 @@
 
 {{define "post-tags"}}
 <div class="post-tags" data-post-id="{{.Post.ID}}"{{if .QuickTag}} data-quick-tag="{{.QuickTag}}"{{end}}>
+  {{if .QuickTag}}<span id="quick-tag-star" hx-swap-oob="innerHTML">{{if hasTag .Post.Tags .QuickTag}} · {{quickTagEmoji}}{{end}}</span>{{end}}
   {{if or .Post.Tags .Post.CascadingTags}}
   <div class="post-tags-list">
     {{range .Post.Tags}}
