@@ -5,16 +5,22 @@ Hyperboard is an image and video hosting web application built with Go, followin
 ## Project Structure
 
 - `cmd/` — Entry points for each binary (`hyperboard-api`, `hyperboard-web`, `hyperboardctl`)
-- `internal/api/` — OpenAPI spec and generated API client/server code
-- `internal/middleware/auth/` — Authentication middleware
+- `internal/api/` — API server implementation, OpenAPI spec (`internal/api/spec/`), and generated server code
+- `internal/web/` — Web frontend server (handlers, templates, static assets)
+- `internal/cli/` — CLI tool implementation with subcommands (`posts/`, `notes/`, `tags/`, `tagcategories/`, `replace/`)
+- `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, models in `internal/db/models/`, data access in `internal/db/store/`)
+- `internal/search/` — Search query parsing, sorting, and tag-based search
+- `internal/media/` — Media processing (images, video, perceptual hashing)
+- `internal/storage/` — Storage abstraction (S3 and in-memory implementations)
+- `internal/middleware/auth/` — HTTP Basic Auth middleware
 - `internal/middleware/logging/` — HTTP request logging
-- `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, generated models in `internal/db/models/`)
-- `internal/media/` — Media processing
-- `internal/storage/` — Storage abstraction (S3)
-- `internal/types/` — Shared types (generated from OpenAPI spec)
+- `internal/middleware/security/` — Security headers middleware
+- `pkg/client/` — Generated API client (from OpenAPI spec)
+- `pkg/types/` — Shared types (generated from OpenAPI spec)
 - `build/Containerfile` — Multi-stage container build for all three binaries
 - `deploy/tilt/` — Kubernetes manifests for local development
-- `scripts/generate/` — Code generation script (runs embedded Postgres, applies migrations, generates Bob ORM models)
+- `deploy/quadlet/` — Podman Quadlet container deployment files
+- `docs/` — Project documentation
 
 ## Prerequisites
 
@@ -26,14 +32,11 @@ This installs Go, k3d, and Tilt via Homebrew.
 
 ## Code Generation
 
-Run `make generate` to regenerate:
+Run `make generate` to regenerate OpenAPI types, server stubs, and client code via `oapi-codegen` from specs in `internal/api/spec/`. This runs `go generate ./...` which processes `//go:generate` directives in source files.
 
-- **Bob ORM models** from database schema — the generate script starts an embedded Postgres instance, runs migrations, and uses `bobgen-psql` to produce `internal/db/models/*.bob.go`
-- **OpenAPI types and server stubs** via `oapi-codegen` from specs in `internal/api/spec/`
+Generated files (`gen.go`) should not be edited by hand.
 
-Generated files should not be edited by hand. If the database schema changes (new migration in `internal/db/migrations/data/`), re-run generation.
-
-If Tilt is running (`tilt get uiresources`), `go generate ./...` runs automatically when source files change. You can also manually trigger it with `tilt trigger generate`. The generate script uses a random available port for its embedded Postgres, so it can run alongside Tilt without conflicts.
+If Tilt is running (`tilt get uiresources`), `go generate ./...` runs automatically when source files change. You can also manually trigger it with `tilt trigger generate`.
 
 ## Building
 
@@ -70,7 +73,7 @@ Default ports on the host (configurable in `Tiltfile`):
 ## Running Tests
 
 ```
-go test ./...
+make test
 ```
 
 ## Linting
@@ -99,4 +102,4 @@ make ci
 make clean
 ```
 
-Removes generated files (`gen.go`, `*.bob*.go`) and built binaries.
+Removes generated files (`gen.go`) and built binaries.
