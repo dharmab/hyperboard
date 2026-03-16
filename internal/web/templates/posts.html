@@ -33,7 +33,7 @@
 {{range .Posts}}
 <div class="posts-item">
   <a href="/posts/{{.ID}}">
-    <img src="{{.ThumbnailUrl | mediaUrl}}" alt="Post {{.ID}}" loading="lazy">
+    <img src="{{.ThumbnailUrl | mediaUrl}}" alt="Post {{.ID}}">
     {{if hasPrefix .MimeType "video/"}}<span class="video-indicator" aria-label="Video"></span>{{end}}
   </a>
 </div>
