@@ -30,7 +30,7 @@ func insertTestPost(t *testing.T, opts ...func(*store.CreatePostInput)) *models.
 		ContentURL:   contentURL,
 		ThumbnailURL: thumbnailURL,
 		HasAudio:     hasAudio,
-		Sha256:       sha,
+		SHA256:       sha,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}

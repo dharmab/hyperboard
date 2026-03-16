@@ -12,10 +12,15 @@ import (
 
 // NoteStore provides CRUD operations for notes.
 type NoteStore interface {
+	// ListNotes returns all notes ordered by creation time descending.
 	ListNotes(ctx context.Context) (models.NoteSlice, error)
+	// GetNote returns a single note by ID.
 	GetNote(ctx context.Context, id uuid.UUID) (*models.Note, error)
+	// CreateNote creates a new note with the given title and markdown content.
 	CreateNote(ctx context.Context, title, content string) (*models.Note, error)
+	// UpdateNote updates a note's title and markdown content.
 	UpdateNote(ctx context.Context, id uuid.UUID, title, content string) (*models.Note, error)
+	// DeleteNote removes a note by ID.
 	DeleteNote(ctx context.Context, id uuid.UUID) error
 }
 

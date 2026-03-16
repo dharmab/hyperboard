@@ -14,10 +14,17 @@ import (
 
 // TagCategoryStore provides CRUD operations for tag categories.
 type TagCategoryStore interface {
+	// ListTagCategories returns a paginated list of tag categories ordered by name.
+	// The bool return indicates whether more results are available beyond the requested limit.
 	ListTagCategories(ctx context.Context, cursor *string, limit int) (models.TagCategorySlice, bool, error)
+	// GetTagCategory returns a single tag category by name.
 	GetTagCategory(ctx context.Context, name string) (*models.TagCategory, error)
+	// UpsertTagCategory creates or updates a tag category. urlName is the original name from the URL path (used for renames).
+	// The bool return indicates whether a new category was created (true) or an existing one updated (false).
 	UpsertTagCategory(ctx context.Context, urlName string, input TagCategoryInput, now time.Time) (*models.TagCategory, bool, error)
+	// DeleteTagCategory removes a tag category by name.
 	DeleteTagCategory(ctx context.Context, name string) error
+	// GetTagCountsByCategory returns the number of tags in each category ID.
 	GetTagCountsByCategory(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int, error)
 }
 
