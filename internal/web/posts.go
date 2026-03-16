@@ -23,6 +23,9 @@ func (a *app) handlePosts(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 
 	limit := 24
+	if cursor != "" {
+		limit = 48
+	}
 	params := &client.GetPostsParams{Limit: &limit}
 	if search != "" {
 		params.Search = &search
