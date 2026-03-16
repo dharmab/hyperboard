@@ -20,6 +20,17 @@ document.addEventListener('ac-select', function(e) {
   }
 });
 
+// Submit tag on Enter when no autocomplete item is active
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  var tagInput = document.getElementById('tag-input');
+  if (!tagInput || e.target !== tagInput) return;
+  if (document.querySelector('.ac-active')) return;
+  if (!tagInput.value.trim()) return;
+  e.preventDefault();
+  tagInput.closest('.post-tags-add').querySelector('button').click();
+});
+
 // Keyboard shortcuts
 (function() {
   function isInputFocused() {
