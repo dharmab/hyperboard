@@ -217,6 +217,12 @@ button:hover,
   flex-wrap: wrap;
 }
 
+.tag-filter-btn .material-symbols-outlined {
+  font-size: 1.2rem;
+  vertical-align: middle;
+  line-height: 1;
+}
+
 .posts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
