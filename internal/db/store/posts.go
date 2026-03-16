@@ -16,16 +16,29 @@ import (
 
 // PostStore provides CRUD operations for posts.
 type PostStore interface {
+	// ListPosts returns a paginated list of posts matching the given search and filter parameters.
+	// The bool return indicates whether more results are available beyond the requested limit.
 	ListPosts(ctx context.Context, params ListPostsParams) (models.PostSlice, bool, error)
+	// GetPost returns a single post by ID, including its explicitly assigned tags.
 	GetPost(ctx context.Context, id uuid.UUID) (*models.Post, error)
+	// CreatePost inserts a new post.
 	CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error)
+	// UpdatePost updates a post's note and replaces its tag set. Tag names are resolved through aliases.
 	UpdatePost(ctx context.Context, id uuid.UUID, note string, tagNames []string, now time.Time) (*models.Post, error)
+	// UpdatePostContent replaces a post's media content, thumbnail, and associated metadata.
 	UpdatePostContent(ctx context.Context, id uuid.UUID, input UpdatePostContentInput) (*models.Post, error)
+	// UpdatePostThumbnail replaces a post's thumbnail URL.
 	UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error)
+	// DeletePost removes a post by ID, returning the deleted post.
 	DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error)
-	FindPostBySha256(ctx context.Context, hash string) (*models.Post, error)
+	// FindPostBySHA256 looks up a post by its content hash for deduplication.
+	FindPostBySHA256(ctx context.Context, hash string) (*models.Post, error)
+	// FindSimilarPosts returns posts with perceptual hashes within the configured similarity threshold,
+	// excluding the given post ID.
 	FindSimilarPosts(ctx context.Context, excludeID uuid.UUID, pHash int64, limit int) (models.PostSlice, error)
-	GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]string, error)
+	// GetPostCascadingTags returns tags that apply to a post through tag cascade rules but are not
+	// explicitly assigned to it, along with their category colors.
+	GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]CascadingTag, error)
 }
 
 // ListPostsParams holds parameters for listing posts.
@@ -45,7 +58,7 @@ type CreatePostInput struct {
 	ContentURL   string
 	ThumbnailURL string
 	HasAudio     bool
-	Sha256       string
+	SHA256       string
 	Phash        sql.Null[int64]
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -57,7 +70,7 @@ type UpdatePostContentInput struct {
 	ContentURL   string
 	ThumbnailURL string
 	HasAudio     bool
-	Sha256       string
+	SHA256       string
 	Phash        sql.Null[int64]
 	UpdatedAt    time.Time
 }
@@ -68,7 +81,7 @@ const postColumns = "id, mime_type, content_url, thumbnail_url, note, has_audio,
 // scanPost scans a single row into a Post model.
 func scanPost(row interface{ Scan(...any) error }) (*models.Post, error) {
 	var p models.Post
-	err := row.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.Sha256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.SHA256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +345,7 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 func (s *PostgresSQLStore) CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error) {
 	row := s.db.QueryRowContext(ctx,
 		"INSERT INTO posts (id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at) VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9) RETURNING "+postColumns,
-		input.ID, input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.Sha256, input.Phash, input.CreatedAt, input.UpdatedAt,
+		input.ID, input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.CreatedAt, input.UpdatedAt,
 	)
 	return scanPost(row)
 }
@@ -427,7 +440,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 	// Update content fields
 	row = tx.QueryRowContext(ctx,
 		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, updated_at = $7 WHERE id = $8 RETURNING "+postColumns,
-		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.Sha256, input.Phash, input.UpdatedAt, id,
+		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.UpdatedAt, id,
 	)
 	post, err := scanPost(row)
 	if err != nil {
@@ -511,7 +524,7 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 	return post, nil
 }
 
-func (s *PostgresSQLStore) FindPostBySha256(ctx context.Context, hash string) (*models.Post, error) {
+func (s *PostgresSQLStore) FindPostBySHA256(ctx context.Context, hash string) (*models.Post, error) {
 	row := s.db.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE sha256 = $1", hash)
 	post, err := scanPost(row)
 	if err != nil {

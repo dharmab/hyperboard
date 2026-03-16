@@ -44,6 +44,25 @@ func postFromModel(model *models.Post) types.Post {
 	return post
 }
 
+// applyCascadingTags sets the CascadingTags field and merges their colors into TagColors.
+func applyCascadingTags(post *types.Post, cts []store.CascadingTag) {
+	if len(cts) == 0 {
+		return
+	}
+	names := make([]types.TagName, 0, len(cts))
+	for _, ct := range cts {
+		names = append(names, ct.Name)
+		if ct.Color != "" {
+			if post.TagColors == nil {
+				m := make(map[string]string)
+				post.TagColors = &m
+			}
+			(*post.TagColors)[ct.Name] = ct.Color
+		}
+	}
+	post.CascadingTags = &names
+}
+
 // GetPosts handles paginated post listing with search, filtering, and cursor-based pagination.
 func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPostsParams) {
 	ctx := r.Context()
@@ -104,10 +123,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		items := make([]types.Post, 0, len(posts))
 		for _, post := range posts {
 			p := postFromModel(post)
-			ct, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
-			if len(ct) > 0 {
-				p.CascadingTags = &ct
-			}
+			cts, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+			applyCascadingTags(&p, cts)
 			items = append(items, p)
 		}
 		respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
@@ -157,10 +174,8 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	items := make([]types.Post, 0, len(posts))
 	for _, post := range posts {
 		p := postFromModel(post)
-		ct, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
-		if len(ct) > 0 {
-			p.CascadingTags = &ct
-		}
+		cts, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+		applyCascadingTags(&p, cts)
 		items = append(items, p)
 	}
 	respond(w, http.StatusOK, PostsResponse{Items: &items, Cursor: nextCursor})
@@ -180,14 +195,12 @@ func (s *Server) GetPost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	post := postFromModel(model)
-	cascadingTags, err := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(id))
+	cts, err := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(id))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve cascading tags")
 		return
 	}
-	if len(cascadingTags) > 0 {
-		post.CascadingTags = &cascadingTags
-	}
+	applyCascadingTags(&post, cts)
 
 	respond(w, http.StatusOK, post)
 }

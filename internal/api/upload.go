@@ -77,7 +77,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 	hash := sha256.Sum256(contentData)
 	hashHex := hex.EncodeToString(hash[:])
 
-	existing, err := s.sqlStore.FindPostBySha256(ctx, hashHex)
+	existing, err := s.sqlStore.FindPostBySHA256(ctx, hashHex)
 	if err == nil {
 		logger.Info().Stringer("existing_id", existing.ID).Msg("duplicate post detected by sha256")
 		respondWithError(w, http.StatusConflict, "Duplicate of existing post %s", existing.ID)
@@ -160,7 +160,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		ContentURL:   contentURL,
 		ThumbnailURL: thumbnailURL,
 		HasAudio:     hasAudioVal,
-		Sha256:       hashHex,
+		SHA256:       hashHex,
 		Phash:        phash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -277,7 +277,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		ContentURL:   contentURL,
 		ThumbnailURL: thumbnailURL,
 		HasAudio:     hasAudioVal,
-		Sha256:       hashHex,
+		SHA256:       hashHex,
 		Phash:        phash,
 		UpdatedAt:    now,
 	})

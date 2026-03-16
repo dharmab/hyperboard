@@ -15,14 +15,26 @@ import (
 
 // TagStore provides CRUD operations for tags.
 type TagStore interface {
+	// ListTags returns a paginated list of tags ordered by name.
+	// The bool return indicates whether more results are available beyond the requested limit.
 	ListTags(ctx context.Context, cursor *string, limit int) (models.TagSlice, bool, error)
+	// GetTag returns a single tag by name, including its category.
 	GetTag(ctx context.Context, name string) (*models.Tag, error)
+	// UpsertTag creates or updates a tag. urlName is the original name from the URL path (used for renames).
+	// The bool return indicates whether a new tag was created (true) or an existing one updated (false).
 	UpsertTag(ctx context.Context, urlName string, input TagInput, now time.Time) (*models.Tag, bool, error)
+	// DeleteTag removes a tag by name.
 	DeleteTag(ctx context.Context, name string) error
+	// GetTagPostCounts returns the number of posts for each tag ID.
 	GetTagPostCounts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int, error)
+	// GetTagAliases returns the alias names for each tag ID.
 	GetTagAliases(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
+	// GetTagCascades returns the cascading tag names for each tag ID.
 	GetTagCascades(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID][]string, error)
+	// ResolveAlias returns the canonical tag name for an alias, or the input name if it is not an alias.
 	ResolveAlias(ctx context.Context, name string) (string, error)
+	// ConvertTagToAlias merges a source tag into a target tag, converting the source name into an alias
+	// of the target. Posts tagged with the source are re-tagged with the target.
 	ConvertTagToAlias(ctx context.Context, sourceName, targetName string) (*ConvertTagToAliasResult, error)
 }
 
@@ -34,6 +46,12 @@ type TagInput struct {
 	Aliases       []string
 	CascadingTags []string
 	TagCategoryID sql.Null[uuid.UUID]
+}
+
+// CascadingTag holds a cascading tag name and its category color.
+type CascadingTag struct {
+	Name  string
+	Color string
 }
 
 // ConvertTagToAliasResult holds the result of converting a tag to an alias.
@@ -467,12 +485,13 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID
 	return nil
 }
 
-func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]string, error) {
+func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]CascadingTag, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT DISTINCT t2.name
+		`SELECT DISTINCT t2.name, COALESCE(tc2.color, '')
 		 FROM posts_tags pt
 		 JOIN tag_cascades tc ON pt.tag_id = tc.tag_id
 		 JOIN tags t2 ON tc.cascaded_tag_id = t2.id
+		 LEFT JOIN tag_categories tc2 ON t2.tag_category_id = tc2.id
 		 WHERE pt.post_id = $1
 		   AND t2.id NOT IN (SELECT pt2.tag_id FROM posts_tags pt2 WHERE pt2.post_id = $1)
 		 ORDER BY t2.name`,
@@ -483,13 +502,13 @@ func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid
 	}
 	defer func() { _ = rows.Close() }()
 
-	var result []string
+	var result []CascadingTag
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var ct CascadingTag
+		if err := rows.Scan(&ct.Name, &ct.Color); err != nil {
 			return nil, err
 		}
-		result = append(result, name)
+		result = append(result, ct)
 	}
 	return result, rows.Err()
 }

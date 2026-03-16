@@ -15,7 +15,7 @@ type Post struct {
 	ThumbnailURL string
 	Note         string
 	HasAudio     bool
-	Sha256       string
+	SHA256       string
 	Phash        sql.Null[int64]
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
