@@ -217,7 +217,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to reload post", http.StatusInternalServerError)
 		return
 	}
-	a.renderTemplate(w, r, "post-tags", postData{Post: *reResp.JSON200, QuickTag: a.cfg.QuickTag})
+	a.renderTemplate(w, r, "post-tags", postData{Post: *reResp.JSON200, QuickTag: a.cfg.QuickTag, IsOOB: true})
 }
 
 func (a *app) handleSearchJSON(w http.ResponseWriter, r *http.Request) {

@@ -28,6 +28,7 @@ type postData struct {
 	FileSize     int64
 	SimilarPosts []types.Post
 	QuickTag     string
+	IsOOB        bool
 	Error        string
 }
 
