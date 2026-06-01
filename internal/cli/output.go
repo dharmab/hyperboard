@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"text/tabwriter"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 // printTable writes key-value pairs as a tab-aligned table to stdout.

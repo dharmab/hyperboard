@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/goccy/go-yaml"
 	"github.com/gofrs/uuid/v5"
-	"gopkg.in/yaml.v3"
 )
 
 func TestPrintJSON(t *testing.T) {

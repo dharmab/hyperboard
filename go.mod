@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.4
 	github.com/fergusstrange/embedded-postgres v1.26.0
 	github.com/gabriel-vasile/mimetype v1.4.9
+	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/uuid v1.6.0
@@ -22,7 +23,6 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/image v0.36.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -399,6 +399,7 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	modernc.org/b v1.1.0 // indirect
 	modernc.org/db v1.0.15 // indirect
