@@ -1,4 +1,4 @@
-.PHONY: help install-deps build-images generate lint format test coverage start stop ci clean
+.PHONY: help install-deps build-images generate lint format test coverage govulncheck start stop ci clean
 
 .DEFAULT_GOAL := help
 
@@ -31,6 +31,9 @@ test: ## Run tests
 
 coverage: ## Run tests with coverage report
 	go test -race -coverprofile=coverage.out ./... && go tool cover -func=coverage.out
+
+govulncheck: ## Run govulncheck
+	go tool govulncheck ./...
 
 start: ## Start local development environment (k3d + Tilt)
 	k3d registry create hyperboard
