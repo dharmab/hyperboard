@@ -193,7 +193,6 @@
     deleteBtn.className = 'btn btn-danger';
     deleteBtn.textContent = 'Delete this upload';
     deleteBtn.addEventListener('click', function() {
-      if (!confirm('Delete this upload?')) return;
       deleteBtn.disabled = true;
       fetch('/posts/' + postID, { method: 'DELETE' }).then(function(res) {
         if (res.ok) {
