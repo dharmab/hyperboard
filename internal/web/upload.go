@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/rs/zerolog/log"
 )
@@ -49,6 +48,7 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var lastPostID types.ID
+	var lastSimilar []types.Post
 	var errors []string
 	var conflicts []uploadConflict
 	for _, header := range files {
@@ -70,13 +70,7 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 			contentType = "application/octet-stream"
 		}
 
-		force := r.FormValue("force") == "true"
-		forceParam := &client.UploadPostParams{}
-		if force {
-			forceParam.Force = &force
-		}
-
-		resp, err := a.api.UploadPostWithBodyWithResponse(ctx, forceParam, contentType, bytes.NewReader(data))
+		resp, err := a.api.UploadPostWithBodyWithResponse(ctx, contentType, bytes.NewReader(data))
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", header.Filename, err))
 			continue
@@ -97,8 +91,11 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if resp.JSON201 != nil {
-			lastPostID = resp.JSON201.ID
-			log.Info().Stringer("id", resp.JSON201.ID).Str("filename", header.Filename).Msg("uploaded post")
+			lastPostID = resp.JSON201.Post.ID
+			if resp.JSON201.Similar != nil {
+				lastSimilar = *resp.JSON201.Similar
+			}
+			log.Info().Stringer("id", resp.JSON201.Post.ID).Str("filename", header.Filename).Msg("uploaded post")
 		}
 	}
 
@@ -127,11 +124,12 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 			a.respondJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": strings.Join(errors, "; ")})
 		} else if len(errors) > 0 {
 			a.respondJSON(w, http.StatusOK, map[string]any{
-				"id":    lastPostID,
-				"error": strings.Join(errors, "; "),
+				"id":      lastPostID,
+				"similar": lastSimilar,
+				"error":   strings.Join(errors, "; "),
 			})
 		} else {
-			a.respondJSON(w, http.StatusOK, map[string]any{"id": lastPostID})
+			a.respondJSON(w, http.StatusOK, map[string]any{"id": lastPostID, "similar": lastSimilar})
 		}
 		return
 	}

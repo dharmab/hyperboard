@@ -27,9 +27,6 @@ type Limit = int
 // Search defines model for Search.
 type Search = string
 
-// Force defines model for force.
-type Force = bool
-
 // Id defines model for id.
 type Id = externalRef0.ID
 
@@ -46,7 +43,10 @@ type BadRequestResponse = Error
 type ConflictResponse = Error
 
 // CreatedPostResponse defines model for CreatedPostResponse.
-type CreatedPostResponse = externalRef0.Post
+type CreatedPostResponse struct {
+	Post    externalRef0.Post    `json:"post"`
+	Similar *[]externalRef0.Post `json:"similar,omitempty"`
+}
 
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
@@ -155,11 +155,6 @@ type ConvertTagToAliasJSONBody struct {
 	Target string `json:"target"`
 }
 
-// UploadPostParams defines parameters for UploadPost.
-type UploadPostParams struct {
-	Force *Force `form:"force,omitempty" json:"force,omitempty"`
-}
-
 // CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
 type CreateNoteJSONRequestBody CreateNoteJSONBody
 
@@ -248,7 +243,7 @@ type ServerInterface interface {
 	ConvertTagToAlias(w http.ResponseWriter, r *http.Request, tag Tag)
 	// Upload a new post's content.
 	// (POST /api/v1/upload)
-	UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams)
+	UploadPost(w http.ResponseWriter, r *http.Request)
 
 	// (GET /healthz)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -849,21 +844,8 @@ func (siw *ServerInterfaceWrapper) ConvertTagToAlias(w http.ResponseWriter, r *h
 // UploadPost operation middleware
 func (siw *ServerInterfaceWrapper) UploadPost(w http.ResponseWriter, r *http.Request) {
 
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UploadPostParams
-
-	// ------------- Optional query parameter "force" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "force", r.URL.Query(), &params.Force)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "force", Err: err})
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UploadPost(w, r, params)
+		siw.Handler.UploadPost(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {

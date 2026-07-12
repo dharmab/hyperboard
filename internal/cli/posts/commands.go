@@ -180,14 +180,14 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.UploadPostWithBodyWithResponse(context.TODO(), &client.UploadPostParams{}, mimeStr, bytes.NewReader(data))
+	resp, err := c.UploadPostWithBodyWithResponse(context.TODO(), mimeStr, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
 	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
-	post := *resp.JSON201
+	post := resp.JSON201.Post
 
 	if tagsCSV != "" || note != "" {
 		if tagsCSV != "" {

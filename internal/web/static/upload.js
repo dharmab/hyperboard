@@ -165,15 +165,61 @@
     }
   }
 
-  function uploadFile(entry, forceUpload) {
+  function renderSimilarPosts(infoDiv, statusEl, postID, similar) {
+    statusEl.textContent = 'Similar posts found:';
+
+    var similarDiv = document.createElement('div');
+    similarDiv.className = 'similar-posts';
+
+    var grid = document.createElement('div');
+    grid.className = 'similar-posts-grid';
+    similar.forEach(function(post) {
+      var a = document.createElement('a');
+      a.href = '/posts/' + post.id;
+      a.target = '_blank';
+      var thumb = document.createElement('img');
+      thumb.className = 'similar-thumb';
+      thumb.src = mediaUrl(post.thumbnailUrl);
+      thumb.alt = 'Similar post';
+      a.appendChild(thumb);
+      grid.appendChild(a);
+    });
+    similarDiv.appendChild(grid);
+
+    var actions = document.createElement('div');
+    actions.className = 'similar-actions';
+    var deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'btn btn-danger';
+    deleteBtn.textContent = 'Delete this upload';
+    deleteBtn.addEventListener('click', function() {
+      if (!confirm('Delete this upload?')) return;
+      deleteBtn.disabled = true;
+      fetch('/posts/' + postID, { method: 'DELETE' }).then(function(res) {
+        if (res.ok) {
+          statusEl.textContent = 'Deleted';
+          similarDiv.remove();
+        } else {
+          deleteBtn.disabled = false;
+        }
+      }).catch(function() {
+        deleteBtn.disabled = false;
+      });
+    });
+    actions.appendChild(deleteBtn);
+
+    similarDiv.appendChild(actions);
+    infoDiv.appendChild(similarDiv);
+  }
+
+  function uploadFile(entry) {
     var wrapper = entry.element;
     var infoDiv = wrapper.querySelector('.file-preview-info');
 
     // Remove previous status/similar content on re-upload
     var oldProgress = wrapper.querySelector('.progress-bar');
     if (oldProgress) oldProgress.remove();
-    var oldStatus = wrapper.querySelector('.upload-status');
-    if (oldStatus) oldStatus.remove();
+    wrapper.querySelectorAll('.upload-status').forEach(function(el) { el.remove(); });
     var oldSimilar = wrapper.querySelector('.similar-posts');
     if (oldSimilar) oldSimilar.remove();
     wrapper.classList.remove('upload-success', 'upload-error', 'upload-similar');
@@ -200,9 +246,6 @@
       var xhr = new XMLHttpRequest();
       var formData = new FormData();
       formData.append('files', entry.file, entry.file.name || 'pasted-image.png');
-      if (forceUpload) {
-        formData.append('force', 'true');
-      }
 
       xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
@@ -223,62 +266,21 @@
           link.textContent = 'View post';
           statusEl.textContent = '';
           statusEl.appendChild(link);
-          resolve();
-        } else if (xhr.status === 409 && resp.similar && resp.similar.length > 0) {
-          // Similar posts found — show them with force/discard options
-          wrapper.classList.add('upload-similar');
-          statusEl.textContent = 'Similar posts found:';
 
-          var similarDiv = document.createElement('div');
-          similarDiv.className = 'similar-posts';
-
-          var grid = document.createElement('div');
-          grid.className = 'similar-posts-grid';
-          resp.similar.forEach(function(post) {
-            var a = document.createElement('a');
-            a.href = '/posts/' + post.id;
-            a.target = '_blank';
-            var thumb = document.createElement('img');
-            thumb.className = 'similar-thumb';
-            thumb.src = mediaUrl(post.thumbnailUrl);
-            thumb.alt = 'Similar post';
-            a.appendChild(thumb);
-            grid.appendChild(a);
-          });
-          similarDiv.appendChild(grid);
-
-          var actions = document.createElement('div');
-          actions.className = 'similar-actions';
-          var forceBtn = document.createElement('button');
-          forceBtn.type = 'button';
-          forceBtn.className = 'btn btn-primary';
-          forceBtn.textContent = 'Upload anyway';
-          forceBtn.addEventListener('click', function() {
-            uploadFile(entry, true).then(resolve);
-          });
-          actions.appendChild(forceBtn);
-
-          var discardBtn = document.createElement('button');
-          discardBtn.type = 'button';
-          discardBtn.className = 'btn btn-danger';
-          discardBtn.textContent = 'Discard';
-          discardBtn.addEventListener('click', function() {
-            wrapper.classList.remove('upload-similar');
-            wrapper.classList.add('upload-error');
-            statusEl.textContent = 'Discarded';
-            similarDiv.remove();
-            resolve();
-          });
-          actions.appendChild(discardBtn);
-
-          similarDiv.appendChild(actions);
-          infoDiv.appendChild(similarDiv);
-          // Do NOT resolve — wait for user action
+          if (resp.similar && resp.similar.length > 0) {
+            wrapper.classList.add('upload-similar');
+            var similarStatus = document.createElement('div');
+            similarStatus.className = 'upload-status';
+            infoDiv.appendChild(similarStatus);
+            renderSimilarPosts(infoDiv, similarStatus, resp.id, resp.similar);
+          }
         } else {
           wrapper.classList.add('upload-error');
           statusEl.textContent = resp.error || resp.message || 'Upload failed';
-          resolve();
         }
+        // Always resolve — success, failure, and similar-post notices never
+        // block the rest of the batch.
+        resolve();
       });
 
       xhr.addEventListener('error', function() {
@@ -310,7 +312,7 @@
     // Upload files serially
     var chain = Promise.resolve();
     entries.forEach(function(entry) {
-      chain = chain.then(function() { return uploadFile(entry, false); });
+      chain = chain.then(function() { return uploadFile(entry); });
     });
     chain.then(function() {
       fileMap.clear();
