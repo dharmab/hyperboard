@@ -247,8 +247,6 @@ paths:
     post:
       operationId: uploadPost
       summary: Upload a new post's content.
-      parameters:
-        - $ref: "#/components/parameters/force"
       requestBody:
         $ref: "#/components/requestBodies/UploadPostRequest"
       responses:
@@ -576,13 +574,6 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/Search"
-    force:
-      name: force
-      in: query
-      required: false
-      schema:
-        type: boolean
-        default: false
   requestBodies:
     TagRequest:
       required: true
@@ -724,7 +715,16 @@ components:
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/Post"
+            type: object
+            required:
+              - post
+            properties:
+              post:
+                $ref: "types-spec.yaml#/components/schemas/Post"
+              similar:
+                type: array
+                items:
+                  $ref: "types-spec.yaml#/components/schemas/Post"
     PostsResponse:
       content:
         application/json:

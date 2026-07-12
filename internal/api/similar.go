@@ -9,14 +9,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-// SimilarPostsResponse is returned when an upload is blocked due to
-// visually similar posts. It contains both an error message and the
-// list of similar posts so the client can display them.
-type SimilarPostsResponse struct {
-	Message string       `json:"message"`
-	Similar []types.Post `json:"similar"`
-}
-
 // GetSimilarPosts handles requests to find posts visually similar to a given post.
 func (s *Server) GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, params GetSimilarPostsParams) {
 	ctx := r.Context()

@@ -19,11 +19,9 @@ import (
 )
 
 // UploadPost handles uploading new media content as a post.
-func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params UploadPostParams) {
+func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := *zerolog.Ctx(ctx)
-
-	force := params.Force != nil && *params.Force
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -42,7 +40,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 		mimeStr = strings.TrimSpace(mimeStr[:idx])
 	}
 
-	logger.Info().Str("mime", mimeStr).Int("size", len(data)).Bool("force", force).Msg("processing upload")
+	logger.Info().Str("mime", mimeStr).Int("size", len(data)).Msg("processing upload")
 
 	var contentData []byte
 	var contentMIME string
@@ -97,29 +95,6 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 			logger.Warn().Err(phashErr).Msg("failed to compute perceptual hash")
 		} else {
 			phashVal = &sql.Null[int64]{V: pHash, Valid: true}
-
-			// Check for visually similar posts (unless force is set).
-			if !force {
-				logger.Info().Msg("checking for visually similar posts")
-				similar, err := s.sqlStore.FindSimilarPosts(ctx, uuid.Nil, pHash, 5)
-				if err != nil {
-					logger.Error().Err(err).Msg("failed to check for similar posts")
-				} else if len(similar) > 0 {
-					logger.Info().Int("count", len(similar)).Msg("similar posts found, rejecting upload")
-					items := make([]types.Post, 0, len(similar))
-					for _, p := range similar {
-						items = append(items, postFromModel(p))
-					}
-					respond(w, http.StatusConflict, SimilarPostsResponse{
-						Message: "Similar posts found",
-						Similar: items,
-					})
-					return
-				}
-				logger.Info().Msg("no similar posts found")
-			} else {
-				logger.Info().Msg("skipping similarity check (force=true)")
-			}
 		}
 	}
 
@@ -173,7 +148,26 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request, params Uploa
 
 	logger.Info().Str("mime", contentMIME).Msg("post uploaded")
 	model.Tags = nil
-	respond(w, http.StatusCreated, postFromModel(model))
+
+	var similarItems []types.Post
+	if phashVal != nil {
+		similar, err := s.sqlStore.FindSimilarPosts(ctx, postID, phashVal.V, 5)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to check for similar posts")
+		} else if len(similar) > 0 {
+			logger.Info().Int("count", len(similar)).Msg("similar posts found")
+			similarItems = make([]types.Post, 0, len(similar))
+			for _, p := range similar {
+				similarItems = append(similarItems, postFromModel(p))
+			}
+		}
+	}
+
+	result := CreatedPostResponse{Post: postFromModel(model)}
+	if len(similarItems) > 0 {
+		result.Similar = &similarItems
+	}
+	respond(w, http.StatusCreated, result)
 }
 
 func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id) {

@@ -31,9 +31,6 @@ type Limit = int
 // Search defines model for Search.
 type Search = string
 
-// Force defines model for force.
-type Force = bool
-
 // Id defines model for id.
 type Id = externalRef0.ID
 
@@ -50,7 +47,10 @@ type BadRequestResponse = Error
 type ConflictResponse = Error
 
 // CreatedPostResponse defines model for CreatedPostResponse.
-type CreatedPostResponse = externalRef0.Post
+type CreatedPostResponse struct {
+	Post    externalRef0.Post    `json:"post"`
+	Similar *[]externalRef0.Post `json:"similar,omitempty"`
+}
 
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
@@ -157,11 +157,6 @@ type GetTagsParams struct {
 // ConvertTagToAliasJSONBody defines parameters for ConvertTagToAlias.
 type ConvertTagToAliasJSONBody struct {
 	Target string `json:"target"`
-}
-
-// UploadPostParams defines parameters for UploadPost.
-type UploadPostParams struct {
-	Force *Force `form:"force,omitempty" json:"force,omitempty"`
 }
 
 // CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
@@ -334,7 +329,7 @@ type ClientInterface interface {
 	ConvertTagToAlias(ctx context.Context, tag Tag, body ConvertTagToAliasJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UploadPostWithBody request with any body
-	UploadPostWithBody(ctx context.Context, params *UploadPostParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UploadPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealth request
 	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -682,8 +677,8 @@ func (c *Client) ConvertTagToAlias(ctx context.Context, tag Tag, body ConvertTag
 	return c.Client.Do(req)
 }
 
-func (c *Client) UploadPostWithBody(ctx context.Context, params *UploadPostParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUploadPostRequestWithBody(c.Server, params, contentType, body)
+func (c *Client) UploadPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadPostRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1678,7 +1673,7 @@ func NewConvertTagToAliasRequestWithBody(server string, tag Tag, contentType str
 }
 
 // NewUploadPostRequestWithBody generates requests for UploadPost with any type of body
-func NewUploadPostRequestWithBody(server string, params *UploadPostParams, contentType string, body io.Reader) (*http.Request, error) {
+func NewUploadPostRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -1694,28 +1689,6 @@ func NewUploadPostRequestWithBody(server string, params *UploadPostParams, conte
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Force != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "force", runtime.ParamLocationQuery, *params.Force); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
@@ -1931,7 +1904,7 @@ type ClientWithResponsesInterface interface {
 	ConvertTagToAliasWithResponse(ctx context.Context, tag Tag, body ConvertTagToAliasJSONRequestBody, reqEditors ...RequestEditorFn) (*ConvertTagToAliasResponse, error)
 
 	// UploadPostWithBodyWithResponse request with any body
-	UploadPostWithBodyWithResponse(ctx context.Context, params *UploadPostParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadPostResponse, error)
+	UploadPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadPostResponse, error)
 
 	// GetHealthWithResponse request
 	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error)
@@ -2884,8 +2857,8 @@ func (c *ClientWithResponses) ConvertTagToAliasWithResponse(ctx context.Context,
 }
 
 // UploadPostWithBodyWithResponse request with arbitrary body returning *UploadPostResponse
-func (c *ClientWithResponses) UploadPostWithBodyWithResponse(ctx context.Context, params *UploadPostParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadPostResponse, error) {
-	rsp, err := c.UploadPostWithBody(ctx, params, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UploadPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadPostResponse, error) {
+	rsp, err := c.UploadPostWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
