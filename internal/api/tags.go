@@ -226,7 +226,6 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusBadRequest, "Cascading tag %q does not exist", cascadeErr.Name)
 			return
 		}
-		logger.Error().Err(err).Msg("failed to save tag")
 		respondWithError(w, http.StatusInternalServerError, "Failed to save tag")
 		return
 	}
