@@ -464,7 +464,7 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID
 		err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", resolved).Scan(&targetID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("cascade target tag %q not found", name)
+				return &CascadeTargetNotFoundError{Name: name}
 			}
 			return err
 		}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -226,6 +227,32 @@ func TestTagsIntegration(t *testing.T) {
 		}
 		if tag.Aliases == nil || len(*tag.Aliases) != 2 {
 			t.Errorf("expected 2 aliases, got %v", tag.Aliases)
+		}
+	})
+
+	t.Run("set cascading tag to nonexistent tag returns bad request", func(t *testing.T) {
+		missingName := "nonexistent-cascade-target-" + uuid.Must(uuid.NewV4()).String()[:8]
+		cascadingTags := []string{missingName}
+		body := types.Tag{
+			Name:          tagName,
+			CascadingTags: &cascadingTags,
+		}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+tagName, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutTag(w, req, tagName)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("PutTag with missing cascade target status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+
+		var apiErr Error
+		if err := json.NewDecoder(w.Body).Decode(&apiErr); err != nil {
+			t.Fatalf("failed to decode error response: %v", err)
+		}
+		if !strings.Contains(apiErr.Message, missingName) {
+			t.Errorf("error message = %q, want it to mention %q", apiErr.Message, missingName)
 		}
 	})
 
