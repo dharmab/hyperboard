@@ -16,9 +16,16 @@ import (
 // pgUniqueViolationCode is the PostgreSQL SQLSTATE code for a unique constraint violation.
 const pgUniqueViolationCode = "23505"
 
-func isUniqueViolation(err error) bool {
+// tagCategoriesNameConstraint is the name Postgres assigns to the UNIQUE constraint on
+// tag_categories.name (table_column_key, its default naming convention).
+const tagCategoriesNameConstraint = "tag_categories_name_key"
+
+// isUniqueViolation reports whether err is a Postgres unique constraint violation of constraintName.
+// Checking the constraint name (not just the SQLSTATE code) keeps this correct if the table ever
+// gains another unique constraint.
+func isUniqueViolation(err error, constraintName string) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == pgUniqueViolationCode
+	return ok && pgErr.Code == pgUniqueViolationCode && pgErr.ConstraintName == constraintName
 }
 
 // TagCategoryStore provides CRUD operations for tag categories.
@@ -119,7 +126,7 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 			input.Name, input.Description, input.Color, now, existing.ID,
 		)
 		if err != nil {
-			if isUniqueViolation(err) {
+			if isUniqueViolation(err, tagCategoriesNameConstraint) {
 				return nil, false, &TagCategoryNameConflictError{Name: input.Name}
 			}
 			return nil, false, err
@@ -141,7 +148,7 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		input.Name, input.Description, input.Color, now, now,
 	).Scan(&inserted.ID, &inserted.Name, &inserted.Description, &inserted.Color, &inserted.CreatedAt, &inserted.UpdatedAt)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolation(err, tagCategoriesNameConstraint) {
 			return nil, false, &TagCategoryNameConflictError{Name: input.Name}
 		}
 		return nil, false, err
