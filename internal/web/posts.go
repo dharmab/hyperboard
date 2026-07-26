@@ -164,8 +164,12 @@ func (a *app) handlePostNote(w http.ResponseWriter, r *http.Request) {
 	post := *resp.JSON200
 	post.Note = note
 	putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
-	if err != nil || putResp.StatusCode() >= 400 {
-		http.Error(w, "Failed to save note", http.StatusInternalServerError)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if putResp.StatusCode() >= 400 {
+		http.Error(w, fmt.Sprintf("Failed to save note: %s", putResp.Body), putResp.StatusCode())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -193,8 +197,12 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
 			putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
-			if err != nil || putResp.StatusCode() >= 400 {
-				http.Error(w, "Failed to add tag", http.StatusInternalServerError)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to add tag: %v", err), http.StatusInternalServerError)
+				return
+			}
+			if putResp.StatusCode() >= 400 {
+				http.Error(w, fmt.Sprintf("Failed to add tag: %s", putResp.Body), putResp.StatusCode())
 				return
 			}
 		}
@@ -208,8 +216,12 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		}
 		post.Tags = newTags
 		putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
-		if err != nil || putResp.StatusCode() >= 400 {
-			http.Error(w, "Failed to remove tag", http.StatusInternalServerError)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to remove tag: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if putResp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to remove tag: %s", putResp.Body), putResp.StatusCode())
 			return
 		}
 	}

@@ -222,6 +222,10 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update tag aliases")
 			return
 		}
+		if cascadeErr, ok := errors.AsType[*store.CascadeTargetNotFoundError](err); ok {
+			respondWithError(w, http.StatusBadRequest, "Cascading tag %q does not exist", cascadeErr.Name)
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to save tag")
 		return
 	}
