@@ -184,6 +184,70 @@ func TestHandlePosts_WithoutTagFilters(t *testing.T) {
 	}
 }
 
+func TestHandlePostNote_APIError(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.Must(uuid.NewV4()))
+	now := time.Now().UTC()
+	post := types.Post{ID: postID, MimeType: "image/webp", CreatedAt: now, UpdatedAt: now}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/posts/"):
+			jsonResponse(w, http.StatusOK, post)
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/posts/"):
+			jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Note is too long"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	form := strings.NewReader("note=hello")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/posts/"+postID.String()+"/note", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", postID.String())
+	w := httptest.NewRecorder()
+	app.handlePostNote(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Note is too long") {
+		t.Errorf("expected error body to contain API message, got %q", w.Body.String())
+	}
+}
+
+func TestHandlePostTags_AddAPIError(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.Must(uuid.NewV4()))
+	now := time.Now().UTC()
+	post := types.Post{ID: postID, MimeType: "image/webp", CreatedAt: now, UpdatedAt: now}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/posts/"):
+			jsonResponse(w, http.StatusOK, post)
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/posts/"):
+			jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Tag name is invalid"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	form := strings.NewReader("q=!!!invalid")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/posts/"+postID.String()+"/tags", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", postID.String())
+	w := httptest.NewRecorder()
+	app.handlePostTags(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Tag name is invalid") {
+		t.Errorf("expected error body to contain API message, got %q", w.Body.String())
+	}
+}
+
 func TestHandleTagSuggestions(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()

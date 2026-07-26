@@ -139,6 +139,10 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		Color:       req.Color,
 	}, now)
 	if err != nil {
+		if conflictErr, ok := errors.AsType[*store.TagCategoryNameConflictError](err); ok {
+			respondWithError(w, http.StatusBadRequest, "Tag category name %q already in use", conflictErr.Name)
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to save tag category")
 		return
 	}

@@ -10,7 +10,16 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/gofrs/uuid/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// pgUniqueViolationCode is the PostgreSQL SQLSTATE code for a unique constraint violation.
+const pgUniqueViolationCode = "23505"
+
+func isUniqueViolation(err error) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == pgUniqueViolationCode
+}
 
 // TagCategoryStore provides CRUD operations for tag categories.
 type TagCategoryStore interface {
@@ -110,6 +119,9 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 			input.Name, input.Description, input.Color, now, existing.ID,
 		)
 		if err != nil {
+			if isUniqueViolation(err) {
+				return nil, false, &TagCategoryNameConflictError{Name: input.Name}
+			}
 			return nil, false, err
 		}
 		existing.Name = input.Name
@@ -129,6 +141,9 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		input.Name, input.Description, input.Color, now, now,
 	).Scan(&inserted.ID, &inserted.Name, &inserted.Description, &inserted.Color, &inserted.CreatedAt, &inserted.UpdatedAt)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, false, &TagCategoryNameConflictError{Name: input.Name}
+		}
 		return nil, false, err
 	}
 

@@ -24,9 +24,11 @@ func (a *app) handleNotes(w http.ResponseWriter, r *http.Request) {
 			if notesResp != nil && notesResp.JSON200 != nil && notesResp.JSON200.Items != nil {
 				notes = *notesResp.JSON200.Items
 			}
-			errMsg := "Failed to create note"
+			var errMsg string
 			if err != nil {
 				errMsg = fmt.Sprintf("Failed to create note: %v", err)
+			} else {
+				errMsg = fmt.Sprintf("Failed to create note: %s", resp.Body)
 			}
 			a.renderTemplate(w, r, "notes", notesData{Notes: notes, Error: errMsg})
 			return
@@ -87,8 +89,12 @@ func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 			Title:   r.FormValue("title"),
 			Content: r.FormValue("content"),
 		})
-		if err != nil || resp.StatusCode() >= 400 {
-			http.Error(w, "Failed to save note", http.StatusInternalServerError)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to save note: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if resp.StatusCode() >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to save note: %s", resp.Body), resp.StatusCode())
 			return
 		}
 		// Return rendered markdown for HTMX swap

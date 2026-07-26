@@ -31,6 +31,7 @@ func newTestApp(t *testing.T, handler http.Handler) *app {
 }
 
 const postsAPIPath = "/api/v1/posts"
+const notesAPIPath = "/api/v1/notes"
 
 func jsonResponse(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

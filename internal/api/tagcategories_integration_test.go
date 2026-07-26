@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -142,6 +143,38 @@ func TestTagCategoriesIntegration(t *testing.T) {
 		}
 		if cat.Description != "Updated description" {
 			t.Errorf("Description = %q, want %q", cat.Description, "Updated description")
+		}
+	})
+
+	t.Run("rename tag category to existing name returns bad request", func(t *testing.T) {
+		otherCatName := "test-category-other-" + uuid.Must(uuid.NewV4()).String()[:8]
+		otherBody := types.TagCategory{Name: otherCatName, Description: "Another category", Color: "#0000ff"}
+		ob, _ := json.Marshal(otherBody)
+		otherReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+otherCatName, bytes.NewReader(ob))
+		otherReq.Header.Set("Content-Type", "application/json")
+		otherW := httptest.NewRecorder()
+		srv.PutTagCategory(otherW, otherReq, otherCatName)
+		if otherW.Code != http.StatusCreated {
+			t.Fatalf("PutTagCategory create status = %d, want %d; body = %s", otherW.Code, http.StatusCreated, otherW.Body.String())
+		}
+
+		body := types.TagCategory{Name: otherCatName, Description: "Renamed", Color: "#00ff00"}
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutTagCategory(w, req, catName)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("PutTagCategory rename to existing name status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+
+		var apiErr Error
+		if err := json.NewDecoder(w.Body).Decode(&apiErr); err != nil {
+			t.Fatalf("failed to decode error response: %v", err)
+		}
+		if !strings.Contains(apiErr.Message, otherCatName) {
+			t.Errorf("error message = %q, want it to mention %q", apiErr.Message, otherCatName)
 		}
 	})
 
