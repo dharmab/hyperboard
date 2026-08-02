@@ -59,7 +59,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		logger.Info().Str("mime", mimeStr).Msg("processing as video")
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(ctx, data)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
@@ -215,7 +215,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(ctx, data)
 		if err != nil {
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
 			return
@@ -388,7 +388,7 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	} else if strings.HasPrefix(post.MimeType, "video/") {
-		thumbnailData, err = media.RegenerateVideoThumbnail(data)
+		thumbnailData, err = media.RegenerateVideoThumbnail(ctx, data)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to process video for thumbnail regeneration")
 			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)

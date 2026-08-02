@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/db/migrations"
 	"github.com/dharmab/hyperboard/internal/db/store"
+	"github.com/dharmab/hyperboard/internal/media/ffwasm"
 	"github.com/dharmab/hyperboard/internal/middleware/auth"
 	"github.com/dharmab/hyperboard/internal/middleware/logging"
 	s3storage "github.com/dharmab/hyperboard/internal/storage/s3"
@@ -72,6 +74,18 @@ func run(ctx context.Context) error {
 	log.Info().Msg("Running database migrations...")
 	if err := migrations.Migrate(dsn); err != nil {
 		return fmt.Errorf("failed to run database migrations: %w", err)
+	}
+
+	// Compiling the embedded video decoder takes about a second. Pay it here
+	// rather than on the first video upload.
+	log.Info().Msg("Compiling video decoder...")
+	if !ffwasm.CompilerSupported() {
+		log.Warn().
+			Str("arch", runtime.GOARCH).
+			Msg("No WebAssembly compiler for this architecture; video thumbnails will be slow")
+	}
+	if err := ffwasm.Warm(ctx); err != nil {
+		return fmt.Errorf("failed to compile video decoder: %w", err)
 	}
 
 	log.Info().Msg("Starting API server...")

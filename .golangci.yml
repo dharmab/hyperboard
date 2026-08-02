@@ -1,5 +1,11 @@
 version: "2"
 
+run:
+  # Match the Makefile: gen2brain/webp must use its transpiled Go encoder, not a
+  # dlopened system libwebp.
+  build-tags:
+    - nodynamic
+
 linters:
   enable:
     - asasalint
@@ -128,8 +134,8 @@ linters:
       - linters:
           - gosec
         text: "G115"
-      # exec.Command in media processing (cwebp/ffmpeg) and the CLI editor
-      # launcher. Context propagation requires a larger refactor.
+      # exec.Command in the CLI editor launcher. Context propagation requires a
+      # larger refactor.
       - linters:
           - noctx
         text: "os/exec.Command"
