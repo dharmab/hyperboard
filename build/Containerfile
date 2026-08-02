@@ -6,6 +6,10 @@ ARG TARGETARCH=amd64
 
 WORKDIR /app
 
+# gen2brain/webp dlopens a system libwebp without this tag; the runtime images
+# have no libwebp, so the transpiled Go encoder must be the only code path.
+ENV GOFLAGS=-tags=nodynamic
+
 COPY go.mod go.sum ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -27,13 +31,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboardctl ./cmd/hyperboardctl
 
-FROM debian:13-slim AS hyperboard-api
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      ca-certificates \
-      webp \
-      ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/static-debian12:debug AS hyperboard-api
 COPY --from=builder /bin/hyperboard-api /hyperboard-api
 ENTRYPOINT ["/hyperboard-api"]
 

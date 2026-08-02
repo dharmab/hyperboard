@@ -1,0 +1,55 @@
+FFmpeg 7.1.1, built for wasm32-wasip1 with wasi-sdk 33.
+
+Configuration:
+./configure
+  --prefix=/opt/ffmpeg
+  --enable-cross-compile
+  --target-os=none
+  --arch=wasm32
+  --cpu=generic
+  --cc=/opt/wasi-sdk/bin/clang
+  --cxx=/opt/wasi-sdk/bin/clang++
+  --ar=/opt/wasi-sdk/bin/llvm-ar
+  --nm=/opt/wasi-sdk/bin/llvm-nm
+  --ranlib=/opt/wasi-sdk/bin/llvm-ranlib
+  --strip=/opt/wasi-sdk/bin/llvm-strip
+  --extra-cflags='--target=wasm32-wasip1
+  --sysroot=/opt/wasi-sdk/share/wasi-sysroot -Os -fno-strict-aliasing -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID'
+  --extra-ldflags='--target=wasm32-wasip1
+  --sysroot=/opt/wasi-sdk/share/wasi-sysroot -lwasi-emulated-signal -lwasi-emulated-mman -lwasi-emulated-process-clocks -lwasi-emulated-getpid'
+  --disable-everything
+  --disable-programs
+  --disable-doc
+  --disable-debug
+  --disable-autodetect
+  --disable-asm
+  --disable-inline-asm
+  --disable-x86asm
+  --disable-pthreads
+  --disable-w32threads
+  --disable-os2threads
+  --disable-network
+  --disable-protocols
+  --disable-devices
+  --disable-avdevice
+  --disable-avfilter
+  --disable-swresample
+  --disable-postproc
+  --disable-iconv
+  --disable-zlib
+  --disable-bzlib
+  --disable-lzma
+  --disable-sdl2
+  --disable-xlib
+  --disable-vaapi
+  --disable-vdpau
+  --disable-videotoolbox
+  --disable-audiotoolbox
+  --disable-securetransport
+  --disable-runtime-cpudetect
+  --enable-small
+  --enable-protocol=file
+  --enable-demuxer='mov,matroska'
+  --enable-parser='h264,hevc,vp8,vp9,av1,mpeg4video,mjpeg'
+  --enable-decoder='h264,hevc,vp8,vp9,av1,mpeg4,mjpeg,png,rawvideo'
+  --enable-swscale

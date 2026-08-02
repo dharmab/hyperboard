@@ -12,6 +12,7 @@ def go_build(name, os, arch):
             'CGO_ENABLED': '0',
             'GOOS': os,
             'GOARCH': arch,
+            'GOFLAGS': '-tags=nodynamic', # use the transpiled libwebp, never a system one
         },
         deps=['go.mod', 'go.sum', './cmd/{}'.format(name), './internal'],
         resource_deps=['generate']

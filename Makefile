@@ -1,6 +1,11 @@
-.PHONY: help install-deps build-images generate lint format test coverage govulncheck start stop ci clean
+.PHONY: help install-deps build-images build-ffmpeg-wasm generate lint format test coverage govulncheck start stop ci clean
 
 .DEFAULT_GOAL := help
+
+# github.com/gen2brain/webp dlopens a system libwebp unless the nodynamic build
+# tag is set, which would make WebP output depend on the host. Exported so every
+# go invocation below (including golangci-lint) picks it up.
+export GOFLAGS := -tags=nodynamic
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-30s %s\n", $$1, $$2}'
@@ -46,6 +51,9 @@ stop: ## Stop and tear down local development environment
 	k3d registry delete hyperboard
 
 ci: build-images lint test ## Run CI pipeline (build, lint, test)
+
+build-ffmpeg-wasm: ## Rebuild the embedded LGPL FFmpeg WASM module
+	build/ffmpeg-wasm/build.sh
 
 clean: ## Remove generated files and built binaries
 	find . -name 'gen.go' -delete

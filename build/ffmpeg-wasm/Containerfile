@@ -1,0 +1,132 @@
+# Builds frame.wasm: a decode-only, LGPL-only FFmpeg linked with build/ffmpeg-wasm/frame.c,
+# targeting wasm32-wasip1 so it can run under wazero with no cgo and no ffmpeg subprocess.
+#
+# Nothing GPL is enabled: no --enable-gpl, no --enable-version3, no libx264, no external
+# libraries at all. Everything compiled in is LGPL 2.1+ or BSD.
+#
+# Build with build/ffmpeg-wasm/build.sh, which copies the result into
+# internal/media/ffwasm/frame.wasm.
+
+FROM debian:13-slim AS build
+
+ARG WASI_SDK_VERSION=33
+ARG FFMPEG_VERSION=7.1.1
+ARG TARGETARCH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils make gcc libc6-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# wasi-sdk ships the clang, sysroot and libc we cross-compile against.
+RUN case "${TARGETARCH}" in \
+      arm64) WASI_ARCH=arm64 ;; \
+      amd64) WASI_ARCH=x86_64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL -o /tmp/wasi-sdk.tar.gz \
+      "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-${WASI_ARCH}-linux.tar.gz" && \
+    mkdir -p /opt/wasi-sdk && \
+    tar -xzf /tmp/wasi-sdk.tar.gz -C /opt/wasi-sdk --strip-components=1 && \
+    rm /tmp/wasi-sdk.tar.gz
+
+RUN curl -fsSL -o /tmp/ffmpeg.tar.xz \
+      "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" && \
+    mkdir -p /src/ffmpeg && \
+    tar -xJf /tmp/ffmpeg.tar.xz -C /src/ffmpeg --strip-components=1 && \
+    rm /tmp/ffmpeg.tar.xz
+
+ENV WASI_SDK=/opt/wasi-sdk
+ENV WASI_SYSROOT=/opt/wasi-sdk/share/wasi-sysroot
+ENV TARGET=wasm32-wasip1
+
+# WASI has no threads, no processes, no signals and no mmap; the emulation shims cover
+# the handful of calls FFmpeg makes anyway.
+ENV WASI_CFLAGS="--target=${TARGET} --sysroot=${WASI_SYSROOT} -Os -fno-strict-aliasing \
+-D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID"
+ENV WASI_LDFLAGS="--target=${TARGET} --sysroot=${WASI_SYSROOT} \
+-lwasi-emulated-signal -lwasi-emulated-mman -lwasi-emulated-process-clocks -lwasi-emulated-getpid"
+
+WORKDIR /src/ffmpeg
+
+# Decoders, parsers and demuxers for exactly the three MIME types the API accepts
+# (video/mp4, video/quicktime, video/webm). No encoders, no muxers, no filters,
+# no network, no swresample — frame.c does its own RGBA conversion via swscale.
+RUN ./configure \
+      --prefix=/opt/ffmpeg \
+      --enable-cross-compile \
+      --target-os=none \
+      --arch=wasm32 \
+      --cpu=generic \
+      --cc="${WASI_SDK}/bin/clang" \
+      --cxx="${WASI_SDK}/bin/clang++" \
+      --ar="${WASI_SDK}/bin/llvm-ar" \
+      --nm="${WASI_SDK}/bin/llvm-nm" \
+      --ranlib="${WASI_SDK}/bin/llvm-ranlib" \
+      --strip="${WASI_SDK}/bin/llvm-strip" \
+      --extra-cflags="${WASI_CFLAGS}" \
+      --extra-ldflags="${WASI_LDFLAGS}" \
+      --disable-everything \
+      --disable-programs \
+      --disable-doc \
+      --disable-debug \
+      --disable-autodetect \
+      --disable-asm \
+      --disable-inline-asm \
+      --disable-x86asm \
+      --disable-pthreads \
+      --disable-w32threads \
+      --disable-os2threads \
+      --disable-network \
+      --disable-protocols \
+      --disable-devices \
+      --disable-avdevice \
+      --disable-avfilter \
+      --disable-swresample \
+      --disable-postproc \
+      --disable-iconv \
+      --disable-zlib \
+      --disable-bzlib \
+      --disable-lzma \
+      --disable-sdl2 \
+      --disable-xlib \
+      --disable-vaapi \
+      --disable-vdpau \
+      --disable-videotoolbox \
+      --disable-audiotoolbox \
+      --disable-securetransport \
+      --disable-runtime-cpudetect \
+      --enable-small \
+      --enable-protocol=file \
+      --enable-demuxer=mov,matroska \
+      --enable-parser=h264,hevc,vp8,vp9,av1,mpeg4video,mjpeg \
+      --enable-decoder=h264,hevc,vp8,vp9,av1,mpeg4,mjpeg,png,rawvideo \
+      --enable-swscale \
+    || (cat ffbuild/config.log | tail -80; exit 1)
+
+RUN make -j"$(nproc)" && make install
+
+COPY frame.c /src/frame.c
+
+RUN ${WASI_SDK}/bin/clang ${WASI_CFLAGS} \
+      -I/opt/ffmpeg/include \
+      -o /src/frame.wasm /src/frame.c \
+      -L/opt/ffmpeg/lib \
+      -lavformat -lavcodec -lswscale -lavutil \
+      ${WASI_LDFLAGS} \
+      -Wl,--strip-all,--gc-sections \
+    && ls -l /src/frame.wasm
+
+# LGPL 2.1 section 6 requires shipping the license text and enough material to
+# relink the application against a modified FFmpeg. The license text, the exact
+# upstream version and the full configure line all travel with the module.
+RUN mkdir -p /artifact && \
+    cp /src/frame.wasm /artifact/frame.wasm && \
+    cp /src/ffmpeg/COPYING.LGPLv2.1 /artifact/LICENSE.ffmpeg && \
+    { echo "FFmpeg ${FFMPEG_VERSION}, built for wasm32-wasip1 with wasi-sdk ${WASI_SDK_VERSION}."; \
+      echo; \
+      echo "Configuration:"; \
+      head -1 /src/ffmpeg/ffbuild/config.log | sed -e 's/^# //' -e 's/ --/\n  --/g'; } \
+      > /artifact/BUILD-INFO.txt
+
+FROM scratch AS artifact
+COPY --from=build /artifact/ /

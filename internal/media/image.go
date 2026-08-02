@@ -6,48 +6,24 @@ import (
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
-	"image/png"
-	"os"
-	"os/exec"
-	"strconv"
+	_ "image/png"
 
+	"github.com/gen2brain/webp"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
-// EncodeWebP shells out to cwebp to encode an image.Image to WebP bytes.
+// EncodeWebP encodes an image.Image to lossy WebP bytes. The encoder is libwebp
+// transpiled to Go, so this runs in-process with no cgo and no subprocess.
+//
+// Builds must set the nodynamic build tag; without it the library dlopens a
+// system libwebp when one is present, which makes output depend on the host.
 func EncodeWebP(img image.Image, quality int) ([]byte, error) {
-	// Write the image to a temp PNG file for cwebp to read.
-	inFile, err := os.CreateTemp("", "hyperboard-img-in-*.png")
-	if err != nil {
-		return nil, fmt.Errorf("create temp input file: %w", err)
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, img, webp.Options{Quality: quality}); err != nil {
+		return nil, fmt.Errorf("encode webp: %w", err)
 	}
-	defer func() { _ = os.Remove(inFile.Name()) }()
-
-	// Encode as PNG into the temp file using standard library.
-	if err := png.Encode(inFile, img); err != nil {
-		_ = inFile.Close()
-		return nil, fmt.Errorf("encode png for cwebp: %w", err)
-	}
-	_ = inFile.Close()
-
-	outFile, err := os.CreateTemp("", "hyperboard-img-out-*.webp")
-	if err != nil {
-		return nil, fmt.Errorf("create temp output file: %w", err)
-	}
-	_ = outFile.Close()
-	defer func() { _ = os.Remove(outFile.Name()) }()
-
-	cmd := exec.Command("cwebp",
-		"-q", strconv.Itoa(quality),
-		inFile.Name(),
-		"-o", outFile.Name(),
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("cwebp encode: %w: %s", err, out)
-	}
-
-	return os.ReadFile(outFile.Name())
+	return buf.Bytes(), nil
 }
 
 // FitImage resizes img to fit within maxW x maxH, preserving aspect ratio.

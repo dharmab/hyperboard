@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"os/exec"
 	"testing"
 )
 
@@ -65,12 +64,11 @@ func TestFitImage(t *testing.T) {
 	}
 }
 
-func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp binary
-	if _, err := exec.LookPath("cwebp"); err != nil {
-		t.Skip("cwebp not available")
-	}
+func TestProcessImage(t *testing.T) {
+	t.Parallel()
 
-	t.Run("small png to webp", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+	t.Run("small png to webp", func(t *testing.T) {
+		t.Parallel()
 		img := syntheticColorImage(64, 64)
 		pngData := encodePNG(t, img)
 
@@ -89,7 +87,8 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		}
 	})
 
-	t.Run("webp passthrough", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+	t.Run("webp passthrough", func(t *testing.T) {
+		t.Parallel()
 		img := syntheticColorImage(64, 64)
 		webpData, err := EncodeWebP(img, 85)
 		if err != nil {

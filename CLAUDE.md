@@ -10,7 +10,7 @@ Hyperboard is an image and video hosting web application built with Go, followin
 - `internal/cli/` — CLI tool implementation with subcommands (`posts/`, `notes/`, `tags/`, `tagcategories/`, `replace/`)
 - `internal/db/` — Database layer (migrations in `internal/db/migrations/data/`, models in `internal/db/models/`, data access in `internal/db/store/`)
 - `internal/search/` — Search query parsing, sorting, and tag-based search
-- `internal/media/` — Media processing (images, video, perceptual hashing)
+- `internal/media/` — Media processing (images, video, perceptual hashing); `ffwasm/` embeds FFmpeg compiled to WebAssembly
 - `internal/storage/` — Storage abstraction (S3 and in-memory implementations)
 - `internal/middleware/auth/` — HTTP Basic Auth middleware
 - `internal/middleware/logging/` — HTTP request logging
@@ -18,6 +18,7 @@ Hyperboard is an image and video hosting web application built with Go, followin
 - `pkg/client/` — Generated API client (from OpenAPI spec)
 - `pkg/types/` — Shared types (generated from OpenAPI spec)
 - `build/Containerfile` — Multi-stage container build for all three binaries
+- `build/ffmpeg-wasm/` — Build recipe for the embedded LGPL FFmpeg WASM module
 - `deploy/tilt/` — Kubernetes manifests for local development
 - `deploy/quadlet/` — Podman Quadlet container deployment files
 - `docs/` — Project documentation
@@ -51,6 +52,15 @@ make build-image-hyperboardctl
 ```
 
 The Tiltfile also builds binaries and container images automatically during local development.
+
+## Media Processing
+
+All media processing runs in-process — no `cwebp`, `ffprobe` or `ffmpeg` subprocess, no cgo. See `docs/media-pipeline.md`.
+
+Two things to know when building or testing:
+
+- **Always build and test with `-tags nodynamic`.** `make` sets `GOFLAGS=-tags=nodynamic` for you. Without the tag, `gen2brain/webp` dlopens a system libwebp when one is installed, so WebP output depends on the host.
+- `internal/media/ffwasm/frame.wasm` is a checked-in build artifact. It is architecture-neutral, so cross-compiling needs nothing extra; rebuild it with `make build-ffmpeg-wasm` (requires Docker) only after editing `build/ffmpeg-wasm/`. Note that wazero only machine-compiles WebAssembly on amd64 and arm64 — other architectures fall back to an interpreter about 60x slower.
 
 ## Local Development Environment
 
