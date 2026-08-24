@@ -4,9 +4,10 @@ import (
 	"errors"
 	"net/http"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 // GetSimilarPosts handles requests to find posts visually similar to a given post.

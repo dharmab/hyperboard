@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestHandlePosts(t *testing.T) {
 	t.Parallel()
-	postID := types.ID(uuid.Must(uuid.NewV4()))
+	postID := types.ID(uuid.NewV4())
 	now := time.Now().UTC()
 	posts := []types.Post{{ID: postID, MimeType: "image/webp", CreatedAt: now, UpdatedAt: now}}
 
@@ -42,7 +43,7 @@ func TestHandlePosts(t *testing.T) {
 
 func TestHandlePost_GET(t *testing.T) {
 	t.Parallel()
-	postID := types.ID(uuid.Must(uuid.NewV4()))
+	postID := types.ID(uuid.NewV4())
 	now := time.Now().UTC()
 	post := types.Post{
 		ID:           postID,
@@ -82,7 +83,7 @@ func TestHandlePost_GET(t *testing.T) {
 
 func TestHandlePost_DELETE(t *testing.T) {
 	t.Parallel()
-	postID := types.ID(uuid.Must(uuid.NewV4()))
+	postID := types.ID(uuid.NewV4())
 
 	deleteCalled := false
 	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +132,7 @@ func TestHandlePost_InvalidID(t *testing.T) {
 
 func TestHandlePostTags_TrimsTagName(t *testing.T) {
 	t.Parallel()
-	postID := types.ID(uuid.Must(uuid.NewV4()))
+	postID := types.ID(uuid.NewV4())
 	now := time.Now().UTC()
 	post := types.Post{
 		ID:        postID,

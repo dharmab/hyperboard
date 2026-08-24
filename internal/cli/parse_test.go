@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func TestParseID(t *testing.T) {

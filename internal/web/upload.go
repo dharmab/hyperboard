@@ -146,6 +146,7 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(files) == 1 {
+		//nolint:gosec // lastPostID is a UUID returned by the API, not a user-provided redirect target.
 		http.Redirect(w, r, fmt.Sprintf("/posts/%s", lastPostID), http.StatusSeeOther)
 	} else {
 		http.Redirect(w, r, "/", http.StatusSeeOther)

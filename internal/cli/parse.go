@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // ParseID parses a string as a UUID, returning an error with context on failure.

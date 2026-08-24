@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/google/uuid"
 )
 
 // handleNotes serves the notes listing page and handles note creation.
@@ -61,7 +62,7 @@ func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 			a.renderTemplate(w, r, "note", noteData{Error: fmt.Sprintf("Invalid note ID: %v", err)})
 			return
 		}
-		resp, err := a.api.GetNoteWithResponse(ctx, noteID)
+		resp, err := a.api.GetNoteWithResponse(ctx, types.ID(noteID))
 		if err != nil || resp.JSON200 == nil {
 			var errMsg string
 			if err != nil {
@@ -83,7 +84,7 @@ func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid note ID", http.StatusBadRequest)
 			return
 		}
-		resp, err := a.api.PutNoteWithResponse(ctx, noteID, client.PutNoteJSONRequestBody{
+		resp, err := a.api.PutNoteWithResponse(ctx, types.ID(noteID), client.PutNoteJSONRequestBody{
 			Title:   r.FormValue("title"),
 			Content: r.FormValue("content"),
 		})
@@ -102,7 +103,7 @@ func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid note ID", http.StatusBadRequest)
 			return
 		}
-		resp, err := a.api.DeleteNoteWithResponse(ctx, noteID)
+		resp, err := a.api.DeleteNoteWithResponse(ctx, types.ID(noteID))
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete note: %v", err), http.StatusInternalServerError)
 			return

@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/media"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 )
 
@@ -98,12 +99,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	postID, err := uuid.NewV4()
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to generate post ID")
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate post ID: %v", err)
-		return
-	}
+	postID := uuid.NewV4()
 	logger = logger.With().Stringer("post_id", postID).Logger()
 
 	ext := mimeToExt(contentMIME)

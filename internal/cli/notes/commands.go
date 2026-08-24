@@ -103,7 +103,7 @@ func getNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetNoteWithResponse(context.TODO(), noteID)
+	resp, err := c.GetNoteWithResponse(context.TODO(), types.ID(noteID))
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func editNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetNoteWithResponse(context.TODO(), noteID)
+	resp, err := c.GetNoteWithResponse(context.TODO(), types.ID(noteID))
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func editNote(app *cli.App, id string) error {
 		return nil
 	}
 
-	putResp, err := c.PutNoteWithResponse(context.TODO(), noteID, client.PutNoteJSONRequestBody{
+	putResp, err := c.PutNoteWithResponse(context.TODO(), types.ID(noteID), client.PutNoteJSONRequestBody{
 		Title:   edited.Title,
 		Content: edited.Content,
 	})
@@ -250,7 +250,7 @@ func deleteNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.DeleteNoteWithResponse(context.TODO(), noteID)
+	resp, err := c.DeleteNoteWithResponse(context.TODO(), types.ID(noteID))
 	if err != nil {
 		return err
 	}

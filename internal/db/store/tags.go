@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
-	"github.com/gofrs/uuid/v5"
+	gofrs "github.com/gofrs/uuid/v5"
 )
 
 // TagStore provides CRUD operations for tags.
@@ -84,7 +85,7 @@ func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit i
 	defer func() { _ = rows.Close() }()
 
 	var tags models.TagSlice
-	categoryIDs := make(map[uuid.UUID]struct{})
+	categoryIDs := make(map[gofrs.UUID]struct{})
 	for rows.Next() {
 		var tag models.Tag
 		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Description, &tag.TagCategoryID, &tag.CreatedAt, &tag.UpdatedAt); err != nil {
@@ -123,7 +124,7 @@ func (s *PostgresSQLStore) ListTags(ctx context.Context, cursor *string, limit i
 		}
 		defer func() { _ = catRows.Close() }()
 
-		categories := make(map[uuid.UUID]*models.TagCategory)
+		categories := make(map[gofrs.UUID]*models.TagCategory)
 		for catRows.Next() {
 			var cat models.TagCategory
 			if err := catRows.Scan(&cat.ID, &cat.Name, &cat.Description, &cat.Color, &cat.CreatedAt, &cat.UpdatedAt); err != nil {
@@ -201,13 +202,18 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 		return nil, false, err
 	}
 
+	databaseTagCategoryID := sql.Null[gofrs.UUID]{
+		V:     gofrs.UUID(input.TagCategoryID.V),
+		Valid: input.TagCategoryID.Valid,
+	}
+
 	var resultModel models.Tag
 	isCreate := errors.Is(err, sql.ErrNoRows)
 
 	if !isCreate {
 		_, err = tx.ExecContext(ctx,
 			"UPDATE tags SET name = $1, description = $2, tag_category_id = $3, updated_at = $4 WHERE id = $5",
-			input.Name, input.Description, input.TagCategoryID, now, existing.ID,
+			input.Name, input.Description, databaseTagCategoryID, now, existing.ID,
 		)
 		if err != nil {
 			return nil, false, err
@@ -215,12 +221,12 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 		resultModel = existing
 		resultModel.Name = input.Name
 		resultModel.Description = input.Description
-		resultModel.TagCategoryID = input.TagCategoryID
+		resultModel.TagCategoryID = databaseTagCategoryID
 		resultModel.UpdatedAt = now
 	} else {
 		err = tx.QueryRowContext(ctx,
 			"INSERT INTO tags (name, description, tag_category_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, tag_category_id, created_at, updated_at",
-			input.Name, input.Description, input.TagCategoryID, now, now,
+			input.Name, input.Description, databaseTagCategoryID, now, now,
 		).Scan(&resultModel.ID, &resultModel.Name, &resultModel.Description, &resultModel.TagCategoryID, &resultModel.CreatedAt, &resultModel.UpdatedAt)
 		if err != nil {
 			return nil, false, err
@@ -279,7 +285,7 @@ func (s *PostgresSQLStore) GetTagPostCounts(ctx context.Context, tagIDs []uuid.U
 			placeholders.WriteString(", ")
 		}
 		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
+		args[i] = gofrs.UUID(id)
 	}
 
 	// Count direct posts + posts that cascade to each tag
@@ -302,12 +308,12 @@ func (s *PostgresSQLStore) GetTagPostCounts(ctx context.Context, tagIDs []uuid.U
 
 	counts := make(map[uuid.UUID]int)
 	for rows.Next() {
-		var tagID uuid.UUID
+		var tagID gofrs.UUID
 		var count int
 		if err := rows.Scan(&tagID, &count); err != nil {
 			return nil, err
 		}
-		counts[tagID] = count
+		counts[uuid.UUID(tagID)] = count
 	}
 	return counts, rows.Err()
 }
@@ -324,7 +330,7 @@ func (s *PostgresSQLStore) GetTagAliases(ctx context.Context, ids ...uuid.UUID) 
 			placeholders.WriteString(", ")
 		}
 		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
+		args[i] = gofrs.UUID(id)
 	}
 
 	//nolint:gosec // placeholders are parameterized $N values, not user input
@@ -339,12 +345,13 @@ func (s *PostgresSQLStore) GetTagAliases(ctx context.Context, ids ...uuid.UUID) 
 
 	result := make(map[uuid.UUID][]string)
 	for rows.Next() {
-		var tagID uuid.UUID
+		var tagID gofrs.UUID
 		var alias string
 		if err := rows.Scan(&tagID, &alias); err != nil {
 			return nil, err
 		}
-		result[tagID] = append(result[tagID], alias)
+		id := uuid.UUID(tagID)
+		result[id] = append(result[id], alias)
 	}
 	return result, rows.Err()
 }
@@ -369,7 +376,7 @@ func (s *PostgresSQLStore) ResolveAlias(ctx context.Context, name string) (strin
 }
 
 // setTagAliases replaces all aliases for a tag with the given list.
-func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID uuid.UUID, aliases []string) error {
+func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID gofrs.UUID, aliases []string) error {
 	for _, alias := range aliases {
 		if alias == "" {
 			continue
@@ -415,7 +422,7 @@ func (s *PostgresSQLStore) GetTagCascades(ctx context.Context, ids ...uuid.UUID)
 			placeholders.WriteString(", ")
 		}
 		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
+		args[i] = gofrs.UUID(id)
 	}
 
 	//nolint:gosec // placeholders are parameterized $N values, not user input
@@ -430,19 +437,20 @@ func (s *PostgresSQLStore) GetTagCascades(ctx context.Context, ids ...uuid.UUID)
 
 	result := make(map[uuid.UUID][]string)
 	for rows.Next() {
-		var tagID uuid.UUID
+		var tagID gofrs.UUID
 		var name string
 		if err := rows.Scan(&tagID, &name); err != nil {
 			return nil, err
 		}
-		result[tagID] = append(result[tagID], name)
+		id := uuid.UUID(tagID)
+		result[id] = append(result[id], name)
 	}
 	return result, rows.Err()
 }
 
 // setTagCascades replaces all cascades for a tag with the given list.
 // Each cascade target must be an existing tag (or alias that resolves to one) and must not be the tag itself.
-func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID uuid.UUID, cascades []string) error {
+func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID gofrs.UUID, cascades []string) error {
 	_, err := tx.ExecContext(ctx, "DELETE FROM tag_cascades WHERE tag_id = $1", tagID)
 	if err != nil {
 		return err
@@ -460,7 +468,7 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID
 		}
 
 		// Look up the target tag
-		var targetID uuid.UUID
+		var targetID gofrs.UUID
 		err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", resolved).Scan(&targetID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -495,7 +503,7 @@ func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid
 		 WHERE pt.post_id = $1
 		   AND t2.id NOT IN (SELECT pt2.tag_id FROM posts_tags pt2 WHERE pt2.post_id = $1)
 		 ORDER BY t2.name`,
-		postID,
+		gofrs.UUID(postID),
 	)
 	if err != nil {
 		return nil, err
@@ -521,7 +529,7 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 	defer func() { _ = tx.Rollback() }()
 
 	// Look up source tag
-	var sourceID uuid.UUID
+	var sourceID gofrs.UUID
 	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", sourceName).Scan(&sourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -531,7 +539,7 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 	}
 
 	// Look up target tag
-	var targetID uuid.UUID
+	var targetID gofrs.UUID
 	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", targetName).Scan(&targetID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -595,7 +603,7 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 
 	// Read the target tag within the transaction
 	var tagName, tagDesc string
-	var tagCatID sql.Null[uuid.UUID]
+	var tagCatID sql.Null[gofrs.UUID]
 	var tagCreatedAt, tagUpdatedAt time.Time
 	err = tx.QueryRowContext(ctx,
 		"SELECT name, description, tag_category_id, created_at, updated_at FROM tags WHERE id = $1",

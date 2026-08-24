@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestHandleNotes_GET(t *testing.T) {
 	t.Parallel()
-	noteID := types.ID(uuid.Must(uuid.NewV4()))
+	noteID := types.ID(uuid.NewV4())
 	now := time.Now().UTC()
 	notes := []types.Note{{ID: noteID, Title: "Test Note", CreatedAt: now, UpdatedAt: now}}
 
@@ -40,7 +41,7 @@ func TestHandleNotes_GET(t *testing.T) {
 
 func TestHandleNotes_POST(t *testing.T) {
 	t.Parallel()
-	createdID := types.ID(uuid.Must(uuid.NewV4()))
+	createdID := types.ID(uuid.NewV4())
 	now := time.Now().UTC()
 
 	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

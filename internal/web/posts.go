@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -87,7 +88,7 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 			a.renderTemplate(w, r, "post", postData{Error: fmt.Sprintf("Invalid post ID: %v", err)})
 			return
 		}
-		resp, err := a.api.GetPostWithResponse(ctx, postID)
+		resp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
 		if err != nil || resp.JSON200 == nil {
 			var errMsg string
 			if err != nil {
@@ -111,7 +112,7 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 		var similarPosts []types.Post
 		if !isVideo {
 			similarLimit := 12
-			if similarResp, err := a.api.GetSimilarPostsWithResponse(ctx, postID, &client.GetSimilarPostsParams{Limit: &similarLimit}); err == nil && similarResp.JSON200 != nil {
+			if similarResp, err := a.api.GetSimilarPostsWithResponse(ctx, types.ID(postID), &client.GetSimilarPostsParams{Limit: &similarLimit}); err == nil && similarResp.JSON200 != nil {
 				if similarResp.JSON200.Items != nil {
 					similarPosts = *similarResp.JSON200.Items
 				}
@@ -132,7 +133,7 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Invalid post ID: %v", err), http.StatusBadRequest)
 			return
 		}
-		resp, err := a.api.DeletePostWithResponse(ctx, postID)
+		resp, err := a.api.DeletePostWithResponse(ctx, types.ID(postID))
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to delete post: %v", err), http.StatusInternalServerError)
 			return
@@ -156,14 +157,14 @@ func (a *app) handlePostNote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return
 	}
-	resp, err := a.api.GetPostWithResponse(ctx, postID)
+	resp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
 	if err != nil || resp.JSON200 == nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
 	}
 	post := *resp.JSON200
 	post.Note = note
-	putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
+	putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
 	if err != nil || putResp.StatusCode() >= 400 {
 		http.Error(w, "Failed to save note", http.StatusInternalServerError)
 		return
@@ -180,7 +181,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return
 	}
-	resp, err := a.api.GetPostWithResponse(ctx, postID)
+	resp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
 	if err != nil || resp.JSON200 == nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
@@ -192,7 +193,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		tagName := strings.TrimSpace(r.FormValue("q"))
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
-			putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
+			putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
 			if err != nil || putResp.StatusCode() >= 400 {
 				http.Error(w, "Failed to add tag", http.StatusInternalServerError)
 				return
@@ -207,7 +208,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		post.Tags = newTags
-		putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
+		putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
 		if err != nil || putResp.StatusCode() >= 400 {
 			http.Error(w, "Failed to remove tag", http.StatusInternalServerError)
 			return
@@ -215,7 +216,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-fetch to get updated tags
-	reResp, err := a.api.GetPostWithResponse(ctx, postID)
+	reResp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
 	if err != nil || reResp.JSON200 == nil {
 		http.Error(w, "Failed to reload post", http.StatusInternalServerError)
 		return
@@ -266,7 +267,7 @@ func (a *app) handleRegenerateThumbnail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := a.api.RegeneratePostThumbnailWithResponse(ctx, postID)
+	resp, err := a.api.RegeneratePostThumbnailWithResponse(ctx, types.ID(postID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to regenerate thumbnail: %v", err), http.StatusInternalServerError)
 		return
@@ -289,7 +290,7 @@ func (a *app) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 	excludeTags := map[string]bool{}
 	if postIDStr != "" {
 		if postID, err := uuid.Parse(postIDStr); err == nil {
-			if resp, err := a.api.GetPostWithResponse(ctx, postID); err == nil && resp.JSON200 != nil {
+			if resp, err := a.api.GetPostWithResponse(ctx, types.ID(postID)); err == nil && resp.JSON200 != nil {
 				for _, t := range resp.JSON200.Tags {
 					excludeTags[t] = true
 				}

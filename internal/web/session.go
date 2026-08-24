@@ -55,25 +55,27 @@ func verifySession(secret, token string) bool {
 }
 
 // setSessionCookie creates and sets an HMAC-signed session cookie.
-func setSessionCookie(w http.ResponseWriter, secret string) {
+func setSessionCookie(w http.ResponseWriter, secret string, secure bool) {
 	token := signSession(secret)
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(sessionExpiry.Seconds()),
 	})
 }
 
 // clearSessionCookie removes the session cookie by setting MaxAge to -1.
-func clearSessionCookie(w http.ResponseWriter) {
+func clearSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})

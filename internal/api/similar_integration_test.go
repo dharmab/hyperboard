@@ -7,9 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestGetSimilarPosts(t *testing.T) {
@@ -74,7 +75,7 @@ func TestGetSimilarPosts(t *testing.T) {
 	})
 
 	t.Run("nonexistent post returns not found", func(t *testing.T) {
-		fakeID := types.ID(uuid.Must(uuid.NewV4()))
+		fakeID := types.ID(uuid.NewV4())
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String()+"/similar", nil)
 		w := httptest.NewRecorder()
 		srv.GetSimilarPosts(w, req, fakeID, GetSimilarPostsParams{})

@@ -24,6 +24,7 @@ spec:
             - --admin-password=hyperboard
             - --api-url=http://hyperboard-api
             - --log-level=debug
+            - --insecure-session-cookie
             - --tag-filters=[{"label":"Favorites","tags":["favorite"]}]
             - --quick-tag=favorite
           ports:

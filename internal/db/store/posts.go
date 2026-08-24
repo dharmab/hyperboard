@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/search"
-	"github.com/gofrs/uuid/v5"
+	gofrs "github.com/gofrs/uuid/v5"
 )
 
 // PostStore provides CRUD operations for posts.
@@ -98,7 +99,7 @@ func loadPostTags(ctx context.Context, querier interface {
 
 	ids := make([]any, len(posts))
 	placeholders := make([]string, len(posts))
-	postsByID := make(map[uuid.UUID]*models.Post, len(posts))
+	postsByID := make(map[gofrs.UUID]*models.Post, len(posts))
 	for i, p := range posts {
 		ids[i] = p.ID
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
@@ -118,7 +119,7 @@ func loadPostTags(ctx context.Context, querier interface {
 	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
-		var postID uuid.UUID
+		var postID gofrs.UUID
 		var tag models.Tag
 		var color sql.NullString
 		if err := rows.Scan(&postID, &tag.ID, &tag.Name, &color); err != nil {
@@ -278,7 +279,7 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 				sortCol, paramIdx, sortCol, paramIdx, paramIdx+1,
 			)
 		}
-		args = append(args, *params.CursorTime, *params.CursorID)
+		args = append(args, *params.CursorTime, gofrs.UUID(*params.CursorID))
 		paramIdx += 2
 	}
 
@@ -326,7 +327,7 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", id)
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
 	post, err := scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -345,7 +346,7 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 func (s *PostgresSQLStore) CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error) {
 	row := s.db.QueryRowContext(ctx,
 		"INSERT INTO posts (id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at) VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9) RETURNING "+postColumns,
-		input.ID, input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.CreatedAt, input.UpdatedAt,
+		gofrs.UUID(input.ID), input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.CreatedAt, input.UpdatedAt,
 	)
 	return scanPost(row)
 }
@@ -358,7 +359,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 	defer func() { _ = tx.Rollback() }()
 
 	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", id)
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -370,7 +371,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 	// Update note and updated_at
 	row = tx.QueryRowContext(ctx,
 		"UPDATE posts SET note = $1, updated_at = $2 WHERE id = $3 RETURNING "+postColumns,
-		note, now, id,
+		note, now, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
 	if err != nil {
@@ -378,7 +379,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 	}
 
 	// Delete all existing tags for this post
-	_, err = tx.ExecContext(ctx, "DELETE FROM posts_tags WHERE post_id = $1", id)
+	_, err = tx.ExecContext(ctx, "DELETE FROM posts_tags WHERE post_id = $1", gofrs.UUID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -397,13 +398,13 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 			return nil, err
 		}
 
-		var tagID uuid.UUID
+		var tagID gofrs.UUID
 		err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", resolvedName).Scan(&tagID)
 		if err != nil {
 			return nil, err
 		}
 
-		_, err = tx.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2)", id, tagID)
+		_, err = tx.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2)", gofrs.UUID(id), tagID)
 		if err != nil {
 			return nil, err
 		}
@@ -428,7 +429,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 	defer func() { _ = tx.Rollback() }()
 
 	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", id)
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -440,7 +441,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 	// Update content fields
 	row = tx.QueryRowContext(ctx,
 		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, updated_at = $7 WHERE id = $8 RETURNING "+postColumns,
-		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.UpdatedAt, id,
+		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.UpdatedAt, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
 	if err != nil {
@@ -466,7 +467,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	defer func() { _ = tx.Rollback() }()
 
 	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", id)
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -478,7 +479,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	// Update thumbnail
 	row = tx.QueryRowContext(ctx,
 		"UPDATE posts SET thumbnail_url = $1, updated_at = $2 WHERE id = $3 RETURNING "+postColumns,
-		thumbnailURL, now, id,
+		thumbnailURL, now, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
 	if err != nil {
@@ -503,7 +504,7 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", id)
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
 	post, err := scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -512,7 +513,7 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 		return nil, err
 	}
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM posts WHERE id = $1", id)
+	_, err = tx.ExecContext(ctx, "DELETE FROM posts WHERE id = $1", gofrs.UUID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -552,9 +553,9 @@ func (s *PostgresSQLStore) FindSimilarPosts(ctx context.Context, excludeID uuid.
 	args = append(args, pHash, s.similarityThreshold)
 	paramIdx += 2
 
-	if excludeID != uuid.Nil {
+	if excludeID != uuid.Nil() {
 		fmt.Fprintf(&queryBuilder, " AND id != $%d", paramIdx)
-		args = append(args, excludeID)
+		args = append(args, gofrs.UUID(excludeID))
 		paramIdx++
 	}
 

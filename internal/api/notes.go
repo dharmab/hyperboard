@@ -5,17 +5,18 @@ import (
 	"errors"
 	"net/http"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 )
 
 // noteFromModel converts a database Note model to an API Note type.
 func noteFromModel(model *models.Note) types.Note {
 	return types.Note{
-		ID:        types.ID(model.ID),
+		ID:        types.ID(uuid.UUID(model.ID)),
 		Title:     model.Title,
 		Content:   model.Content,
 		CreatedAt: model.CreatedAt,

@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM} golang:1.26 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.27 AS builder
 
 ARG BUILDPLATFORM
 ARG TARGETOS=linux
@@ -37,7 +37,7 @@ RUN apt-get update && \
 COPY --from=builder /bin/hyperboard-api /hyperboard-api
 ENTRYPOINT ["/hyperboard-api"]
 
-FROM gcr.io/distroless/static-debian12:debug AS hyperboard-web
+FROM gcr.io/distroless/static-debian13:debug AS hyperboard-web
 COPY --from=builder /bin/hyperboard-web /hyperboard-web
 ENTRYPOINT ["/hyperboard-web"]
 

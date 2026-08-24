@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"database/sql"
+
 	"fmt"
 	"net"
 	"os"
@@ -16,10 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-var (
-	testSQLStore *store.PostgresSQLStore
-	testSQLDB    *sql.DB
-)
+var testSQLStore store.SQLStore
 
 func TestMain(m *testing.M) {
 	port, err := freePort()
@@ -49,8 +46,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	testSQLDB = stdlib.OpenDBFromPool(pool)
-	testSQLStore = store.NewPostgresSQLStore(testSQLDB, 5)
+	db := stdlib.OpenDBFromPool(pool)
+	testSQLStore = store.NewPostgresSQLStore(db, 5)
 
 	code := m.Run()
 

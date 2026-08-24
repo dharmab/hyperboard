@@ -11,13 +11,14 @@ import (
 
 // config holds the configuration for the web frontend server.
 type config struct {
-	Port          string
-	AdminPassword string
-	SessionSecret string
-	APIURL        string
-	LogLevel      string
-	TagFilters    []tagFilter
-	QuickTag      string
+	Port                  string
+	AdminPassword         string
+	SessionSecret         string
+	APIURL                string
+	LogLevel              string
+	TagFilters            []tagFilter
+	QuickTag              string
+	InsecureSessionCookie bool
 }
 
 // bindConfig registers CLI flags and environment variable bindings.
@@ -31,6 +32,7 @@ func bindConfig(cmd *cobra.Command) {
 	flags.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
 	flags.String("tag-filters", "", "Tag filter buttons as JSON array")
 	flags.String("quick-tag", "", "Tag name to toggle with the 'f' hotkey")
+	flags.Bool("insecure-session-cookie", false, "Allow session cookies over HTTP (local development only)")
 
 	viper.SetEnvPrefix("HYPERBOARD_WEB")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -46,13 +48,14 @@ func loadConfig() (*config, error) {
 		return nil, fmt.Errorf("parsing tag-filters: %w", err)
 	}
 	return &config{
-		Port:          viper.GetString("port"),
-		AdminPassword: viper.GetString("admin-password"),
-		SessionSecret: viper.GetString("session-secret"),
-		APIURL:        viper.GetString("api-url"),
-		LogLevel:      viper.GetString("log-level"),
-		TagFilters:    tagFilters,
-		QuickTag:      viper.GetString("quick-tag"),
+		Port:                  viper.GetString("port"),
+		AdminPassword:         viper.GetString("admin-password"),
+		SessionSecret:         viper.GetString("session-secret"),
+		APIURL:                viper.GetString("api-url"),
+		LogLevel:              viper.GetString("log-level"),
+		TagFilters:            tagFilters,
+		QuickTag:              viper.GetString("quick-tag"),
+		InsecureSessionCookie: viper.GetBool("insecure-session-cookie"),
 	}, nil
 }
 

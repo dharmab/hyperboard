@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
-	"github.com/gofrs/uuid/v5"
+	gofrs "github.com/gofrs/uuid/v5"
 )
 
 // TagCategoryStore provides CRUD operations for tag categories.
@@ -155,7 +156,7 @@ func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryI
 			placeholders.WriteString(", ")
 		}
 		placeholders.WriteString("$" + strconv.Itoa(i+1))
-		args[i] = id
+		args[i] = gofrs.UUID(id)
 	}
 
 	//nolint:gosec // placeholders are parameterized $N values, not user input
@@ -170,12 +171,12 @@ func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryI
 
 	counts := make(map[uuid.UUID]int)
 	for rows.Next() {
-		var catID uuid.UUID
+		var catID gofrs.UUID
 		var count int
 		if err := rows.Scan(&catID, &count); err != nil {
 			return nil, err
 		}
-		counts[catID] = count
+		counts[uuid.UUID(catID)] = count
 	}
 	return counts, rows.Err()
 }
