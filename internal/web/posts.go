@@ -189,7 +189,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		tagName := r.FormValue("q")
+		tagName := strings.TrimSpace(r.FormValue("q"))
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
 			putResp, err := a.api.PutPostWithResponse(ctx, postID, post)
