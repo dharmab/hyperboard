@@ -104,7 +104,6 @@ func serveAPI(ctx context.Context, cfg *config, dsn string) error {
 	apiServer := NewServer(s, objStorage)
 	mux := http.NewServeMux()
 	HandlerFromMux(apiServer, mux)
-	mux.HandleFunc("/media/", apiServer.HandleMedia)
 	authMiddleware := auth.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
 		Handler:           logging.RequestLoggingMiddleware(authMiddleware(mux)),

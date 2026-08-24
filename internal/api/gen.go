@@ -202,12 +202,21 @@ type ServerInterface interface {
 	// Replace a post's metadata. This does not create a new post - use uploadPost to create a new post.
 	// (PUT /api/v1/posts/{id})
 	PutPost(w http.ResponseWriter, r *http.Request, id Id)
+	// Stream a post's content file.
+	// (GET /api/v1/posts/{id}/content)
+	GetPostContent(w http.ResponseWriter, r *http.Request, id Id)
 	// Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
 	// (PUT /api/v1/posts/{id}/content)
 	ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id)
+	// Download a post's content file.
+	// (GET /api/v1/posts/{id}/content/download)
+	DownloadPostContent(w http.ResponseWriter, r *http.Request, id Id)
 	// Get posts that are visually similar to the given post based on perceptual hash.
 	// (GET /api/v1/posts/{id}/similar)
 	GetSimilarPosts(w http.ResponseWriter, r *http.Request, id Id, params GetSimilarPostsParams)
+	// Stream a post's thumbnail image.
+	// (GET /api/v1/posts/{id}/thumbnail)
+	GetPostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
 	// Regenerate the thumbnail for a post from its existing content.
 	// (POST /api/v1/posts/{id}/thumbnail)
 	RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request, id Id)
@@ -485,6 +494,31 @@ func (siw *ServerInterfaceWrapper) PutPost(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetPostContent operation middleware
+func (siw *ServerInterfaceWrapper) GetPostContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPostContent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ReplacePostContent operation middleware
 func (siw *ServerInterfaceWrapper) ReplacePostContent(w http.ResponseWriter, r *http.Request) {
 
@@ -501,6 +535,31 @@ func (siw *ServerInterfaceWrapper) ReplacePostContent(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReplacePostContent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadPostContent operation middleware
+func (siw *ServerInterfaceWrapper) DownloadPostContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadPostContent(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -537,6 +596,31 @@ func (siw *ServerInterfaceWrapper) GetSimilarPosts(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSimilarPosts(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPostThumbnail operation middleware
+func (siw *ServerInterfaceWrapper) GetPostThumbnail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPostThumbnail(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1026,8 +1110,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}", wrapper.DeletePost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.GetPostContent)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.ReplacePostContent)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/content/download", wrapper.DownloadPostContent)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/similar", wrapper.GetSimilarPosts)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.GetPostThumbnail)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.RegeneratePostThumbnail)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/thumbnail", wrapper.ReplacePostThumbnail)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tagCategories", wrapper.GetTagCategories)

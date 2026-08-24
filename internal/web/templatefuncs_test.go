@@ -4,28 +4,6 @@ import (
 	"testing"
 )
 
-func TestMediaPath(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		input  string
-		expect string
-	}{
-		{"full URL", "http://storage.example.com/bucket/key/file.webp", "/bucket/key/file.webp"},
-		{"path only", "/bucket/key/file.webp", "/bucket/key/file.webp"},
-		{"trailing slash stripped", "http://storage.example.com/bucket/key/", "/bucket/key"},
-		{"unparseable returned as-is", "://bad", "://bad"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := mediaPath(tt.input); got != tt.expect {
-				t.Errorf("mediaPath(%q) = %q, want %q", tt.input, got, tt.expect)
-			}
-		})
-	}
-}
-
 func TestFormatSize(t *testing.T) {
 	t.Parallel()
 	funcs := templateFuncs()
@@ -47,30 +25,6 @@ func TestFormatSize(t *testing.T) {
 			t.Parallel()
 			if got := formatSize(tt.input); got != tt.expect {
 				t.Errorf("formatSize(%d) = %q, want %q", tt.input, got, tt.expect)
-			}
-		})
-	}
-}
-
-func TestMediaUrl(t *testing.T) {
-	t.Parallel()
-	funcs := templateFuncs()
-	mediaUrl := funcs["mediaUrl"].(func(string) string)
-
-	tests := []struct {
-		name   string
-		input  string
-		expect string
-	}{
-		{"full URL", "http://storage.example.com/bucket/key.webp", "/media/bucket/key.webp"},
-		{"trailing slash stripped", "http://storage.example.com/bucket/key/", "/media/bucket/key"},
-		{"unparseable returned as-is", "://bad", "://bad"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := mediaUrl(tt.input); got != tt.expect {
-				t.Errorf("mediaUrl(%q) = %q, want %q", tt.input, got, tt.expect)
 			}
 		})
 	}
