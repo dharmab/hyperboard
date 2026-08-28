@@ -104,7 +104,7 @@ func getPost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetPostWithResponse(context.TODO(), postID)
+	resp, err := c.GetPostWithResponse(context.TODO(), types.ID(postID))
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func editPost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetPostWithResponse(context.TODO(), postID)
+	resp, err := c.GetPostWithResponse(context.TODO(), types.ID(postID))
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func editPost(app *cli.App, id string) error {
 
 	post.Tags = edited.Tags
 	post.Note = edited.Note
-	putResp, err := c.PutPostWithResponse(context.TODO(), postID, post)
+	putResp, err := c.PutPostWithResponse(context.TODO(), types.ID(postID), post)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func deletePost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.DeletePostWithResponse(context.TODO(), postID)
+	resp, err := c.DeletePostWithResponse(context.TODO(), types.ID(postID))
 	if err != nil {
 		return err
 	}

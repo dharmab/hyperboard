@@ -8,8 +8,9 @@ import (
 	"net/url"
 	"testing"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestPutTagCategoryValidation(t *testing.T) {
@@ -39,7 +40,7 @@ func TestPutTagCategoryColorValidation(t *testing.T) {
 	for _, color := range []string{"banana", "ff0000", "#fff", "#gggggg"} {
 		t.Run(color, func(t *testing.T) {
 			t.Parallel()
-			name := "color-test-" + uuid.Must(uuid.NewV4()).String()[:8]
+			name := "color-test-" + uuid.NewV4().String()[:8]
 			body := types.TagCategory{Name: name, Description: "test", Color: color}
 			b, _ := json.Marshal(body)
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+name, bytes.NewReader(b))
@@ -57,7 +58,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	catName := "test-category-" + uuid.Must(uuid.NewV4()).String()[:8]
+	catName := "test-category-" + uuid.NewV4().String()[:8]
 
 	t.Run("create tag category", func(t *testing.T) {
 		body := types.TagCategory{
@@ -146,7 +147,7 @@ func TestTagCategoriesIntegration(t *testing.T) {
 	})
 
 	t.Run("create tag category with empty color defaults color", func(t *testing.T) {
-		defaultColorCat := "default-color-cat-" + uuid.Must(uuid.NewV4()).String()[:8]
+		defaultColorCat := "default-color-cat-" + uuid.NewV4().String()[:8]
 		body := types.TagCategory{
 			Name:        defaultColorCat,
 			Description: "No color specified",

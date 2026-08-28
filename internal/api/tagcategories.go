@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"time"
+	"uuid"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 )
 
@@ -49,7 +49,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 	// Collect IDs for the current page
 	catIDs := make([]uuid.UUID, len(categories))
 	for i := range categories {
-		catIDs[i] = categories[i].ID
+		catIDs[i] = uuid.UUID(categories[i].ID)
 	}
 
 	tagCounts, err := s.sqlStore.GetTagCountsByCategory(ctx, catIDs)
@@ -67,7 +67,7 @@ func (s *Server) GetTagCategories(w http.ResponseWriter, r *http.Request, params
 	items := make([]types.TagCategory, 0, len(categories))
 	for _, category := range categories {
 		cat := tagCategoryFromModel(category)
-		if count, ok := tagCounts[category.ID]; ok {
+		if count, ok := tagCounts[uuid.UUID(category.ID)]; ok {
 			cat.TagCount = &count
 		} else {
 			zero := 0

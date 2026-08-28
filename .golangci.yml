@@ -51,6 +51,7 @@ linters:
     - wastedassign
     - whitespace
     - zerologlint
+
   disable:
     # exhaustruct requires all struct fields to be explicitly initialized.
     # This conflicts with idiomatic Go which relies on zero values.
@@ -58,6 +59,8 @@ linters:
     # testpackage requires tests to be in separate _test packages (black-box testing).
     # We use white-box testing to allow tests to access unexported functions.
     - testpackage
+    # goconst produces low-value suggestions for table-driven fixtures and stable CLI output labels.
+    - goconst
   exclusions:
     generated: lax
     presets:
@@ -66,6 +69,7 @@ linters:
       - legacy
       - std-error-handling
     rules:
+
       # Integration tests use testcontainers and cannot run in parallel.
       - linters:
           - paralleltest
@@ -105,6 +109,15 @@ linters:
           - gosec
         path: "internal/web/"
         text: "G120"
+      # Session cookies are Secure by default. The Secure attribute is omitted
+      # only with --insecure-session-cookie for local HTTP development; Gosec
+      # cannot infer that runtime configuration.
+      - linters:
+          - gosec
+        path: "internal/web/session\\.go"
+        text: "G124"
+
+
       # G705 (XSS via taint): the rendered markdown content is sanitized by
       # bluemonday before being written to the response.
       - linters:

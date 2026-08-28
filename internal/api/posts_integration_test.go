@@ -8,16 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
 	pkgtypes "github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func insertTestPost(t *testing.T, opts ...func(*store.CreatePostInput)) *models.Post {
 	t.Helper()
 	ctx := t.Context()
-	id := uuid.Must(uuid.NewV4())
+	id := uuid.NewV4()
 	mime := "image/webp"
 	contentURL := "http://fake-storage/posts/" + id.String() + "/content.webp"
 	thumbnailURL := "http://fake-storage/posts/" + id.String() + "/thumbnail.webp"
@@ -52,7 +53,7 @@ func TestGetPost(t *testing.T) {
 	t.Run("existing post", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String(), nil)
 		w := httptest.NewRecorder()
-		srv.GetPost(w, req, pkgtypes.ID(post.ID))
+		srv.GetPost(w, req, pkgtypes.ID(uuid.UUID(post.ID)))
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
@@ -62,13 +63,13 @@ func TestGetPost(t *testing.T) {
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("failed to decode: %v", err)
 		}
-		if uuid.UUID(got.ID) != post.ID {
+		if uuid.UUID(got.ID) != uuid.UUID(post.ID) {
 			t.Errorf("ID = %v, want %v", got.ID, post.ID)
 		}
 	})
 
 	t.Run("nonexistent post", func(t *testing.T) {
-		fakeID := pkgtypes.ID(uuid.Must(uuid.NewV4()))
+		fakeID := pkgtypes.ID(uuid.NewV4())
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(fakeID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetPost(w, req, fakeID)
@@ -83,9 +84,9 @@ func TestPutPost(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
-	postID := pkgtypes.ID(post.ID)
+	postID := pkgtypes.ID(uuid.UUID(post.ID))
 
-	tagName := "put-test-tag-" + uuid.Must(uuid.NewV4()).String()[:8]
+	tagName := "put-test-tag-" + uuid.NewV4().String()[:8]
 
 	body := pkgtypes.Post{
 		ID:           postID,
@@ -138,15 +139,15 @@ func TestPutPost(t *testing.T) {
 
 	t.Run("put post with zero ID returns bad request", func(t *testing.T) {
 		zeroBody := pkgtypes.Post{
-			ID:       pkgtypes.ID(uuid.Nil),
+			ID:       pkgtypes.ID(uuid.Nil()),
 			MimeType: post.MimeType,
 			Note:     "test",
 		}
 		zb, _ := json.Marshal(zeroBody)
-		zReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+uuid.Nil.String(), bytes.NewReader(zb))
+		zReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+uuid.Nil().String(), bytes.NewReader(zb))
 		zReq.Header.Set("Content-Type", "application/json")
 		zW := httptest.NewRecorder()
-		srv.PutPost(zW, zReq, pkgtypes.ID(uuid.Nil))
+		srv.PutPost(zW, zReq, pkgtypes.ID(uuid.Nil()))
 
 		if zW.Code != http.StatusBadRequest {
 			t.Fatalf("PutPost zero ID status = %d, want %d; body = %s", zW.Code, http.StatusBadRequest, zW.Body.String())
@@ -158,7 +159,7 @@ func TestDeletePost(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 	post := insertTestPost(t)
-	postID := pkgtypes.ID(post.ID)
+	postID := pkgtypes.ID(uuid.UUID(post.ID))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/v1/posts/"+post.ID.String(), nil)
 	w := httptest.NewRecorder()
@@ -185,13 +186,13 @@ func TestGetPostsSearch(t *testing.T) {
 	post1 := insertTestPost(t)
 	post2 := insertTestPost(t)
 
-	tag1Name := "search-tag1-" + uuid.Must(uuid.NewV4()).String()[:8]
-	tag2Name := "search-tag2-" + uuid.Must(uuid.NewV4()).String()[:8]
+	tag1Name := "search-tag1-" + uuid.NewV4().String()[:8]
+	tag2Name := "search-tag2-" + uuid.NewV4().String()[:8]
 
 	// Tag post1 with tag1
-	tagPost(t, post1.ID, tag1Name)
+	tagPost(t, uuid.UUID(post1.ID), tag1Name)
 	// Tag post2 with tag2
-	tagPost(t, post2.ID, tag2Name)
+	tagPost(t, uuid.UUID(post2.ID), tag2Name)
 
 	t.Run("search by tag inclusion", func(t *testing.T) {
 		search := tag1Name
@@ -212,7 +213,7 @@ func TestGetPostsSearch(t *testing.T) {
 		}
 		found := false
 		for _, p := range *resp.Items {
-			if uuid.UUID(p.ID) == post1.ID {
+			if uuid.UUID(p.ID) == uuid.UUID(post1.ID) {
 				found = true
 			}
 		}
@@ -237,7 +238,7 @@ func TestGetPostsSearch(t *testing.T) {
 		}
 		if resp.Items != nil {
 			for _, p := range *resp.Items {
-				if uuid.UUID(p.ID) == post1.ID {
+				if uuid.UUID(p.ID) == uuid.UUID(post1.ID) {
 					t.Error("post1 should not appear when excluding its tag")
 				}
 			}
@@ -264,7 +265,7 @@ func TestGetPostsSearch(t *testing.T) {
 		}
 		found := false
 		for _, p := range *resp.Items {
-			if uuid.UUID(p.ID) == untaggedPost.ID {
+			if uuid.UUID(p.ID) == uuid.UUID(untaggedPost.ID) {
 				found = true
 			}
 		}
@@ -362,25 +363,19 @@ func tagPost(t *testing.T, postID uuid.UUID, tagName string) {
 	t.Helper()
 	ctx := t.Context()
 
-	now := time.Now().UTC()
-
-	// Create tag using raw SQL
-	_, err := testSQLDB.ExecContext(ctx,
-		"INSERT INTO tags (name, created_at, updated_at) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
-		tagName, now, now,
-	)
+	post, err := testSQLStore.GetPost(ctx, postID)
 	if err != nil {
-		t.Fatalf("failed to create tag: %v", err)
+		t.Fatalf("failed to get post: %v", err)
 	}
 
-	var tagID uuid.UUID
-	err = testSQLDB.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", tagName).Scan(&tagID)
-	if err != nil {
-		t.Fatalf("failed to find tag: %v", err)
+	tagNames := make([]string, 0, len(post.Tags)+1)
+	for _, tag := range post.Tags {
+		tagNames = append(tagNames, tag.Name)
 	}
+	tagNames = append(tagNames, tagName)
 
-	_, err = testSQLDB.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2)", postID, tagID)
+	_, err = testSQLStore.UpdatePost(ctx, postID, post.Note, tagNames, time.Now().UTC())
 	if err != nil {
-		t.Fatalf("failed to attach tag: %v", err)
+		t.Fatalf("failed to tag post: %v", err)
 	}
 }

@@ -16,7 +16,7 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 			a.renderTemplate(w, r, "login.html", map[string]any{"Error": "Invalid password"})
 			return
 		}
-		setSessionCookie(w, a.cfg.SessionSecret)
+		setSessionCookie(w, a.cfg.SessionSecret, !a.cfg.InsecureSessionCookie)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
@@ -25,7 +25,7 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // handleLogout clears the session cookie and redirects to the login page.
 func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
-	clearSessionCookie(w)
+	clearSessionCookie(w, !a.cfg.InsecureSessionCookie)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 

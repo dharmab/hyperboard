@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestNotesIntegration(t *testing.T) {
@@ -158,7 +159,7 @@ func TestNotesIntegration(t *testing.T) {
 	})
 
 	t.Run("get nonexistent note returns not found", func(t *testing.T) {
-		fakeID := types.ID(uuid.Must(uuid.NewV4()))
+		fakeID := types.ID(uuid.NewV4())
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/notes/"+uuid.UUID(fakeID).String(), nil)
 		w := httptest.NewRecorder()
 		srv.GetNote(w, req, fakeID)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/cli"
 	"github.com/dharmab/hyperboard/internal/cli/posts"
+	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +65,7 @@ func replaceContent(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.ReplacePostContentWithBodyWithResponse(context.TODO(), postID, "application/octet-stream", bytes.NewReader(data))
+	resp, err := c.ReplacePostContentWithBodyWithResponse(context.TODO(), types.ID(postID), "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func replaceThumbnail(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.ReplacePostThumbnailWithBodyWithResponse(context.TODO(), postID, "application/octet-stream", bytes.NewReader(data))
+	resp, err := c.ReplacePostThumbnailWithBodyWithResponse(context.TODO(), types.ID(postID), "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

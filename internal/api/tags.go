@@ -6,11 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"time"
+	"uuid"
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 )
 
@@ -58,7 +58,7 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 	// Collect tag IDs for the current page
 	tagIDs := make([]uuid.UUID, len(tags))
 	for i := range tags {
-		tagIDs[i] = tags[i].ID
+		tagIDs[i] = uuid.UUID(tags[i].ID)
 	}
 
 	postCounts, err := s.sqlStore.GetTagPostCounts(ctx, tagIDs)
@@ -88,16 +88,16 @@ func (s *Server) GetTags(w http.ResponseWriter, r *http.Request, params GetTagsP
 	items := make([]types.Tag, 0, len(tags))
 	for _, tag := range tags {
 		tagResp := tagFromModel(tag)
-		if count, ok := postCounts[tag.ID]; ok {
+		if count, ok := postCounts[uuid.UUID(tag.ID)]; ok {
 			tagResp.PostCount = &count
 		} else {
 			zero := 0
 			tagResp.PostCount = &zero
 		}
-		if aliases, ok := aliasMap[tag.ID]; ok {
+		if aliases, ok := aliasMap[uuid.UUID(tag.ID)]; ok {
 			tagResp.Aliases = &aliases
 		}
-		if cascades, ok := cascadeMap[tag.ID]; ok {
+		if cascades, ok := cascadeMap[uuid.UUID(tag.ID)]; ok {
 			tagResp.CascadingTags = &cascades
 		}
 		items = append(items, tagResp)
@@ -128,21 +128,21 @@ func (s *Server) GetTag(w http.ResponseWriter, r *http.Request, name Tag) {
 
 	tagResp := tagFromModel(model)
 
-	aliasMap, err := s.sqlStore.GetTagAliases(ctx, model.ID)
+	aliasMap, err := s.sqlStore.GetTagAliases(ctx, uuid.UUID(model.ID))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
 		return
 	}
-	if aliases, ok := aliasMap[model.ID]; ok {
+	if aliases, ok := aliasMap[uuid.UUID(model.ID)]; ok {
 		tagResp.Aliases = &aliases
 	}
 
-	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, model.ID)
+	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, uuid.UUID(model.ID))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tag cascades")
 		return
 	}
-	if cascades, ok := cascadeMap[model.ID]; ok {
+	if cascades, ok := cascadeMap[uuid.UUID(model.ID)]; ok {
 		tagResp.CascadingTags = &cascades
 	}
 
@@ -195,7 +195,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve tag category")
 			return
 		}
-		tagCategoryID = sql.Null[uuid.UUID]{V: category.ID, Valid: true}
+		tagCategoryID = sql.Null[uuid.UUID]{V: uuid.UUID(category.ID), Valid: true}
 	}
 
 	var aliases []string
@@ -228,21 +228,21 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 
 	tagResp := tagFromModel(resultModel)
 
-	aliasMap, err := s.sqlStore.GetTagAliases(ctx, resultModel.ID)
+	aliasMap, err := s.sqlStore.GetTagAliases(ctx, uuid.UUID(resultModel.ID))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tag aliases")
 		return
 	}
-	if a, ok := aliasMap[resultModel.ID]; ok {
+	if a, ok := aliasMap[uuid.UUID(resultModel.ID)]; ok {
 		tagResp.Aliases = &a
 	}
 
-	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, resultModel.ID)
+	cascadeMap, err := s.sqlStore.GetTagCascades(ctx, uuid.UUID(resultModel.ID))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to load tag cascades")
 		return
 	}
-	if c, ok := cascadeMap[resultModel.ID]; ok {
+	if c, ok := cascadeMap[uuid.UUID(resultModel.ID)]; ok {
 		tagResp.CascadingTags = &c
 	}
 

@@ -52,10 +52,31 @@ func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
 	for _, c := range cookies {
 		if c.Name == sessionCookieName {
 			found = true
+			if !c.Secure {
+				t.Error("session cookie should be Secure by default")
+			}
 		}
 	}
 	if !found {
 		t.Error("expected session cookie to be set")
+	}
+}
+
+func TestHandleLogin_POST_LocalDevelopmentCookie(t *testing.T) {
+	t.Parallel()
+	app := newTestAppWithAuth(t)
+	app.cfg.InsecureSessionCookie = true
+
+	form := url.Values{"password": {"secret123"}}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	app.handleLogin(w, req)
+
+	for _, c := range w.Result().Cookies() {
+		if c.Name == sessionCookieName && c.Secure {
+			t.Error("local development session cookie should not be Secure")
+		}
 	}
 }
 
@@ -138,7 +159,7 @@ func TestSessionMiddleware_InvalidCookie(t *testing.T) {
 	}))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "invalid-token"})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "invalid-token", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -157,7 +178,7 @@ func TestSessionMiddleware_ValidCookie(t *testing.T) {
 
 	token := signSession(app.cfg.SessionSecret)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

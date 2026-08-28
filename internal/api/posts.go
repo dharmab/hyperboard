@@ -6,18 +6,19 @@ import (
 	"net/http"
 	"time"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/search"
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog"
 )
 
 // postFromModel converts a database Post model to an API Post type.
 func postFromModel(model *models.Post) types.Post {
 	post := types.Post{
-		ID:           types.ID(model.ID),
+		ID:           types.ID(uuid.UUID(model.ID)),
 		MimeType:     model.MimeType,
 		ContentUrl:   model.ContentURL,
 		ThumbnailUrl: model.ThumbnailURL,
@@ -123,7 +124,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		items := make([]types.Post, 0, len(posts))
 		for _, post := range posts {
 			p := postFromModel(post)
-			cts, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+			cts, _ := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
 			applyCascadingTags(&p, cts)
 			items = append(items, p)
 		}
@@ -143,13 +144,14 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		cursorID, err := uuid.FromString(pc.ID)
+		cursorID, err := uuid.Parse(pc.ID)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
+		cursorStoreID := cursorID
 		listParams.CursorTime = &ts
-		listParams.CursorID = &cursorID
+		listParams.CursorID = &cursorStoreID
 	}
 
 	posts, hasMore, err := s.sqlStore.ListPosts(ctx, listParams)
@@ -174,7 +176,7 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	items := make([]types.Post, 0, len(posts))
 	for _, post := range posts {
 		p := postFromModel(post)
-		cts, _ := s.sqlStore.GetPostCascadingTags(ctx, post.ID)
+		cts, _ := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
 		applyCascadingTags(&p, cts)
 		items = append(items, p)
 	}
@@ -216,7 +218,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	if uuid.UUID(post.ID) == uuid.Nil {
+	if uuid.UUID(post.ID) == uuid.Nil() {
 		respondWithError(w, http.StatusBadRequest, "Post ID is required")
 		return
 	}

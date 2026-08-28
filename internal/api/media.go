@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid/v5"
+	"uuid"
+
 	"github.com/rs/zerolog/log"
 )
 

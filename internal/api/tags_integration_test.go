@@ -8,8 +8,9 @@ import (
 	"net/url"
 	"testing"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/types"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestIsValidName(t *testing.T) {
@@ -98,7 +99,7 @@ func TestTagsIntegration(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	tagName := "test-tag-" + uuid.Must(uuid.NewV4()).String()[:8]
+	tagName := "test-tag-" + uuid.NewV4().String()[:8]
 
 	t.Run("create tag", func(t *testing.T) {
 		body := types.Tag{
@@ -231,7 +232,7 @@ func TestTagsIntegration(t *testing.T) {
 
 	t.Run("assign tag category", func(t *testing.T) {
 		// Create a category first
-		catName := "tag-test-cat-" + uuid.Must(uuid.NewV4()).String()[:8]
+		catName := "tag-test-cat-" + uuid.NewV4().String()[:8]
 		catBody := types.TagCategory{Name: catName, Description: "For tag test"}
 		cb, _ := json.Marshal(catBody)
 		catReq := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+catName, bytes.NewReader(cb))

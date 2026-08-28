@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/goccy/go-yaml"
-	"github.com/gofrs/uuid/v5"
 )
 
 func TestPrintJSON(t *testing.T) {
@@ -90,8 +91,8 @@ func TestPrintListTable(t *testing.T) {
 
 	headers := []string{"ID", "Name"}
 	rows := [][]string{
-		{uuid.Must(uuid.NewV4()).String(), "tag-1"},
-		{uuid.Must(uuid.NewV4()).String(), "tag-2"},
+		{uuid.NewV4().String(), "tag-1"},
+		{uuid.NewV4().String(), "tag-2"},
 	}
 	printListTable(headers, rows)
 
