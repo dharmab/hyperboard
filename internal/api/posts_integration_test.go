@@ -80,6 +80,95 @@ func TestGetPost(t *testing.T) {
 	})
 }
 
+func TestDownloadPostContent(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	post := insertTestPost(t)
+	content := []byte("post-content")
+	key := storageKeyForContent(uuid.UUID(post.ID), post.MimeType)
+	if _, err := srv.mediaStore.Upload(t.Context(), key, content, post.MimeType); err != nil {
+		t.Fatalf("failed to upload test content: %v", err)
+	}
+	thumbnail := []byte("thumbnail")
+	if _, err := srv.mediaStore.Upload(t.Context(), storageKeyForThumbnail(uuid.UUID(post.ID)), thumbnail, post.MimeType); err != nil {
+		t.Fatalf("failed to upload test thumbnail: %v", err)
+	}
+
+	t.Run("streams content inline", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String()+"/content", nil)
+		w := httptest.NewRecorder()
+		srv.GetPostContent(w, req, pkgtypes.ID(post.ID))
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := w.Header().Get("Content-Disposition"); got != "" {
+			t.Errorf("Content-Disposition = %q, want no header", got)
+		}
+		if got := w.Body.Bytes(); !bytes.Equal(got, content) {
+			t.Errorf("body = %q, want %q", got, content)
+		}
+	})
+
+	t.Run("downloads content as an attachment", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String()+"/content/download", nil)
+		w := httptest.NewRecorder()
+		srv.DownloadPostContent(w, req, pkgtypes.ID(post.ID))
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := w.Header().Get("Content-Type"); got != post.MimeType {
+			t.Errorf("Content-Type = %q, want %q", got, post.MimeType)
+		}
+		wantDisposition := `attachment; filename="` + post.ID.String() + `.webp"`
+		if got := w.Header().Get("Content-Disposition"); got != wantDisposition {
+			t.Errorf("Content-Disposition = %q, want %q", got, wantDisposition)
+		}
+		if got := w.Body.Bytes(); !bytes.Equal(got, content) {
+			t.Errorf("body = %q, want %q", got, content)
+		}
+	})
+
+	t.Run("streams thumbnail", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+post.ID.String()+"/thumbnail", nil)
+		w := httptest.NewRecorder()
+		srv.GetPostThumbnail(w, req, pkgtypes.ID(post.ID))
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		if got := w.Header().Get("Content-Type"); got != post.MimeType {
+			t.Errorf("Content-Type = %q, want %q", got, post.MimeType)
+		}
+		if got := w.Body.Bytes(); !bytes.Equal(got, thumbnail) {
+			t.Errorf("body = %q, want %q", got, thumbnail)
+		}
+	})
+
+	t.Run("missing media file", func(t *testing.T) {
+		postWithoutMedia := insertTestPost(t)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+postWithoutMedia.ID.String()+"/content", nil)
+		w := httptest.NewRecorder()
+		srv.GetPostContent(w, req, pkgtypes.ID(postWithoutMedia.ID))
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("nonexistent post", func(t *testing.T) {
+		id := pkgtypes.ID(uuid.NewV4())
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts/"+uuid.UUID(id).String()+"/content", nil)
+		w := httptest.NewRecorder()
+		srv.GetPostContent(w, req, id)
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
 func TestPutPost(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)

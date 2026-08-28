@@ -21,8 +21,7 @@ func newAPIClient(baseURL, password string) (*client.ClientWithResponses, error)
 	)
 }
 
-// mediaClient handles raw HTTP requests for media proxying,
-// which is not part of the OpenAPI spec.
+// mediaClient handles streaming media requests for the web proxy.
 type mediaClient struct {
 	baseURL  string
 	password string
@@ -70,6 +69,14 @@ func copyMediaResponse(w http.ResponseWriter, resp *http.Response) {
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
 		w.Header().Set("Content-Length", cl)
 	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+		w.Header().Set("Content-Disposition", cd)
+	}
+	if cc := resp.Header.Get("Cache-Control"); cc != "" {
+		w.Header().Set("Cache-Control", cc)
+	}
+	if xcto := resp.Header.Get("X-Content-Type-Options"); xcto != "" {
+		w.Header().Set("X-Content-Type-Options", xcto)
+	}
 	_, _ = io.Copy(w, resp.Body)
 }

@@ -1,6 +1,9 @@
 package web
 
-import "net/http"
+import (
+	"net/http"
+	"net/url"
+)
 
 const (
 	maxFormBody   int64 = 1 << 20 // 1MB for regular form submissions
@@ -18,8 +21,37 @@ func maxBody(limit int64, next http.HandlerFunc) http.HandlerFunc {
 // registerRoutes registers all route handlers on the given ServeMux.
 func (a *app) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/", a.handlePosts)
-	mux.HandleFunc("/media/", a.handleMedia)
 	mux.HandleFunc("/posts-partial", a.handlePosts)
+	mux.HandleFunc("GET /posts/{id}/content", func(w http.ResponseWriter, r *http.Request) {
+		id := url.PathEscape(r.PathValue("id"))
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content")
+		if err != nil {
+			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		copyMediaResponse(w, resp)
+	})
+	mux.HandleFunc("GET /posts/{id}/download", func(w http.ResponseWriter, r *http.Request) {
+		id := url.PathEscape(r.PathValue("id"))
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content/download")
+		if err != nil {
+			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		copyMediaResponse(w, resp)
+	})
+	mux.HandleFunc("GET /posts/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
+		id := url.PathEscape(r.PathValue("id"))
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/thumbnail")
+		if err != nil {
+			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		copyMediaResponse(w, resp)
+	})
 	mux.HandleFunc("/posts/{id}", maxBody(maxFormBody, a.handlePost))
 	mux.HandleFunc("GET /search.json", a.handleSearchJSON)
 	mux.HandleFunc("/posts/{id}/note", maxBody(maxFormBody, a.handlePostNote))

@@ -102,7 +102,7 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 		post := *resp.JSON200
 
 		var fileSize int64
-		if headResp, err := a.media.head(ctx, "/media"+mediaPath(post.ContentUrl)); err == nil {
+		if headResp, err := a.media.head(ctx, "/api/v1/posts/"+postID.String()+"/content"); err == nil {
 			_ = headResp.Body.Close()
 			fileSize = headResp.ContentLength
 		}

@@ -156,14 +156,6 @@
   pasteZone.addEventListener('paste', handlePaste);
   document.addEventListener('paste', handlePaste);
 
-  function mediaUrl(rawUrl) {
-    try {
-      var u = new URL(rawUrl);
-      return '/media' + u.pathname;
-    } catch(e) {
-      return rawUrl;
-    }
-  }
 
   function renderSimilarPosts(infoDiv, statusEl, postID, similar) {
     statusEl.textContent = 'Similar posts found:';
@@ -179,7 +171,7 @@
       a.target = '_blank';
       var thumb = document.createElement('img');
       thumb.className = 'similar-thumb';
-      thumb.src = mediaUrl(post.thumbnailUrl);
+      thumb.src = '/posts/' + encodeURIComponent(post.id) + '/thumbnail';
       thumb.alt = 'Similar post';
       a.appendChild(thumb);
       grid.appendChild(a);

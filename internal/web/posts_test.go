@@ -59,13 +59,13 @@ func TestHandlePost_GET(t *testing.T) {
 			jsonResponse(w, http.StatusOK, client.PostsResponse{})
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/v1/posts/") {
-			jsonResponse(w, http.StatusOK, post)
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, "/media/") {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/posts/") && strings.HasSuffix(r.URL.Path, "/content") {
 			w.Header().Set("Content-Length", "1024")
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/posts/") {
+			jsonResponse(w, http.StatusOK, post)
 			return
 		}
 		http.NotFound(w, r)

@@ -5,13 +5,13 @@
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
 <div class="post-media-controls" data-post-id="{{.Post.ID}}" data-created-at="{{.Post.CreatedAt.Format "2006-01-02T15:04:05.999999999Z07:00"}}">
-  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="{{.Post.ContentUrl | mediaUrl}}">{{.FileSize | formatSize}}</a>{{end}}<span id="quick-tag-star">{{if and .QuickTag (hasTag .Post.Tags .QuickTag)}} · {{quickTagEmoji}}{{end}}</span></span>
+  <span class="post-media-info">{{.Post.MimeType}}{{if .FileSize}} · <a href="/posts/{{.Post.ID}}/download">{{.FileSize | formatSize}}</a>{{end}}<span id="quick-tag-star">{{if and .QuickTag (hasTag .Post.Tags .QuickTag)}} · {{quickTagEmoji}}{{end}}</span></span>
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
-  <video controls loop src="{{.Post.ContentUrl | mediaUrl}}"></video>
+  <video controls loop src="/posts/{{.Post.ID}}/content"></video>
   {{else}}
-  <a href="{{.Post.ContentUrl | mediaUrl}}"><img src="{{.Post.ContentUrl | mediaUrl}}" alt="Post"></a>
+  <a href="/posts/{{.Post.ID}}/content"><img src="/posts/{{.Post.ID}}/content" alt="Post"></a>
   {{end}}
 </div>
 
@@ -44,7 +44,7 @@
   <div class="similar-posts-grid">
     {{range .SimilarPosts}}
     <a href="/posts/{{.ID}}" class="similar-post-link">
-      <img class="similar-thumb" src="{{.ThumbnailUrl | mediaUrl}}" alt="Similar post">
+      <img class="similar-thumb" src="/posts/{{.ID}}/thumbnail" alt="Similar post">
       {{if hasPrefix .MimeType "video/"}}<span class="video-indicator" aria-label="Video"></span>{{end}}
     </a>
     {{end}}

@@ -328,6 +328,26 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/posts/{id}/content:
+    get:
+      operationId: getPostContent
+      summary: Stream a post's content file.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostContentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
     put:
       operationId: replacePostContent
       summary: Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
@@ -354,7 +374,48 @@ paths:
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/posts/{id}/content/download:
+    get:
+      operationId: downloadPostContent
+      summary: Download a post's content file.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostContentDownloadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/posts/{id}/thumbnail:
+    get:
+      operationId: getPostThumbnail
+      summary: Stream a post's thumbnail image.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostContentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
     post:
       operationId: regeneratePostThumbnail
       summary: Regenerate the thumbnail for a post from its existing content.
@@ -711,6 +772,25 @@ components:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Post"
+    PostContentResponse:
+      description: A post's content file. The response Content-Type matches the stored media type.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    PostContentDownloadResponse:
+      description: A post's content file as a download. The response Content-Type matches the stored media type.
+      headers:
+        Content-Disposition:
+          schema:
+            type: string
+          description: Attachment filename for the downloaded content file.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
     CreatedPostResponse:
       content:
         application/json:

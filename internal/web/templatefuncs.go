@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"net/url"
 	"slices"
 	"strings"
 )
@@ -14,15 +13,6 @@ const defaultColor = "var(--base03)"
 
 // quickTagEmoji is the emoji displayed next to the file size when a post has the quick-tag.
 const quickTagEmoji = "⭐"
-
-// mediaPath extracts the URL path from a raw URL string, stripping scheme and host.
-func mediaPath(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL
-	}
-	return strings.TrimRight(u.Path, "/")
-}
 
 // templateFuncs returns the FuncMap of custom template functions for HTML rendering.
 func templateFuncs() template.FuncMap {
@@ -94,14 +84,6 @@ func templateFuncs() template.FuncMap {
 		},
 		"isMaterialIcon": func(label string) bool {
 			return strings.HasPrefix(label, "material-icons-")
-		},
-		"mediaUrl": func(rawURL string) string {
-			u, err := url.Parse(rawURL)
-			if err != nil {
-				return rawURL
-			}
-			// Strip the scheme+host, keep the path: /bucket/key → /media/bucket/key
-			return "/media" + strings.TrimRight(u.Path, "/")
 		},
 	}
 }
