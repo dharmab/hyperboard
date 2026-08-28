@@ -226,6 +226,13 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
+	for _, tag := range post.Tags {
+		if !isValidName(tag) {
+			respondWithError(w, http.StatusBadRequest, "Invalid tag name %q", tag)
+			return
+		}
+	}
+
 	now := time.Now().UTC()
 	model, err := s.sqlStore.UpdatePost(ctx, postID, post.Note, post.Tags, now)
 	if err != nil {

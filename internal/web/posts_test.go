@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -125,6 +126,53 @@ func TestHandlePost_InvalidID(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "Invalid post ID") {
 		t.Error("expected error message about invalid ID")
+	}
+}
+
+func TestHandlePostTags_TrimsTagName(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.Must(uuid.NewV4()))
+	now := time.Now().UTC()
+	post := types.Post{
+		ID:        postID,
+		MimeType:  "image/webp",
+		Note:      "",
+		Tags:      []types.TagName{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/posts/"+postID.String() {
+			http.NotFound(w, r)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			jsonResponse(w, http.StatusOK, post)
+		case http.MethodPut:
+			if err := json.NewDecoder(r.Body).Decode(&post); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			jsonResponse(w, http.StatusOK, post)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/posts/"+postID.String()+"/tags", strings.NewReader("q=example+"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", postID.String())
+	w := httptest.NewRecorder()
+	app.handlePostTags(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if len(post.Tags) != 1 || post.Tags[0] != "example" {
+		t.Errorf("Tags = %v, want [example]", post.Tags)
 	}
 }
 

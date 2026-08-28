@@ -119,6 +119,23 @@ func TestPutPost(t *testing.T) {
 		t.Errorf("Tags = %v, want [%q]", got.Tags, tagName)
 	}
 
+	t.Run("put post with trailing whitespace tag returns bad request", func(t *testing.T) {
+		invalidBody := body
+		invalidBody.Tags = []pkgtypes.TagName{"example "}
+		ib, err := json.Marshal(invalidBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+post.ID.String(), bytes.NewReader(ib))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.PutPost(w, req, postID)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	})
+
 	t.Run("put post with zero ID returns bad request", func(t *testing.T) {
 		zeroBody := pkgtypes.Post{
 			ID:       pkgtypes.ID(uuid.Nil),
