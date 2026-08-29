@@ -3,11 +3,13 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"uuid"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
@@ -31,12 +33,9 @@ func TestHandleNotes_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleNotes(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "Test Note") {
-		t.Error("expected note title in response body")
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Contains(t, body, "Test Note")
 }
 
 func TestHandleNotes_POST(t *testing.T) {
@@ -56,11 +55,9 @@ func TestHandleNotes_POST(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleNotes(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusSeeOther, w.Body.String())
-	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, createdID.String()) {
-		t.Errorf("redirect location = %q, want it to contain %s", loc, createdID)
-	}
+	body := w.Body.String()
+	location := w.Header().Get("Location")
+	createdIDString := createdID.String()
+	require.Equal(t, http.StatusSeeOther, w.Code, "body = %s", body)
+	assert.Contains(t, location, createdIDString)
 }

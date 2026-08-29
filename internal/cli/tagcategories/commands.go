@@ -146,14 +146,14 @@ func createTagCategory(app *cli.App, name string, tc types.TagCategory) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, tc)
+	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, client.NewTagCategoryUpdateRequest(tc))
 	if err != nil {
 		return err
 	}
 	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
 		return err
 	}
-	created := *resp.JSON200
+	created := *resp.JSON201
 	return app.PrintResource(created, func() [][2]string {
 		return [][2]string{
 			{"Name", created.Name},
@@ -200,7 +200,7 @@ func editTagCategory(app *cli.App, name string) error {
 		Description: edited.Description,
 		Color:       edited.Color,
 	}
-	putResp, err := c.PutTagCategoryWithResponse(context.TODO(), name, updated)
+	putResp, err := c.PutTagCategoryWithResponse(context.TODO(), name, client.NewTagCategoryUpdateRequest(updated))
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,8 @@ import (
 
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandleTags(t *testing.T) {
@@ -33,12 +35,37 @@ func TestHandleTags(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTags(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "test-tag") {
-		t.Error("expected tag name in response body")
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Contains(t, body, "test-tag")
+}
+
+func TestFetchAllTagCategories(t *testing.T) {
+	t.Parallel()
+	firstCursor := "next-page"
+	requestCount := 0
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v1/tagCategories", r.URL.Path)
+		assert.Equal(t, "64", r.URL.Query().Get("limit"))
+		requestCount++
+		if requestCount == 1 {
+			assert.Empty(t, r.URL.Query().Get("cursor"))
+			jsonResponse(w, http.StatusOK, client.TagCategoriesResponse{
+				Items:  &[]types.TagCategory{{Name: "first", Color: "#111111"}},
+				Cursor: &firstCursor,
+			})
+			return
+		}
+		assert.Equal(t, firstCursor, r.URL.Query().Get("cursor"))
+		jsonResponse(w, http.StatusOK, client.TagCategoriesResponse{
+			Items: &[]types.TagCategory{{Name: "second", Color: "#222222"}},
+		})
+	}))
+
+	categories, err := app.fetchAllTagCategories(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"first", "second"}, []string{categories[0].Name, categories[1].Name})
+	assert.Equal(t, 2, requestCount)
 }
 
 func TestHandleTagConvertToAlias(t *testing.T) {
@@ -60,13 +87,10 @@ func TestHandleTagConvertToAlias(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagConvertToAlias(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusSeeOther, w.Body.String())
-	}
-	loc := w.Header().Get("Location")
-	if loc != "/tags/target-tag" {
-		t.Errorf("redirect location = %q, want /tags/target-tag", loc)
-	}
+	body := w.Body.String()
+	location := w.Header().Get("Location")
+	require.Equal(t, http.StatusSeeOther, w.Code, "body = %s", body)
+	assert.Equal(t, "/tags/target-tag", location)
 }
 
 func TestHandleTagConvertToAlias_EmptyTarget(t *testing.T) {
@@ -80,9 +104,7 @@ func TestHandleTagConvertToAlias_EmptyTarget(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagConvertToAlias(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestHandleTagConvertToAlias_SameTarget(t *testing.T) {
@@ -98,7 +120,5 @@ func TestHandleTagConvertToAlias_SameTarget(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagConvertToAlias(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

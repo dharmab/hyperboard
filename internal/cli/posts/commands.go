@@ -196,7 +196,7 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 		if note != "" {
 			post.Note = note
 		}
-		putResp, err := c.PutPostWithResponse(context.TODO(), post.ID, post)
+		putResp, err := c.PutPostWithResponse(context.TODO(), post.ID, client.NewPostUpdateRequest(post))
 		if err != nil {
 			return err
 		}
@@ -246,7 +246,7 @@ func editPost(app *cli.App, id string) error {
 
 	post.Tags = edited.Tags
 	post.Note = edited.Note
-	putResp, err := c.PutPostWithResponse(context.TODO(), types.ID(postID), post)
+	putResp, err := c.PutPostWithResponse(context.TODO(), types.ID(postID), client.NewPostUpdateRequest(post))
 	if err != nil {
 		return err
 	}

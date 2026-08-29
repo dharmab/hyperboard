@@ -159,7 +159,7 @@ func createTag(app *cli.App, name string, tag types.Tag) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.PutTagWithResponse(context.TODO(), name, tag)
+	resp, err := c.PutTagWithResponse(context.TODO(), name, client.NewTagUpdateRequest(tag))
 	if err != nil {
 		return err
 	}
@@ -217,14 +217,14 @@ func editTag(app *cli.App, name string) error {
 		Category:    edited.Category,
 		Description: edited.Description,
 	}
-	putResp, err := c.PutTagWithResponse(context.TODO(), name, updated)
+	putResp, err := c.PutTagWithResponse(context.TODO(), name, client.NewTagUpdateRequest(updated))
 	if err != nil {
 		return err
 	}
 	if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
 		return err
 	}
-	result := *putResp.JSON201
+	result := *putResp.JSON200
 	return app.PrintResource(result, func() [][2]string {
 		cat := noCategoryLabel
 		if result.Category != nil {

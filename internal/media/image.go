@@ -100,7 +100,7 @@ const MaxWebPDimension = 16383
 func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("decode image: %w", err)
+		return nil, "", nil, fmt.Errorf("%w: decode image: %w", ErrInvalidMedia, err)
 	}
 
 	bounds := img.Bounds()

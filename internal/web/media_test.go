@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProxyPostMedia(t *testing.T) {
@@ -56,18 +59,13 @@ func TestProxyPostMedia(t *testing.T) {
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 
-			if w.Code != http.StatusOK {
-				t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-			}
-			if got := w.Header().Get("Content-Type"); got != "image/webp" {
-				t.Errorf("Content-Type = %q, want image/webp", got)
-			}
-			if got := w.Header().Get("Content-Disposition"); got != tt.disposition {
-				t.Errorf("Content-Disposition = %q, want %q", got, tt.disposition)
-			}
-			if got := w.Body.String(); got != "image-data" {
-				t.Errorf("body = %q, want image-data", got)
-			}
+			contentType := w.Header().Get("Content-Type")
+			contentDisposition := w.Header().Get("Content-Disposition")
+			body := w.Body.String()
+			require.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "image/webp", contentType)
+			assert.Equal(t, tt.disposition, contentDisposition)
+			assert.Equal(t, "image-data", body)
 		})
 	}
 }

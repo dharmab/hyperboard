@@ -6,6 +6,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestAppWithAuth(t *testing.T) *app {
@@ -26,9 +29,7 @@ func TestHandleLogin_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
@@ -41,25 +42,18 @@ func TestHandleLogin_POST_CorrectPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
-	}
-	if loc := w.Header().Get("Location"); loc != "/" {
-		t.Errorf("Location = %q, want /", loc)
-	}
+	location := w.Header().Get("Location")
+	require.Equal(t, http.StatusSeeOther, w.Code)
+	assert.Equal(t, "/", location)
 	cookies := w.Result().Cookies()
 	found := false
 	for _, c := range cookies {
 		if c.Name == sessionCookieName {
 			found = true
-			if !c.Secure {
-				t.Error("session cookie should be Secure by default")
-			}
+			assert.True(t, c.Secure, "session cookie should be Secure by default")
 		}
 	}
-	if !found {
-		t.Error("expected session cookie to be set")
-	}
+	assert.True(t, found, "expected session cookie to be set")
 }
 
 func TestHandleLogin_POST_LocalDevelopmentCookie(t *testing.T) {
@@ -74,8 +68,8 @@ func TestHandleLogin_POST_LocalDevelopmentCookie(t *testing.T) {
 	app.handleLogin(w, req)
 
 	for _, c := range w.Result().Cookies() {
-		if c.Name == sessionCookieName && c.Secure {
-			t.Error("local development session cookie should not be Secure")
+		if c.Name == sessionCookieName {
+			assert.False(t, c.Secure, "local development session cookie should not be Secure")
 		}
 	}
 }
@@ -90,12 +84,9 @@ func TestHandleLogin_POST_WrongPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
-	if !strings.Contains(w.Body.String(), "Invalid password") {
-		t.Error("expected error message in response body")
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, body, "Invalid password")
 }
 
 func TestHandleLogin_UnsupportedMethod(t *testing.T) {
@@ -106,9 +97,7 @@ func TestHandleLogin_UnsupportedMethod(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleLogin(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
-	}
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandleLogout(t *testing.T) {
@@ -119,16 +108,13 @@ func TestHandleLogout(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleLogout(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
-	}
-	if loc := w.Header().Get("Location"); loc != "/login" {
-		t.Errorf("Location = %q, want /login", loc)
-	}
+	location := w.Header().Get("Location")
+	require.Equal(t, http.StatusSeeOther, w.Code)
+	assert.Equal(t, "/login", location)
 	cookies := w.Result().Cookies()
 	for _, c := range cookies {
-		if c.Name == sessionCookieName && c.MaxAge != -1 {
-			t.Errorf("session cookie MaxAge = %d, want -1", c.MaxAge)
+		if c.Name == sessionCookieName {
+			assert.Equal(t, -1, c.MaxAge)
 		}
 	}
 }
@@ -145,9 +131,7 @@ func TestSessionMiddleware_NoCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
-	}
+	assert.Equal(t, http.StatusSeeOther, w.Code)
 }
 
 func TestSessionMiddleware_InvalidCookie(t *testing.T) {
@@ -163,9 +147,7 @@ func TestSessionMiddleware_InvalidCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
-	}
+	assert.Equal(t, http.StatusSeeOther, w.Code)
 }
 
 func TestSessionMiddleware_ValidCookie(t *testing.T) {
@@ -182,7 +164,5 @@ func TestSessionMiddleware_ValidCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }

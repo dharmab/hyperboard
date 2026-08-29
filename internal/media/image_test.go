@@ -7,6 +7,9 @@ import (
 	"image/png"
 	"os/exec"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFitImage(t *testing.T) {
@@ -57,12 +60,18 @@ func TestFitImage(t *testing.T) {
 			bounds := result.Bounds()
 			gotW := bounds.Max.X - bounds.Min.X
 			gotH := bounds.Max.Y - bounds.Min.Y
-			if gotW != tt.expectW || gotH != tt.expectH {
-				t.Errorf("FitImage(%dx%d, %d, %d) = %dx%d, want %dx%d",
-					tt.srcW, tt.srcH, tt.maxW, tt.maxH, gotW, gotH, tt.expectW, tt.expectH)
-			}
+			assert.Equal(t, tt.expectW, gotW)
+			assert.Equal(t, tt.expectH, gotH)
 		})
 	}
+}
+
+func TestProcessImageRejectsInvalidMedia(t *testing.T) {
+	t.Parallel()
+
+	_, _, _, err := ProcessImage([]byte("not an image"), "image/png")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidMedia)
 }
 
 func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp binary
@@ -75,40 +84,22 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		pngData := encodePNG(t, img)
 
 		content, mime, thumbnail, err := ProcessImage(pngData, "image/png")
-		if err != nil {
-			t.Fatalf("ProcessImage error: %v", err)
-		}
-		if mime != MIMEWebP {
-			t.Errorf("mime = %q, want %q", mime, MIMEWebP)
-		}
-		if len(content) == 0 {
-			t.Error("content should not be empty")
-		}
-		if len(thumbnail) == 0 {
-			t.Error("thumbnail should not be empty")
-		}
+		require.NoError(t, err)
+		assert.Equal(t, MIMEWebP, mime)
+		assert.NotEmpty(t, content)
+		assert.NotEmpty(t, thumbnail)
 	})
 
 	t.Run("webp passthrough", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
 		img := syntheticColorImage(64, 64)
 		webpData, err := EncodeWebP(img, 85)
-		if err != nil {
-			t.Fatalf("EncodeWebP error: %v", err)
-		}
+		require.NoError(t, err)
 
 		content, mime, thumbnail, err := ProcessImage(webpData, MIMEWebP)
-		if err != nil {
-			t.Fatalf("ProcessImage error: %v", err)
-		}
-		if mime != MIMEWebP {
-			t.Errorf("mime = %q, want %q", mime, MIMEWebP)
-		}
-		if !bytes.Equal(content, webpData) {
-			t.Error("webp content should be returned unchanged")
-		}
-		if len(thumbnail) == 0 {
-			t.Error("thumbnail should not be empty")
-		}
+		require.NoError(t, err)
+		assert.Equal(t, MIMEWebP, mime)
+		assert.Equal(t, webpData, content)
+		assert.NotEmpty(t, thumbnail)
 	})
 }
 
@@ -125,8 +116,7 @@ func syntheticColorImage(w, h int) image.Image {
 func encodePNG(t *testing.T, img image.Image) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("failed to encode PNG: %v", err)
-	}
+	encodeErr := png.Encode(&buf, img)
+	require.NoError(t, encodeErr)
 	return buf.Bytes()
 }

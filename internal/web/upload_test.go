@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleUpload_GET(t *testing.T) {
@@ -16,7 +18,5 @@ func TestHandleUpload_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleUpload(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }

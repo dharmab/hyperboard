@@ -13,6 +13,8 @@ import (
 
 	"github.com/dharmab/hyperboard/pkg/client"
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandlePosts(t *testing.T) {
@@ -33,12 +35,10 @@ func TestHandlePosts(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), postID.String()) {
-		t.Error("expected post ID in response body")
-	}
+	body := w.Body.String()
+	postIDString := postID.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Contains(t, body, postIDString)
 }
 
 func TestHandlePost_GET(t *testing.T) {
@@ -76,9 +76,8 @@ func TestHandlePost_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePost(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
+	body := w.Body.String()
+	assert.Equal(t, http.StatusOK, w.Code, "body = %s", body)
 }
 
 func TestHandlePost_DELETE(t *testing.T) {
@@ -100,15 +99,10 @@ func TestHandlePost_DELETE(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePost(w, req)
 
-	if !deleteCalled {
-		t.Error("expected delete to be called")
-	}
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
-	}
-	if loc := w.Header().Get("HX-Redirect"); loc != "/" {
-		t.Fatalf("HX-Redirect = %q, want %q", loc, "/")
-	}
+	redirect := w.Header().Get("HX-Redirect")
+	assert.True(t, deleteCalled, "expected delete to be called")
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, "/", redirect)
 }
 
 func TestHandlePost_InvalidID(t *testing.T) {
@@ -122,12 +116,9 @@ func TestHandlePost_InvalidID(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePost(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d (template render with error)", w.Code, http.StatusOK)
-	}
-	if !strings.Contains(w.Body.String(), "Invalid post ID") {
-		t.Error("expected error message about invalid ID")
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "template render with error")
+	assert.Contains(t, body, "Invalid post ID")
 }
 
 func TestHandlePostTags_TrimsTagName(t *testing.T) {
@@ -169,12 +160,9 @@ func TestHandlePostTags_TrimsTagName(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePostTags(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
-	if len(post.Tags) != 1 || post.Tags[0] != "example" {
-		t.Errorf("Tags = %v, want [example]", post.Tags)
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Equal(t, []types.TagName{"example"}, post.Tags)
 }
 
 func TestHandlePosts_WithTagFilters(t *testing.T) {
@@ -194,19 +182,11 @@ func TestHandlePosts_WithTagFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
 	body := w.Body.String()
-	if !strings.Contains(body, "tag-filter-btn") {
-		t.Error("expected tag-filter-btn class in response body")
-	}
-	if !strings.Contains(body, "Rating") {
-		t.Error("expected button label 'Rating' in response body")
-	}
-	if !strings.Contains(body, "data-tags") {
-		t.Error("expected data-tags attribute in response body")
-	}
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Contains(t, body, "tag-filter-btn")
+	assert.Contains(t, body, "Rating")
+	assert.Contains(t, body, "data-tags")
 }
 
 func TestHandlePosts_WithoutTagFilters(t *testing.T) {
@@ -225,12 +205,9 @@ func TestHandlePosts_WithoutTagFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handlePosts(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
-	}
-	if strings.Contains(w.Body.String(), `class="tag-filters"`) {
-		t.Error("expected no tag-filters div when TagFilters config is empty")
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.NotContains(t, body, `class="tag-filters"`)
 }
 
 func TestHandleTagSuggestions(t *testing.T) {
@@ -255,18 +232,13 @@ func TestHandleTagSuggestions(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
 	for _, name := range []string{"alpha", "apex"} {
-		if !strings.Contains(body, fmt.Sprintf(`data-value=%q`, name)) {
-			t.Errorf("expected ac-item with data-value %q in response body", name)
-		}
+		expected := fmt.Sprintf(`data-value=%q`, name)
+		assert.Contains(t, body, expected)
 	}
-	if strings.Contains(body, "zulu") {
-		t.Error("expected zulu to be filtered out by query")
-	}
+	assert.NotContains(t, body, "zulu")
 }
 
 func TestHandleTagSuggestions_Pagination(t *testing.T) {
@@ -314,19 +286,12 @@ func TestHandleTagSuggestions_Pagination(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
 	// Results should be capped at 20
-	itemCount := strings.Count(body, "ac-item")
-	if itemCount != 20 {
-		t.Errorf("expected 20 ac-items, got %d", itemCount)
-	}
-	expectedCalls := len(pages)
-	if callCount != expectedCalls {
-		t.Errorf("expected %d API calls, got %d", expectedCalls, callCount)
-	}
+	resultCount := strings.Count(body, "ac-item")
+	assert.Equal(t, 20, resultCount)
+	assert.Len(t, pages, callCount)
 }
 
 func TestHandleTagSuggestions_FilterByQuery(t *testing.T) {
@@ -350,16 +315,10 @@ func TestHandleTagSuggestions_FilterByQuery(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
-	if !strings.Contains(body, `data-value="alpha"`) {
-		t.Error("expected ac-item with alpha in response")
-	}
-	if strings.Contains(body, "beta") {
-		t.Error("expected beta to be filtered out")
-	}
+	assert.Contains(t, body, `data-value="alpha"`)
+	assert.NotContains(t, body, "beta")
 }
 
 func TestHandleTagSuggestions_ExcludeTags(t *testing.T) {
@@ -383,16 +342,10 @@ func TestHandleTagSuggestions_ExcludeTags(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
-	if strings.Contains(body, "alpha") {
-		t.Error("expected alpha to be excluded")
-	}
-	if !strings.Contains(body, `data-value="beta"`) {
-		t.Error("expected ac-item with beta in response")
-	}
+	assert.NotContains(t, body, "alpha")
+	assert.Contains(t, body, `data-value="beta"`)
 }
 
 func TestHandleTagSuggestions_EmptyQuery(t *testing.T) {
@@ -414,12 +367,9 @@ func TestHandleTagSuggestions_EmptyQuery(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
-	if w.Body.String() != "" {
-		t.Errorf("expected empty response for empty query, got %q", w.Body.String())
-	}
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, body)
 }
 
 func TestHandleTagSuggestions_SortedByPostCount(t *testing.T) {
@@ -445,18 +395,13 @@ func TestHandleTagSuggestions_SortedByPostCount(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
 	popIdx := strings.Index(body, "popular")
 	rareIdx := strings.Index(body, "rare")
-	if popIdx < 0 || rareIdx < 0 {
-		t.Fatalf("expected both popular and rare in response, got %q", body)
-	}
-	if popIdx > rareIdx {
-		t.Error("expected popular (100 posts) before rare (5 posts)")
-	}
+	require.GreaterOrEqual(t, popIdx, 0, "expected popular in response: %q", body)
+	require.GreaterOrEqual(t, rareIdx, 0, "expected rare in response: %q", body)
+	assert.Less(t, popIdx, rareIdx, "expected popular (100 posts) before rare (5 posts)")
 }
 
 func TestHandleTagSuggestions_CappedAt20(t *testing.T) {
@@ -481,12 +426,8 @@ func TestHandleTagSuggestions_CappedAt20(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.handleTagSuggestions(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
 	body := w.Body.String()
-	itemCount := strings.Count(body, "ac-item")
-	if itemCount != 20 {
-		t.Errorf("expected 20 ac-items, got %d", itemCount)
-	}
+	resultCount := strings.Count(body, "ac-item")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 20, resultCount)
 }

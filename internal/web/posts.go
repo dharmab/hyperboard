@@ -164,7 +164,7 @@ func (a *app) handlePostNote(w http.ResponseWriter, r *http.Request) {
 	}
 	post := *resp.JSON200
 	post.Note = note
-	putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
+	putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
 	if err != nil || putResp.StatusCode() >= 400 {
 		http.Error(w, "Failed to save note", http.StatusInternalServerError)
 		return
@@ -193,7 +193,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		tagName := strings.TrimSpace(r.FormValue("q"))
 		if tagName != "" {
 			post.Tags = append(post.Tags, tagName)
-			putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
+			putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
 			if err != nil || putResp.StatusCode() >= 400 {
 				http.Error(w, "Failed to add tag", http.StatusInternalServerError)
 				return
@@ -208,7 +208,7 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		post.Tags = newTags
-		putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), post)
+		putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
 		if err != nil || putResp.StatusCode() >= 400 {
 			http.Error(w, "Failed to remove tag", http.StatusInternalServerError)
 			return

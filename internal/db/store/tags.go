@@ -210,13 +210,30 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 	var resultModel models.Tag
 	isCreate := errors.Is(err, sql.ErrNoRows)
 
+	var conflictingTagID gofrs.UUID
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", input.Name).Scan(&conflictingTagID)
+	if err == nil && (isCreate || conflictingTagID != existing.ID) {
+		return nil, false, fmt.Errorf("%w: tag name %q is already in use", ErrConflict, input.Name)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+
+	var aliasCount int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM tag_aliases WHERE alias_name = $1", input.Name).Scan(&aliasCount); err != nil {
+		return nil, false, err
+	}
+	if aliasCount > 0 {
+		return nil, false, fmt.Errorf("%w: tag name %q is already an alias", ErrConflict, input.Name)
+	}
+
 	if !isCreate {
 		_, err = tx.ExecContext(ctx,
 			"UPDATE tags SET name = $1, description = $2, tag_category_id = $3, updated_at = $4 WHERE id = $5",
 			input.Name, input.Description, databaseTagCategoryID, now, existing.ID,
 		)
 		if err != nil {
-			return nil, false, err
+			return nil, false, mapConflictError(err)
 		}
 		resultModel = existing
 		resultModel.Name = input.Name
@@ -229,7 +246,7 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 			input.Name, input.Description, databaseTagCategoryID, now, now,
 		).Scan(&resultModel.ID, &resultModel.Name, &resultModel.Description, &resultModel.TagCategoryID, &resultModel.CreatedAt, &resultModel.UpdatedAt)
 		if err != nil {
-			return nil, false, err
+			return nil, false, mapConflictError(err)
 		}
 	}
 
@@ -242,7 +259,7 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, false, err
+		return nil, false, mapConflictError(err)
 	}
 
 	if resultModel.TagCategoryID.Valid {
@@ -377,6 +394,17 @@ func (s *PostgresSQLStore) ResolveAlias(ctx context.Context, name string) (strin
 
 // setTagAliases replaces all aliases for a tag with the given list.
 func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID gofrs.UUID, aliases []string) error {
+	seen := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		if alias == "" {
+			continue
+		}
+		if _, exists := seen[alias]; exists {
+			return fmt.Errorf("%w: duplicate alias %q", ErrConflict, alias)
+		}
+		seen[alias] = struct{}{}
+	}
+
 	for _, alias := range aliases {
 		if alias == "" {
 			continue
@@ -387,7 +415,14 @@ func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID 
 			return err
 		}
 		if count > 0 {
-			return fmt.Errorf("%w: %q", ErrAliasConflict, alias)
+			return fmt.Errorf("%w: %q", ErrConflict, alias)
+		}
+		err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM tag_aliases WHERE alias_name = $1 AND tag_id <> $2", alias, tagID).Scan(&count)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return fmt.Errorf("%w: alias %q is already in use", ErrConflict, alias)
 		}
 	}
 
@@ -404,7 +439,7 @@ func (s *PostgresSQLStore) setTagAliases(ctx context.Context, tx *sql.Tx, tagID 
 			tagID, alias,
 		)
 		if err != nil {
-			return err
+			return mapConflictError(err)
 		}
 	}
 	return nil
@@ -597,7 +632,7 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 			targetID, alias,
 		)
 		if err != nil {
-			return nil, err
+			return nil, mapConflictError(err)
 		}
 	}
 
@@ -656,7 +691,7 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, mapConflictError(err)
 	}
 
 	return &ConvertTagToAliasResult{

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func newTestApp(t *testing.T, handler http.Handler) *app {
@@ -13,14 +15,10 @@ func newTestApp(t *testing.T, handler http.Handler) *app {
 	t.Cleanup(srv.Close)
 
 	tmpls, err := parseTemplates()
-	if err != nil {
-		t.Fatalf("failed to parse templates: %v", err)
-	}
+	require.NoError(t, err, "failed to parse templates")
 
 	api, err := newAPIClient(srv.URL, "test")
-	if err != nil {
-		t.Fatalf("failed to create API client: %v", err)
-	}
+	require.NoError(t, err, "failed to create API client")
 
 	return &app{
 		cfg:   &config{},

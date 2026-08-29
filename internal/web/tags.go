@@ -39,16 +39,13 @@ func (a *app) handleTags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch categories for color map
-	catLimit := 1000
-	catResp, err := a.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
+	categories, err := a.fetchAllTagCategories(ctx)
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
 	}
 	colorMap := map[string]string{}
-	if catResp != nil && catResp.JSON200 != nil && catResp.JSON200.Items != nil {
-		for _, c := range *catResp.JSON200.Items {
-			colorMap[c.Name] = c.Color
-		}
+	for _, category := range categories {
+		colorMap[category.Name] = category.Color
 	}
 
 	a.renderTemplate(w, r, "tags", tagsData{Tags: allTags, CategoryColors: colorMap, Error: strings.Join(errs, "; ")})
@@ -61,15 +58,10 @@ func (a *app) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 	isNew := name == newResourceName
 
 	// Fetch categories for dropdown
-	catLimit := 1000
-	catResp, err := a.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
+	cats, err := a.fetchAllTagCategories(ctx)
 	var catErr string
 	if err != nil {
 		catErr = fmt.Sprintf("Failed to load categories: %v", err)
-	}
-	cats := []types.TagCategory{}
-	if catResp != nil && catResp.JSON200 != nil && catResp.JSON200.Items != nil {
-		cats = *catResp.JSON200.Items
 	}
 
 	switch r.Method {
@@ -144,7 +136,7 @@ func (a *app) handleTagEdit(w http.ResponseWriter, r *http.Request) {
 		if isNew {
 			urlName = newName
 		}
-		resp, err := a.api.PutTagWithResponse(ctx, urlName, tag)
+		resp, err := a.api.PutTagWithResponse(ctx, urlName, client.NewTagUpdateRequest(tag))
 		if err != nil || resp.StatusCode() >= 400 {
 			var errMsg string
 			if err != nil {

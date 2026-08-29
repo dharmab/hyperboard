@@ -3,6 +3,9 @@ package memory
 import (
 	"io"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStorage_UploadDownloadRoundTrip(t *testing.T) {
@@ -13,29 +16,17 @@ func TestStorage_UploadDownloadRoundTrip(t *testing.T) {
 	data := []byte("hello world")
 	contentType := "text/plain"
 	_, err := s.Upload(ctx, "key1", data, contentType)
-	if err != nil {
-		t.Fatalf("Upload() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	obj, err := s.Download(ctx, "key1")
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
+	require.NoError(t, err)
 	defer func() { _ = obj.Body.Close() }()
 
 	got, err := io.ReadAll(obj.Body)
-	if err != nil {
-		t.Fatalf("ReadAll() error = %v", err)
-	}
-	if string(got) != string(data) {
-		t.Errorf("data = %q, want %q", got, data)
-	}
-	if obj.ContentType != contentType {
-		t.Errorf("ContentType = %q, want %q", obj.ContentType, contentType)
-	}
-	if obj.ContentLength != int64(len(data)) {
-		t.Errorf("ContentLength = %d, want %d", obj.ContentLength, len(data))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, data, got)
+	assert.Equal(t, contentType, obj.ContentType)
+	assert.Equal(t, int64(len(data)), obj.ContentLength)
 }
 
 func TestStorage_DownloadNonexistent(t *testing.T) {
@@ -44,9 +35,7 @@ func TestStorage_DownloadNonexistent(t *testing.T) {
 	ctx := t.Context()
 
 	_, err := s.Download(ctx, "missing")
-	if err == nil {
-		t.Error("expected error for nonexistent key")
-	}
+	assert.Error(t, err)
 }
 
 func TestStorage_DeleteThenDownload(t *testing.T) {
@@ -55,17 +44,12 @@ func TestStorage_DeleteThenDownload(t *testing.T) {
 	ctx := t.Context()
 
 	_, err := s.Upload(ctx, "key1", []byte("data"), "text/plain")
-	if err != nil {
-		t.Fatalf("Upload() error = %v", err)
-	}
-	if err := s.Delete(ctx, "key1"); err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
+	require.NoError(t, err)
+	deleteErr := s.Delete(ctx, "key1")
+	require.NoError(t, deleteErr)
 
 	_, err = s.Download(ctx, "key1")
-	if err == nil {
-		t.Error("expected error after delete")
-	}
+	assert.Error(t, err)
 }
 
 func TestStorage_UploadOverwrites(t *testing.T) {
@@ -73,24 +57,17 @@ func TestStorage_UploadOverwrites(t *testing.T) {
 	s := New()
 	ctx := t.Context()
 
-	if _, err := s.Upload(ctx, "key1", []byte("first"), "text/plain"); err != nil {
-		t.Fatalf("Upload() error = %v", err)
-	}
-	if _, err := s.Upload(ctx, "key1", []byte("second"), "application/json"); err != nil {
-		t.Fatalf("Upload() error = %v", err)
-	}
+	_, err := s.Upload(ctx, "key1", []byte("first"), "text/plain")
+	require.NoError(t, err)
+	_, err = s.Upload(ctx, "key1", []byte("second"), "application/json")
+	require.NoError(t, err)
 
 	obj, err := s.Download(ctx, "key1")
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
+	require.NoError(t, err)
 	defer func() { _ = obj.Body.Close() }()
 
-	got, _ := io.ReadAll(obj.Body)
-	if string(got) != "second" {
-		t.Errorf("data = %q, want %q", got, "second")
-	}
-	if obj.ContentType != "application/json" {
-		t.Errorf("ContentType = %q, want %q", obj.ContentType, "application/json")
-	}
+	got, err := io.ReadAll(obj.Body)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("second"), got)
+	assert.Equal(t, "application/json", obj.ContentType)
 }

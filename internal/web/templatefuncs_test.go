@@ -2,6 +2,8 @@ package web
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatSize(t *testing.T) {
@@ -23,9 +25,8 @@ func TestFormatSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := formatSize(tt.input); got != tt.expect {
-				t.Errorf("formatSize(%d) = %q, want %q", tt.input, got, tt.expect)
-			}
+			formatted := formatSize(tt.input)
+			assert.Equal(t, tt.expect, formatted)
 		})
 	}
 }
@@ -38,30 +39,26 @@ func TestCatColor(t *testing.T) {
 
 	t.Run("nil cat", func(t *testing.T) {
 		t.Parallel()
-		if got := catColor(map[string]string{"a": "#fff"}, nil); got != defaultColor {
-			t.Errorf("catColor(colors, nil) = %q, want %q", got, defaultColor)
-		}
+		color := catColor(map[string]string{"a": "#fff"}, nil)
+		assert.Equal(t, defaultColor, color)
 	})
 	t.Run("nil colors", func(t *testing.T) {
 		t.Parallel()
 		cat := "a"
-		if got := catColor(nil, &cat); got != defaultColor {
-			t.Errorf("catColor(nil, &cat) = %q, want %q", got, defaultColor)
-		}
+		color := catColor(nil, &cat)
+		assert.Equal(t, defaultColor, color)
 	})
 	t.Run("missing key", func(t *testing.T) {
 		t.Parallel()
 		cat := "missing"
-		if got := catColor(map[string]string{"a": "#fff"}, &cat); got != defaultColor {
-			t.Errorf("catColor(colors, &missing) = %q, want %q", got, defaultColor)
-		}
+		color := catColor(map[string]string{"a": "#fff"}, &cat)
+		assert.Equal(t, defaultColor, color)
 	})
 	t.Run("found key", func(t *testing.T) {
 		t.Parallel()
 		cat := "a"
-		if got := catColor(map[string]string{"a": "#fff"}, &cat); got != "#fff" {
-			t.Errorf("catColor(colors, &a) = %q, want %q", got, "#fff")
-		}
+		color := catColor(map[string]string{"a": "#fff"}, &cat)
+		assert.Equal(t, "#fff", color)
 	})
 }
 
@@ -72,16 +69,12 @@ func TestDeref(t *testing.T) {
 
 	t.Run("nil", func(t *testing.T) {
 		t.Parallel()
-		if got := deref(nil); got != "" {
-			t.Errorf("deref(nil) = %q, want empty", got)
-		}
+		assert.Empty(t, deref(nil))
 	})
 	t.Run("non-nil", func(t *testing.T) {
 		t.Parallel()
 		s := "hello"
-		if got := deref(&s); got != "hello" {
-			t.Errorf("deref(&s) = %q, want %q", got, "hello")
-		}
+		assert.Equal(t, "hello", deref(&s))
 	})
 }
 
@@ -92,16 +85,12 @@ func TestDerefInt(t *testing.T) {
 
 	t.Run("nil", func(t *testing.T) {
 		t.Parallel()
-		if got := derefInt(nil); got != 0 {
-			t.Errorf("deref_int(nil) = %d, want 0", got)
-		}
+		assert.Zero(t, derefInt(nil))
 	})
 	t.Run("non-nil", func(t *testing.T) {
 		t.Parallel()
 		i := 42
-		if got := derefInt(&i); got != 42 {
-			t.Errorf("deref_int(&i) = %d, want 42", got)
-		}
+		assert.Equal(t, 42, derefInt(&i))
 	})
 }
 
@@ -112,17 +101,12 @@ func TestDerefStrings(t *testing.T) {
 
 	t.Run("nil", func(t *testing.T) {
 		t.Parallel()
-		if got := derefStrings(nil); got != nil {
-			t.Errorf("deref_strings(nil) = %v, want nil", got)
-		}
+		assert.Nil(t, derefStrings(nil))
 	})
 	t.Run("non-nil", func(t *testing.T) {
 		t.Parallel()
 		s := []string{"a", "b"}
-		got := derefStrings(&s)
-		if len(got) != 2 || got[0] != "a" || got[1] != "b" {
-			t.Errorf("deref_strings(&s) = %v, want [a b]", got)
-		}
+		assert.Equal(t, []string{"a", "b"}, derefStrings(&s))
 	})
 }
 
@@ -131,12 +115,10 @@ func TestNot(t *testing.T) {
 	funcs := templateFuncs()
 	not := funcs["not"].(func(bool) bool)
 
-	if not(true) {
-		t.Error("not(true) = true, want false")
-	}
-	if !not(false) {
-		t.Error("not(false) = false, want true")
-	}
+	trueResult := not(true)
+	falseResult := not(false)
+	assert.False(t, trueResult)
+	assert.True(t, falseResult)
 }
 
 func TestJoinStrings(t *testing.T) {
@@ -144,7 +126,6 @@ func TestJoinStrings(t *testing.T) {
 	funcs := templateFuncs()
 	joinStrings := funcs["join_strings"].(func([]string, string) string)
 
-	if got := joinStrings([]string{"a", "b", "c"}, ", "); got != "a, b, c" {
-		t.Errorf("join_strings = %q, want %q", got, "a, b, c")
-	}
+	joined := joinStrings([]string{"a", "b", "c"}, ", ")
+	assert.Equal(t, "a, b, c", joined)
 }

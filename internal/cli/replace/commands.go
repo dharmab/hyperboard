@@ -65,7 +65,7 @@ func replaceContent(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.ReplacePostContentWithBodyWithResponse(context.TODO(), types.ID(postID), "application/octet-stream", bytes.NewReader(data))
+	resp, err := c.ReplacePostContentWithBodyWithResponse(context.TODO(), types.ID(postID), mimeStr, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func replaceThumbnail(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.ReplacePostThumbnailWithBodyWithResponse(context.TODO(), types.ID(postID), "application/octet-stream", bytes.NewReader(data))
+	resp, err := c.ReplacePostThumbnailWithBodyWithResponse(context.TODO(), types.ID(postID), mimeStr, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

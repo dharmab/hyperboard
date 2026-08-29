@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient(t *testing.T) {
@@ -20,27 +23,21 @@ func TestNewClient(t *testing.T) {
 
 	app := &App{Config: &Config{APIURL: srv.URL, AdminPassword: "test"}}
 	c, err := app.NewClient()
-	if err != nil {
-		t.Fatalf("NewClient error: %v", err)
-	}
-	if c == nil {
-		t.Fatal("expected non-nil client")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, c)
 }
 
 func TestCheckResponse(t *testing.T) {
 	t.Parallel()
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
-		if err := CheckResponse(http.StatusOK, nil); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
+		err := CheckResponse(http.StatusOK, nil)
+		assert.NoError(t, err)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
-		if err := CheckResponse(http.StatusInternalServerError, []byte("bad")); err == nil {
-			t.Error("expected error for 500 status")
-		}
+		err := CheckResponse(http.StatusInternalServerError, []byte("bad"))
+		assert.Error(t, err)
 	})
 }
