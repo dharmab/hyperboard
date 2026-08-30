@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -187,18 +188,41 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	post := *resp.JSON200
+	var reloadedPost *types.Post
 
 	switch r.Method {
 	case http.MethodPost:
 		tagName := strings.TrimSpace(r.FormValue("q"))
-		if tagName != "" {
-			post.Tags = append(post.Tags, tagName)
-			putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
-			if err != nil || putResp.StatusCode() >= 400 {
-				http.Error(w, "Failed to add tag", http.StatusInternalServerError)
-				return
+		if tagName == "" {
+			break
+		}
+		if slices.Contains(post.Tags, tagName) {
+			break
+		}
+
+		post.Tags = append(post.Tags, tagName)
+		putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
+		if err == nil {
+			if putResp.StatusCode() < 400 {
+				break
 			}
 		}
+
+		reconcileResp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
+		if err != nil {
+			http.Error(w, "Failed to add tag", http.StatusInternalServerError)
+			return
+		}
+		postMissing := reconcileResp.JSON200 == nil
+		tagMissing := false
+		if !postMissing {
+			tagMissing = !slices.Contains(reconcileResp.JSON200.Tags, tagName)
+		}
+		if postMissing || tagMissing {
+			http.Error(w, "Failed to add tag", http.StatusInternalServerError)
+			return
+		}
+		reloadedPost = reconcileResp.JSON200
 	case http.MethodDelete:
 		tagToRemove := r.PathValue("tag")
 		newTags := []types.TagName{}
@@ -215,13 +239,18 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Re-fetch to get updated tags
-	reResp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
-	if err != nil || reResp.JSON200 == nil {
-		http.Error(w, "Failed to reload post", http.StatusInternalServerError)
-		return
+	if reloadedPost == nil {
+		reResp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
+		if err != nil || reResp.JSON200 == nil {
+			http.Error(w, "Failed to reload post", http.StatusInternalServerError)
+			return
+		}
+		reloadedPost = reResp.JSON200
 	}
-	a.renderTemplate(w, r, "post-tags", postData{Post: *reResp.JSON200, QuickTag: a.cfg.QuickTag, IsOOB: true})
+	if r.Method == http.MethodPost {
+		w.Header().Set("HX-Trigger", "postTagsUpdated")
+	}
+	a.renderTemplate(w, r, "post-tags", postData{Post: *reloadedPost, QuickTag: a.cfg.QuickTag, IsOOB: true})
 }
 
 func (a *app) handleSearchJSON(w http.ResponseWriter, r *http.Request) {

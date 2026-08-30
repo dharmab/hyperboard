@@ -8,13 +8,16 @@ function showError(msg) {
 }
 
 // Handle HTMX HTTP error responses (4xx, 5xx)
-document.body.addEventListener('htmx:responseError', function(e) {
-  var xhr = e.detail.xhr;
-  var msg = xhr.responseText || ('Request failed: HTTP ' + xhr.status);
+document.body.addEventListener('htmx:response:error', function(e) {
+  var ctx = e.detail.ctx;
+  ctx.swap = 'none';
+  var msg = ctx.text || ('Request failed: HTTP ' + ctx.response.status);
   showError(msg.trim());
 });
 
-// Handle HTMX network/send errors
-document.body.addEventListener('htmx:sendError', function(e) {
-  showError('Network error: could not reach server');
+// Handle HTMX request and swap failures
+document.body.addEventListener('htmx:error', function(e) {
+  var error = e.detail.error;
+  var msg = error && (error.message || String(error));
+  showError(msg || 'An unexpected error occurred');
 });

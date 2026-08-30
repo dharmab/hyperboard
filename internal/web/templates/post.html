@@ -9,7 +9,7 @@
 </div>
 <div class="post-media" id="post-media">
   {{if .IsVideo}}
-  <video controls loop src="/posts/{{.Post.ID}}/content"></video>
+  <video controls loop src="/posts/{{.Post.ID}}/content" hx-morph-skip></video>
   {{else}}
   <a href="/posts/{{.Post.ID}}/content"><img src="/posts/{{.Post.ID}}/content" alt="Post"></a>
   {{end}}
@@ -72,7 +72,7 @@
     {{range .Post.Tags}}
     <span class="badge" style="border-left-color: {{tagColor $.Post.TagColors .}}">
       <a href="/?search={{.}}" class="badge-link">{{.}}</a>
-      <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerHTML">×</a>
+      <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerMorph">×</a>
     </span>
     {{end}}
     {{if .Post.CascadingTags}}{{range deref_strings .Post.CascadingTags}}
@@ -91,7 +91,7 @@
       autocomplete="off"
       style="width:150px">
     <div class="ac-dropdown"></div>
-    <button class="btn" hx-post="/posts/{{.Post.ID}}/tags" hx-include="#tag-input" hx-target=".post-tags" hx-swap="outerHTML">Add</button>
+    <button class="btn" hx-post="/posts/{{.Post.ID}}/tags" hx-include="#tag-input" hx-target=".post-tags" hx-swap="outerMorph">Add</button>
   </div>
 </div>
 {{end}}

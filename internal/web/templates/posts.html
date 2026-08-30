@@ -4,12 +4,14 @@
 
 {{define "content"}}
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
-<form class="posts-controls" hx-get="/posts-partial" hx-push-url="true" hx-target="#posts-grid" hx-trigger="submit">
+<form class="posts-controls" hx-get="/posts-partial" hx-push-url:inherited="true" hx-target:inherited="#posts-grid" hx-trigger="submit" hx-swap:inherited="innerMorph">
   <div class="ac-wrapper" style="flex:1;min-width:200px">
     <input type="text" name="search" id="posts-search" placeholder="Search by tags (comma separated)…" value="{{.Search}}"
       hx-get="/tag-suggestions"
       hx-trigger="input changed delay:200ms"
       hx-target="next .ac-dropdown"
+      hx-push-url="false"
+      hx-swap="innerHTML"
       autocomplete="off">
     <div class="ac-dropdown"></div>
   </div>
@@ -31,7 +33,7 @@
 
 {{define "posts-items"}}
 {{range .Posts}}
-<div class="posts-item">
+<div class="posts-item" id="post-{{.ID}}">
   <a href="/posts/{{.ID}}">
     <img src="/posts/{{.ID}}/thumbnail" alt="Post {{.ID}}">
     {{if hasPrefix .MimeType "video/"}}<span class="video-indicator" aria-label="Video"></span>{{end}}
@@ -40,7 +42,7 @@
 {{end}}
 {{if .NextCursor}}
 <div hx-get="/posts-partial?cursor={{.NextCursor}}&search={{$.Search}}"
-     hx-trigger="intersect root-margin:0px 0px 100% 0px"
+     hx-trigger="intersect rootMargin:0px 0px 100% 0px"
      hx-swap="outerHTML"
      hx-target="this">
 </div>
