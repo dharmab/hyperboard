@@ -1,4 +1,4 @@
-.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck start stop ci clean
+.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck lint-tilt start stop ci clean
 
 .DEFAULT_GOAL := help
 
@@ -35,6 +35,9 @@ coverage: ## Run tests with coverage report
 govulncheck: ## Run govulncheck
 	go tool govulncheck ./...
 
+lint-tilt: ## Validate the Tiltfile
+	tilt alpha tiltfile-result >/dev/null
+
 start: ## Start local development environment (k3d + Tilt)
 	k3d registry create hyperboard
 	k3d cluster create hyperboard --registry-use hyperboard --wait
@@ -45,7 +48,7 @@ stop: ## Stop and tear down local development environment
 	k3d cluster delete hyperboard
 	k3d registry delete hyperboard
 
-ci: build-images lint test ## Run CI pipeline (build, lint, test)
+ci: build-images lint test lint-tilt ## Run CI pipeline (build, lint, test, Tiltfile validation)
 
 clean: ## Remove generated files and built binaries
 	find . -name 'gen.go' -delete
