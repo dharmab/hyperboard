@@ -2,7 +2,7 @@
 Description=Hyperboard RustFS (S3-compatible storage)
 
 [Container]
-Image=docker.io/rustfs/rustfs:1.0.0-alpha.85
+Image=docker.io/rustfs/rustfs:1.0.0-rc.4
 ContainerName=hyperboard-rustfs
 Pod=hyperboard.pod
 Volume=${HYPERBOARD_RUSTFS_DATA_DIR}:/data
