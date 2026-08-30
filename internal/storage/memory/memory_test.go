@@ -27,6 +27,10 @@ func TestStorage_UploadDownloadRoundTrip(t *testing.T) {
 	assert.Equal(t, data, got)
 	assert.Equal(t, contentType, obj.ContentType)
 	assert.Equal(t, int64(len(data)), obj.ContentLength)
+
+	size, err := s.Size(ctx, "key1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(data)), size)
 }
 
 func TestStorage_DownloadNonexistent(t *testing.T) {

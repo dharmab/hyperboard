@@ -40,6 +40,17 @@ func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType
 	return "http://fake-storage/" + key, nil
 }
 
+// Size returns the size of an object without retrieving its contents.
+func (s *Storage) Size(_ context.Context, key string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.objects[key]
+	if !ok {
+		return 0, fmt.Errorf("object not found: %s", key)
+	}
+	return int64(len(entry.data)), nil
+}
+
 // Download retrieves data from memory by key.
 func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error) {
 	s.mu.Lock()

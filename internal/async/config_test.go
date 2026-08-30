@@ -22,6 +22,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, leaderelection.Postgres, cfg.LeaderElection.Backend)
 	assert.Equal(t, "hyperboard-async", cfg.LeaderElection.LockName)
+	assert.Empty(t, cfg.ObjectStore.Endpoint)
 	assert.Equal(t, 100*time.Millisecond, cfg.Controller.MinInterval)
 	assert.Equal(t, time.Hour, cfg.Controller.MaxInterval)
 }

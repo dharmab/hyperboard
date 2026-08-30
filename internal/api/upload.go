@@ -209,6 +209,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		HasAudio:     hasAudioVal,
 		SHA256:       hashHex,
 		Phash:        phash,
+		FileSize:     int64(len(contentData)),
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	})
@@ -352,6 +353,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		HasAudio:     hasAudioVal,
 		SHA256:       hashHex,
 		Phash:        phash,
+		FileSize:     int64(len(contentData)),
 		UpdatedAt:    now,
 	})
 	if err != nil {

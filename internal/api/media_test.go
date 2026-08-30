@@ -318,6 +318,7 @@ func assertPostPersistenceAndRoute(t *testing.T, sqlStore store.SQLStore, handle
 	assert.Equal(t, want.ThumbnailUrl, model.ThumbnailURL)
 	assert.Equal(t, want.Note, model.Note)
 	assert.Equal(t, want.HasAudio, model.HasAudio)
+	assert.True(t, model.FileSize.Valid)
 	assert.WithinDuration(t, want.CreatedAt, model.CreatedAt, 0)
 	assert.WithinDuration(t, want.UpdatedAt, model.UpdatedAt, 0)
 	response := performMediaRequest(handler, http.MethodGet, "/api/v1/posts/"+postID.String(), nil, "")
@@ -327,6 +328,10 @@ func assertPostPersistenceAndRoute(t *testing.T, sqlStore store.SQLStore, handle
 	var routed types.Post
 	decodeJSON(t, response.Body.Bytes(), &routed)
 	assert.Equal(t, want, routed)
+
+	contentResponse := performMediaRequest(handler, http.MethodGet, "/api/v1/posts/"+postID.String()+"/content", nil, "")
+	require.Equal(t, http.StatusOK, contentResponse.Code, "body = %q", contentResponse.Body.String())
+	assert.Equal(t, int64(contentResponse.Body.Len()), model.FileSize.V)
 }
 
 func encodeTestGIF(t *testing.T, fill color.Color) []byte {
