@@ -30,7 +30,7 @@ type postgresFileSizeRepository struct {
 func (r postgresFileSizeRepository) NextPostWithoutFileSize(ctx context.Context) (*fileSizePost, error) {
 	var post fileSizePost
 	err := r.pool.QueryRow(ctx,
-		"SELECT id::text, content_url FROM posts WHERE file_size IS NULL ORDER BY created_at, id LIMIT 1",
+		"SELECT id::text, content_url FROM posts WHERE file_size IS NULL AND deleted_at IS NULL ORDER BY created_at, id LIMIT 1",
 	).Scan(&post.ID, &post.ContentURL)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -43,7 +43,7 @@ func (r postgresFileSizeRepository) NextPostWithoutFileSize(ctx context.Context)
 
 func (r postgresFileSizeRepository) SetPostFileSize(ctx context.Context, id string, size int64) error {
 	_, err := r.pool.Exec(ctx,
-		"UPDATE posts SET file_size = $1 WHERE id = $2 AND file_size IS NULL",
+		"UPDATE posts SET file_size = $1 WHERE id = $2 AND file_size IS NULL AND deleted_at IS NULL",
 		size, id,
 	)
 	return err
@@ -63,7 +63,7 @@ func (c fileSizeController) Reconcile(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	key, err := storageKeyFromContentURL(post.ContentURL)
+	key, err := storageKeyFromURL(post.ContentURL)
 	if err != nil {
 		return false, fmt.Errorf("determine storage key for post %s: %w", post.ID, err)
 	}
@@ -78,8 +78,8 @@ func (c fileSizeController) Reconcile(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func storageKeyFromContentURL(contentURL string) (string, error) {
-	parsed, err := url.Parse(contentURL)
+func storageKeyFromURL(mediaURL string) (string, error) {
+	parsed, err := url.Parse(mediaURL)
 	if err != nil {
 		return "", err
 	}

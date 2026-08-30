@@ -751,8 +751,8 @@ func TestPostsReadUpdateDelete(t *testing.T) {
 
 	missingResponse := performRequest(handler, http.MethodGet, postPath, "", true)
 	assert.Equalf(t, http.StatusNotFound, missingResponse.Code, "get deleted status = %d, want %d", missingResponse.Code, http.StatusNotFound)
-	assertMediaMissing(t, server, contentKey)
-	assertMediaMissing(t, server, thumbnailKey)
+	assertMediaPresent(t, server, contentKey)
+	assertMediaPresent(t, server, thumbnailKey)
 }
 
 func TestPutPostRejectsBodyPathIDMismatch(t *testing.T) {
@@ -796,14 +796,11 @@ func assertPostMatchesModel(t *testing.T, post types.Post, model *models.Post) {
 	assert.WithinDuration(t, model.UpdatedAt, post.UpdatedAt, 0)
 }
 
-func assertMediaMissing(t *testing.T, server *Server, key string) {
+func assertMediaPresent(t *testing.T, server *Server, key string) {
 	t.Helper()
 	media, err := server.mediaStore.Download(t.Context(), key)
-	if assert.Error(t, err, "media %q still exists after post deletion", key) {
-		return
-	}
-	closeErr := media.Body.Close()
-	require.NoError(t, closeErr)
+	require.NoError(t, err, "media %q was removed before asynchronous cleanup", key)
+	require.NoError(t, media.Body.Close())
 }
 
 type searchPostFixture struct {
