@@ -116,17 +116,30 @@ func (st *Storage) Upload(ctx context.Context, key string, data []byte, contentT
 
 // Size returns the file size of an object in bytes.
 func (st *Storage) Size(ctx context.Context, key string) (int64, error) {
+	metadata, err := st.Metadata(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	return metadata.ContentLength, nil
+}
+
+// Metadata describes an object without retrieving its contents.
+func (st *Storage) Metadata(ctx context.Context, key string) (*storage.Metadata, error) {
 	out, err := st.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(st.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("head object %s: %w", key, err)
+		return nil, fmt.Errorf("head object %s: %w", key, err)
 	}
 	if out.ContentLength == nil {
-		return 0, fmt.Errorf("head object %s: response has no content length", key)
+		return nil, fmt.Errorf("head object %s: response has no content length", key)
 	}
-	return *out.ContentLength, nil
+	contentType := "application/octet-stream"
+	if out.ContentType != nil {
+		contentType = *out.ContentType
+	}
+	return &storage.Metadata{ContentType: contentType, ContentLength: *out.ContentLength}, nil
 }
 
 // Download retrieves an object by key.
@@ -146,7 +159,36 @@ func (st *Storage) Download(ctx context.Context, key string) (*storage.Media, er
 	if out.ContentLength != nil {
 		cl = *out.ContentLength
 	}
-	return &storage.Media{Body: out.Body, ContentType: ct, ContentLength: cl}, nil
+	return &storage.Media{
+		Body:          out.Body,
+		ContentType:   ct,
+		ContentLength: cl,
+	}, nil
+}
+
+// DownloadRange retrieves an inclusive byte range from an object.
+func (st *Storage) DownloadRange(ctx context.Context, key string, start, end int64) (*storage.Media, error) {
+	out, err := st.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(st.bucket),
+		Key:    aws.String(key),
+		Range:  aws.String(fmt.Sprintf("bytes=%d-%d", start, end)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("download range %s bytes=%d-%d: %w", key, start, end, err)
+	}
+	contentType := "application/octet-stream"
+	if out.ContentType != nil {
+		contentType = *out.ContentType
+	}
+	contentLength := end - start + 1
+	if out.ContentLength != nil {
+		contentLength = *out.ContentLength
+	}
+	return &storage.Media{
+		Body:          out.Body,
+		ContentType:   contentType,
+		ContentLength: contentLength,
+	}, nil
 }
 
 // Delete removes an object at the given key.

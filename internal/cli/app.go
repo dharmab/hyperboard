@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -54,6 +55,13 @@ func NewApp() *App {
 			viper.SetConfigFile(a.configPath)
 			if err := viper.ReadInConfig(); err != nil {
 				_, _ = os.Stderr.WriteString("Warning: failed to read config file: " + err.Error() + "\n")
+			}
+		}
+		for _, name := range []string{"api-url", "admin-password"} {
+			if value := viper.GetString(name); value != "" {
+				if err := a.RootCmd.PersistentFlags().Set(name, value); err != nil {
+					log.Fatal().Err(err).Str("flag", name).Msg("Failed to set required flag from configuration")
+				}
 			}
 		}
 	})

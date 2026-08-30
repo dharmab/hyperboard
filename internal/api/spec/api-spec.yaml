@@ -342,9 +342,9 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/posts/{id}/content:
-    get:
-      operationId: getPostContent
-      summary: Stream a post's content file.
+    head:
+      operationId: headPostContent
+      summary: Retrieve a post content file's headers without downloading its body.
       parameters:
         - $ref: "#/components/parameters/id"
       responses:
@@ -358,6 +358,30 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    get:
+      operationId: getPostContent
+      summary: Stream a post's content file.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PostContentResponse"
+        "206":
+          $ref: "#/components/responses/PostContentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "416":
+          $ref: "#/components/responses/RequestedRangeNotSatisfiableResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -399,6 +423,8 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/PostContentDownloadResponse"
+        "206":
+          $ref: "#/components/responses/PostContentDownloadResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -407,6 +433,8 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "416":
+          $ref: "#/components/responses/RequestedRangeNotSatisfiableResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -420,6 +448,8 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/PostContentResponse"
+        "206":
+          $ref: "#/components/responses/PostContentResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -428,6 +458,8 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "416":
+          $ref: "#/components/responses/RequestedRangeNotSatisfiableResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -850,6 +882,17 @@ components:
             $ref: "#/components/schemas/Error"
     InternalServerErrorResponse:
       description: An unexpected server error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RequestedRangeNotSatisfiableResponse:
+      description: The requested media byte range is invalid or outside the stored object.
+      headers:
+        Content-Range:
+          description: The complete stored object length in the form `bytes */length`.
+          schema:
+            type: string
       content:
         application/json:
           schema:

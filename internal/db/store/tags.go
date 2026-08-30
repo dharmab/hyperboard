@@ -494,6 +494,7 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID
 	if err != nil {
 		return err
 	}
+	seenTargetIDs := make(map[gofrs.UUID]struct{}, len(cascades))
 	for _, name := range cascades {
 		name = strings.TrimSpace(name)
 		if name == "" {
@@ -516,13 +517,18 @@ func (s *PostgresSQLStore) setTagCascades(ctx context.Context, tx *sql.Tx, tagID
 			return err
 		}
 
-		// Prevent self-cascade
+		// Prevent self-cascades and make duplicate names or aliases resolving to
+		// the same canonical tag idempotent.
 		if targetID == tagID {
 			continue
 		}
+		if _, exists := seenTargetIDs[targetID]; exists {
+			continue
+		}
+		seenTargetIDs[targetID] = struct{}{}
 
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO tag_cascades (tag_id, cascaded_tag_id) VALUES ($1, $2)",
+			"INSERT INTO tag_cascades (tag_id, cascaded_tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
 			tagID, targetID,
 		)
 		if err != nil {
@@ -601,6 +607,36 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 
 	// Delete remaining source associations
 	_, err = tx.ExecContext(ctx, "DELETE FROM posts_tags WHERE tag_id = $1", sourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge outgoing source cascades into the target. Existing target edges are
+	// preserved, collisions are ignored, and source-to-target would become a
+	// self-cascade so it is intentionally omitted.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO tag_cascades (tag_id, cascaded_tag_id)
+		 SELECT $1, cascaded_tag_id
+		 FROM tag_cascades
+		 WHERE tag_id = $2 AND cascaded_tag_id <> $1
+		 ON CONFLICT DO NOTHING`,
+		targetID, sourceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge incoming source cascades into the target. Existing incoming edges
+	// are preserved, collisions are ignored, and target-to-source would become
+	// a self-cascade so it is intentionally omitted.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO tag_cascades (tag_id, cascaded_tag_id)
+		 SELECT tag_id, $1
+		 FROM tag_cascades
+		 WHERE cascaded_tag_id = $2 AND tag_id <> $1
+		 ON CONFLICT DO NOTHING`,
+		targetID, sourceID,
+	)
 	if err != nil {
 		return nil, err
 	}

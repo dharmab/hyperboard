@@ -19,4 +19,5 @@ func TestHandleUpload_GET(t *testing.T) {
 	app.handleUpload(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `<input type="file" id="file-input" name="files"`)
 }

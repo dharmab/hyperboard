@@ -408,7 +408,9 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 		return nil, err
 	}
 
-	// Insert tags
+	// Insert tags, deduplicating after alias resolution so repeated inputs and
+	// distinct aliases for the same canonical tag are idempotent.
+	seenTagIDs := make(map[gofrs.UUID]struct{}, len(tagNames))
 	for _, tagName := range tagNames {
 		resolvedName, resolveErr := s.resolveAliasWithTx(ctx, tx, tagName)
 		if resolveErr != nil {
@@ -427,8 +429,12 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 		if err != nil {
 			return nil, err
 		}
+		if _, exists := seenTagIDs[tagID]; exists {
+			continue
+		}
+		seenTagIDs[tagID] = struct{}{}
 
-		_, err = tx.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2)", gofrs.UUID(id), tagID)
+		_, err = tx.ExecContext(ctx, "INSERT INTO posts_tags (post_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", gofrs.UUID(id), tagID)
 		if err != nil {
 			return nil, err
 		}

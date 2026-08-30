@@ -47,7 +47,7 @@ func NewCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file")
 	if err := bindConfig(cmd, values); err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Failed to bind configuration flags")
 	}
 	return cmd
 }

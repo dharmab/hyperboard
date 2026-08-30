@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"uuid"
@@ -70,6 +71,90 @@ func TestMediaLifecycle(t *testing.T) {
 	assertPostPersistenceAndRoute(t, sqlStore, handler, regenerated)
 	regeneratedThumbnail := assertRoutedMediaResponse(t, handler, postPath+"/thumbnail", "image/webp", "")
 	assert.NotEqual(t, customThumbnail, regeneratedThumbnail)
+}
+
+type trackingMediaStore struct {
+	storage.MediaStore
+	metadataCalls int
+	downloadCalls int
+	rangeCalls    int
+}
+
+func (s *trackingMediaStore) Metadata(ctx context.Context, key string) (*storage.Metadata, error) {
+	s.metadataCalls++
+	return s.MediaStore.Metadata(ctx, key)
+}
+
+func (s *trackingMediaStore) Download(ctx context.Context, key string) (*storage.Media, error) {
+	s.downloadCalls++
+	return s.MediaStore.Download(ctx, key)
+}
+
+func (s *trackingMediaStore) DownloadRange(ctx context.Context, key string, start, end int64) (*storage.Media, error) {
+	s.rangeCalls++
+	return s.MediaStore.DownloadRange(ctx, key, start, end)
+}
+
+func (s *trackingMediaStore) resetCalls() {
+	s.metadataCalls = 0
+	s.downloadCalls = 0
+	s.rangeCalls = 0
+}
+
+func TestMediaHeadAndRanges(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	memoryStore := memory.New()
+	mediaStore := &trackingMediaStore{MediaStore: memoryStore}
+	server := NewServer(sqlStore, mediaStore)
+	handler := newTestHandlerForServer(t, server)
+	created := uploadTestMedia(t, handler, encodeTestPNG(t, color.RGBA{R: 20, G: 80, B: 160, A: 255}), "image/png")
+	postID := uuid.UUID(created.Post.ID)
+	path := "/api/v1/posts/" + postID.String() + "/content"
+
+	stored, err := memoryStore.Download(t.Context(), storageKeyForContent(postID, created.Post.MimeType))
+	require.NoError(t, err)
+	content, err := io.ReadAll(stored.Body)
+	require.NoError(t, err)
+	require.NoError(t, stored.Body.Close())
+	require.Greater(t, len(content), 4)
+
+	mediaStore.resetCalls()
+	head := performMediaRequest(handler, http.MethodHead, path, nil, "")
+	require.Equal(t, http.StatusOK, head.Code, "body = %q", head.Body.String())
+	assert.Empty(t, head.Body.Bytes())
+	assert.Equal(t, strconv.Itoa(len(content)), head.Header().Get("Content-Length"))
+	assert.Equal(t, "bytes", head.Header().Get("Accept-Ranges"))
+	assert.Equal(t, 1, mediaStore.metadataCalls)
+	assert.Zero(t, mediaStore.downloadCalls)
+	assert.Zero(t, mediaStore.rangeCalls)
+
+	mediaStore.resetCalls()
+	rangeRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+	rangeRequest.SetBasicAuth("any-user", testPassword)
+	rangeRequest.Header.Set("Range", "bytes=1-3")
+	rangeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(rangeResponse, rangeRequest)
+	require.Equal(t, http.StatusPartialContent, rangeResponse.Code, "body = %q", rangeResponse.Body.String())
+	assert.Equal(t, content[1:4], rangeResponse.Body.Bytes())
+	assert.Equal(t, "3", rangeResponse.Header().Get("Content-Length"))
+	assert.Equal(t, fmt.Sprintf("bytes 1-3/%d", len(content)), rangeResponse.Header().Get("Content-Range"))
+	assert.Equal(t, 1, mediaStore.metadataCalls)
+	assert.Zero(t, mediaStore.downloadCalls)
+	assert.Equal(t, 1, mediaStore.rangeCalls)
+
+	mediaStore.resetCalls()
+	invalidRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+	invalidRequest.SetBasicAuth("any-user", testPassword)
+	invalidRequest.Header.Set("Range", fmt.Sprintf("bytes=%d-", len(content)))
+	invalidResponse := httptest.NewRecorder()
+	handler.ServeHTTP(invalidResponse, invalidRequest)
+	require.Equal(t, http.StatusRequestedRangeNotSatisfiable, invalidResponse.Code, "body = %q", invalidResponse.Body.String())
+	assert.Equal(t, fmt.Sprintf("bytes */%d", len(content)), invalidResponse.Header().Get("Content-Range"))
+	assert.Equal(t, 1, mediaStore.metadataCalls)
+	assert.Zero(t, mediaStore.downloadCalls)
+	assert.Zero(t, mediaStore.rangeCalls)
 }
 
 func TestMediaProcessingErrorStatus(t *testing.T) {

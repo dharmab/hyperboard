@@ -42,7 +42,16 @@ func NewCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file")
 	bindConfig(cmd)
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(func() {
+		initConfig()
+		for _, name := range []string{"admin-password", "session-secret"} {
+			if value := viper.GetString(name); value != "" {
+				if err := cmd.Flags().Set(name, value); err != nil {
+					log.Fatal().Err(err).Str("flag", name).Msg("Failed to set required flag from configuration")
+				}
+			}
+		}
+	})
 	return cmd
 }
 

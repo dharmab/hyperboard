@@ -196,6 +196,77 @@ func TestConvertTagToAlias(t *testing.T) {
 	assert.Equal(t, targetName, (*tags.Items)[0].Name)
 }
 
+func TestCascadingTagUpdatesDeduplicateCanonicalTargets(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	handler := newTestHandlerForServer(t, NewServer(sqlStore, memory.New()))
+	suffix := uuid.NewV4().String()[:8]
+	target := "cascade-target-" + suffix
+	aliasOne := "cascade-alias-one-" + suffix
+	aliasTwo := "cascade-alias-two-" + suffix
+	source := "cascade-source-" + suffix
+
+	response := performRequest(handler, http.MethodPut, "/api/v1/tags/"+target,
+		`{"name":"`+target+`","aliases":["`+aliasOne+`","`+aliasTwo+`"]}`, true)
+	require.Equal(t, http.StatusCreated, response.Code, "create target body: %s", response.Body.String())
+	response = performRequest(handler, http.MethodPut, "/api/v1/tags/"+source,
+		`{"name":"`+source+`","cascadingTags":["`+target+`","`+target+`","`+aliasOne+`","`+aliasTwo+`"]}`, true)
+	require.Equal(t, http.StatusCreated, response.Code, "create source body: %s", response.Body.String())
+
+	var created types.Tag
+	decodeJSON(t, response.Body.Bytes(), &created)
+	require.NotNil(t, created.CascadingTags)
+	assert.Equal(t, []string{target}, *created.CascadingTags)
+}
+
+func TestConvertTagToAliasMergesCascadeEdges(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	now := time.Now().UTC()
+	suffix := uuid.NewV4().String()[:8]
+	source := "merge-source-" + suffix
+	target := "merge-target-" + suffix
+	outgoingOnly := "merge-outgoing-only-" + suffix
+	outgoingCollision := "merge-outgoing-collision-" + suffix
+	targetExisting := "merge-target-existing-" + suffix
+	incomingOnly := "merge-incoming-only-" + suffix
+	incomingCollision := "merge-incoming-collision-" + suffix
+
+	ids := make(map[string]uuid.UUID)
+	for _, name := range []string{source, target, outgoingOnly, outgoingCollision, targetExisting, incomingOnly, incomingCollision} {
+		tag, _, err := sqlStore.UpsertTag(t.Context(), name, store.TagInput{Name: name}, now)
+		require.NoError(t, err, "create tag %q", name)
+		ids[name] = uuid.UUID(tag.ID)
+	}
+	for _, input := range []struct {
+		name     string
+		cascades []string
+	}{
+		{name: source, cascades: []string{target, outgoingOnly, outgoingCollision}},
+		{name: target, cascades: []string{source, targetExisting, outgoingCollision}},
+		{name: incomingOnly, cascades: []string{source}},
+		{name: incomingCollision, cascades: []string{source, target}},
+	} {
+		_, created, err := sqlStore.UpsertTag(t.Context(), input.name, store.TagInput{Name: input.name, CascadingTags: input.cascades}, now)
+		require.NoError(t, err, "set cascades for %q", input.name)
+		assert.False(t, created)
+	}
+
+	_, err := sqlStore.ConvertTagToAlias(t.Context(), source, target)
+	require.NoError(t, err)
+
+	_, err = sqlStore.GetTag(t.Context(), source)
+	require.ErrorIs(t, err, store.ErrNotFound)
+	cascades, err := sqlStore.GetTagCascades(t.Context(), ids[target], ids[incomingOnly], ids[incomingCollision])
+	require.NoError(t, err)
+	assert.Equal(t, []string{outgoingCollision, outgoingOnly, targetExisting}, cascades[ids[target]])
+	assert.Equal(t, []string{target}, cascades[ids[incomingOnly]])
+	assert.Equal(t, []string{target}, cascades[ids[incomingCollision]])
+	assert.NotContains(t, cascades[ids[target]], target, "conversion must not create a target self-cascade")
+}
+
 func TestConvertTagToAliasPreservesStateAfterStoreFailure(t *testing.T) {
 	t.Parallel()
 
