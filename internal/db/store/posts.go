@@ -30,7 +30,7 @@ type PostStore interface {
 	UpdatePostContent(ctx context.Context, id uuid.UUID, input UpdatePostContentInput) (*models.Post, error)
 	// UpdatePostThumbnail replaces a post's thumbnail URL.
 	UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error)
-	// SoftDeletePost marks a post for asynchronous media and record removal.
+	// SoftDeletePost marks a post as deleted.
 	SoftDeletePost(ctx context.Context, id uuid.UUID, deletedAt time.Time) (*models.Post, error)
 	// FindPostBySHA256 looks up a post by its content hash for deduplication.
 	FindPostBySHA256(ctx context.Context, hash string) (*models.Post, error)
