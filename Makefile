@@ -1,4 +1,4 @@
-.PHONY: help install-deps build-images generate lint format test coverage govulncheck start stop ci clean
+.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck start stop ci clean
 
 .DEFAULT_GOAL := help
 
@@ -8,9 +8,9 @@ help: ## Show available targets
 install-deps: ## Install development dependencies via Homebrew
 	brew install go k3d tilt
 
-build-images: build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboardctl ## Build all container images
+build-images: build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboardctl ## Build all container images
 
-build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboardctl:
+build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboardctl:
 	docker build -f build/Containerfile --target $(@:build-image-%=%) -t $(@:build-image-%=%):latest .
 
 generate: ## Regenerate code from database schema and OpenAPI specs
@@ -49,4 +49,4 @@ ci: build-images lint test ## Run CI pipeline (build, lint, test)
 
 clean: ## Remove generated files and built binaries
 	find . -name 'gen.go' -delete
-	rm -f bin/hyperboard-api bin/hyperboard-web bin/hyperboardctl
+	rm -f bin/hyperboard-api bin/hyperboard-async bin/hyperboard-web bin/hyperboardctl

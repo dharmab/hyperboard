@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hyperboard-async
+  labels:
+    app.kubernetes.io/name: hyperboard-async
+    app.kubernetes.io/part-of: hyperboard
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: hyperboard-async
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hyperboard-async
+  labels:
+    app.kubernetes.io/name: hyperboard-async
+    app.kubernetes.io/part-of: hyperboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hyperboard-async
+  labels:
+    app.kubernetes.io/name: hyperboard-async
+    app.kubernetes.io/part-of: hyperboard
+rules:
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hyperboard-async
+  labels:
+    app.kubernetes.io/name: hyperboard-async
+    app.kubernetes.io/part-of: hyperboard
+subjects:
+  - kind: ServiceAccount
+    name: hyperboard-async
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hyperboard-async
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hyperboard-async
+  labels:
+    app.kubernetes.io/name: hyperboard-async
+    app.kubernetes.io/part-of: hyperboard
+spec:
+  serviceName: hyperboard-async
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hyperboard-async
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hyperboard-async
+        app.kubernetes.io/part-of: hyperboard
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: hyperboard-async
+      containers:
+        - name: hyperboard-async
+          image: hyperboard-async
+          args:
+            - --leader-election=kubernetes
+            - --postgresql-host=postgresql
+            - --postgresql-user=postgres
+            - --postgresql-database=postgres
+            - --postgresql-ssl-mode=disable
+            - --postgresql-password=postgres
+            - --log-level=debug
+          env:
+            - name: HYPERBOARD_ASYNC_LEADER_ELECTION_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HYPERBOARD_ASYNC_LEADER_ELECTION_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
