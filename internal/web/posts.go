@@ -193,18 +193,36 @@ func (a *app) handlePostTags(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		tagName := strings.TrimSpace(r.FormValue("q"))
-		if tagName != "" && !slices.Contains(post.Tags, tagName) {
-			post.Tags = append(post.Tags, tagName)
-			putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
-			if err != nil || putResp.StatusCode() >= 400 {
-				reconcileResp, reconcileErr := a.api.GetPostWithResponse(ctx, types.ID(postID))
-				if reconcileErr != nil || reconcileResp.JSON200 == nil || !slices.Contains(reconcileResp.JSON200.Tags, tagName) {
-					http.Error(w, "Failed to add tag", http.StatusInternalServerError)
-					return
-				}
-				reloadedPost = reconcileResp.JSON200
+		if tagName == "" {
+			break
+		}
+		if slices.Contains(post.Tags, tagName) {
+			break
+		}
+
+		post.Tags = append(post.Tags, tagName)
+		putResp, err := a.api.PutPostWithResponse(ctx, types.ID(postID), client.NewPostUpdateRequest(post))
+		if err == nil {
+			if putResp.StatusCode() < 400 {
+				break
 			}
 		}
+
+		reconcileResp, err := a.api.GetPostWithResponse(ctx, types.ID(postID))
+		if err != nil {
+			http.Error(w, "Failed to add tag", http.StatusInternalServerError)
+			return
+		}
+		postMissing := reconcileResp.JSON200 == nil
+		tagMissing := false
+		if !postMissing {
+			tagMissing = !slices.Contains(reconcileResp.JSON200.Tags, tagName)
+		}
+		if postMissing || tagMissing {
+			http.Error(w, "Failed to add tag", http.StatusInternalServerError)
+			return
+		}
+		reloadedPost = reconcileResp.JSON200
 	case http.MethodDelete:
 		tagToRemove := r.PathValue("tag")
 		newTags := []types.TagName{}
