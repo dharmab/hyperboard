@@ -26,9 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: tilt-dev/setup-tilt@v1
-        with:
-          version: 0.37.7
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://github.com/tilt-dev/tilt/releases/download/v0.37.7/tilt.0.37.7.linux.x86_64.tar.gz -o /tmp/tilt.tar.gz
+          echo "b695193fab68def8310cb971fa60bbe47ba0a782e24f54ebad287c13316a61b0  /tmp/tilt.tar.gz" | sha256sum --check
+          sudo tar -xzf /tmp/tilt.tar.gz -C /usr/local/bin tilt
       - run: make lint-tilt
 
   test:
