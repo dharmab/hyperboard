@@ -1,0 +1,20 @@
+[Unit]
+Description=Hyperboard Async Controller
+After=hyperboard-postgresql.service
+Requires=hyperboard-postgresql.service
+
+[Container]
+Image=ghcr.io/dharmab/hyperboard-async:main
+ContainerName=hyperboard-async
+Pod=hyperboard.pod
+Environment=HYPERBOARD_ASYNC_LEADER_ELECTION=postgres
+Environment=HYPERBOARD_ASYNC_POSTGRESQL_HOST=localhost
+Environment=HYPERBOARD_ASYNC_POSTGRESQL_USER=${HYPERBOARD_DB_USER}
+Environment=HYPERBOARD_ASYNC_POSTGRESQL_PASSWORD=${HYPERBOARD_DB_PASSWORD}
+Environment=HYPERBOARD_ASYNC_POSTGRESQL_DATABASE=${HYPERBOARD_DB_NAME}
+Environment=HYPERBOARD_ASYNC_POSTGRESQL_SSL_MODE=disable
+Environment=HYPERBOARD_ASYNC_LOG_LEVEL=info
+
+[Service]
+EnvironmentFile=/etc/hyperboard/hyperboard.env
+Restart=always

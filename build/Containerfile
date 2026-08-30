@@ -21,6 +21,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-async ./cmd/hyperboard-async
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/hyperboard-web ./cmd/hyperboard-web
 
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -36,6 +40,10 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /bin/hyperboard-api /hyperboard-api
 ENTRYPOINT ["/hyperboard-api"]
+
+FROM gcr.io/distroless/static-debian13:debug AS hyperboard-async
+COPY --from=builder /bin/hyperboard-async /hyperboard-async
+ENTRYPOINT ["/hyperboard-async"]
 
 FROM gcr.io/distroless/static-debian13:debug AS hyperboard-web
 COPY --from=builder /bin/hyperboard-web /hyperboard-web

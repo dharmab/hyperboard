@@ -54,6 +54,7 @@ jobs:
       matrix:
         image:
           - hyperboard-api
+          - hyperboard-async
           - hyperboard-web
           - hyperboardctl
     env:
