@@ -30,17 +30,18 @@ def container_build_with_restart(name):
     )
 
 api='hyperboard-api'
-async='hyperboard-async'
+# "async" is a reserved keyword in Starlark.
+asyncctl='hyperboard-async'
 web='hyperboard-web'
 db='postgresql'
 s3='rustfs'
 cli='hyperboardctl'
 
 go_build(cli, 'darwin', 'arm64') # (re)build the CLI automatically
-for name in [api, async, web]:
+for name in [api, asyncctl, web]:
     go_build(name, 'linux', 'amd64') # (re)build the server binaries automatically
     container_build_with_restart(name) # (re)build the server container images automatically
-for name in [api, async, web, db, s3]:
+for name in [api, asyncctl, web, db, s3]:
     k8s_yaml("deploy/tilt/{}.yaml".format(name)) # continuously deploy the server, database, and S3 store manifests
 
 # TCP ports that are bound on the host machine.
@@ -65,7 +66,7 @@ k8s_resource(
     resource_deps=[db, s3], # Wait to start the API until the database and S3 store are ready
 )
 k8s_resource(
-    workload=async,
+    workload=asyncctl,
     resource_deps=[db], # Wait to start the controller manager until the database is ready
 )
 k8s_resource(

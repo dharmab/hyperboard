@@ -22,6 +22,15 @@ jobs:
       - run: gofmt -s -w .
       - run: git diff --exit-code
 
+  tiltfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: tilt-dev/setup-tilt@v1
+        with:
+          version: 0.37.7
+      - run: make lint-tilt
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -43,7 +52,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    needs: [style, test, lint]
+    needs: [style, tiltfile, test, lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read
