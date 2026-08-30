@@ -145,6 +145,30 @@ func TestParseSearch(t *testing.T) {
 			},
 		},
 		{
+			name:  "exclude image type",
+			input: "-type:image",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				ExcludeImage: true,
+			},
+		},
+		{
+			name:  "exclude video type",
+			input: "-type:video",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				ExcludeVideo: true,
+			},
+		},
+		{
+			name:  "exclude audio type",
+			input: "-type:audio",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				ExcludeAudio: true,
+			},
+		},
+		{
 			name:  "order asc",
 			input: "order:asc",
 			expect: search.Query{
@@ -290,6 +314,9 @@ func FuzzParseSearch(f *testing.F) {
 		"type:image",
 		"type:video",
 		"type:audio",
+		"-type:image",
+		"-type:video",
+		"-type:audio",
 		"-nsfw",
 		"landscape,-nsfw,sort:random,tagged:true,type:image",
 		"landscape,,portrait,",
@@ -831,7 +858,7 @@ func TestPostSearchSortingDatesAndTypes(t *testing.T) {
 	imageID := add(base, base.Add(3*time.Hour), "image/webp", false)
 	videoID := add(base.Add(time.Hour), base.Add(time.Hour), "video/mp4", true)
 	audioImageID := add(base.Add(2*time.Hour), base.Add(2*time.Hour), "image/gif", true)
-	tiedID := add(base, base.Add(3*time.Hour), "video/webm", false)
+	tiedID := add(base.Add(3*time.Hour), base.Add(4*time.Hour), "video/webm", false)
 
 	for _, tc := range []struct {
 		name   string
@@ -844,9 +871,13 @@ func TestPostSearchSortingDatesAndTypes(t *testing.T) {
 		{name: "updated descending", search: "sort:updated,order:desc", want: sortedFixtureIDs(fixtures, true, false)},
 		{name: "exclusive date range", search: "sort:created,order:asc,created_after:" + base.Format(time.RFC3339) + ",created_before:" + base.Add(2*time.Hour).Format(time.RFC3339), want: []types.ID{videoID}},
 		{name: "images", search: "type:image,sort:created,order:asc", want: []types.ID{imageID, audioImageID}},
-		{name: "videos", search: "type:video,sort:created,order:asc", want: []types.ID{tiedID, videoID}},
+		{name: "videos", search: "type:video,sort:created,order:asc", want: []types.ID{videoID, tiedID}},
 		{name: "audio", search: "type:audio,sort:created,order:asc", want: []types.ID{videoID, audioImageID}},
+		{name: "not images", search: "-type:image,sort:created,order:asc", want: []types.ID{videoID, tiedID}},
+		{name: "not videos", search: "-type:video,sort:created,order:asc", want: []types.ID{imageID, audioImageID}},
+		{name: "without audio", search: "-type:audio,sort:created,order:asc", want: []types.ID{imageID, tiedID}},
 		{name: "image with audio", search: "type:image,type:audio", want: []types.ID{audioImageID}},
+		{name: "video without audio", search: "type:video,-type:audio", want: []types.ID{tiedID}},
 	} {
 		postIDs := searchPostIDs(t, handler, tc.search)
 		assert.Equalf(t, tc.want, postIDs, "%s IDs = %v, want %v", tc.name, postIDs, tc.want)

@@ -64,6 +64,12 @@ func parseSearch(query string) search.Query {
 			postSearch.TypeVideo = true
 		} else if term == search.TagAudio {
 			postSearch.TypeAudio = true
+		} else if term == "-"+search.TagImage {
+			postSearch.ExcludeImage = true
+		} else if term == "-"+search.TagVideo {
+			postSearch.ExcludeVideo = true
+		} else if term == "-"+search.TagAudio {
+			postSearch.ExcludeAudio = true
 		} else if excluded, ok := strings.CutPrefix(term, "-"); ok && excluded != "" {
 			postSearch.ExcludedTags = append(postSearch.ExcludedTags, excluded)
 		} else {

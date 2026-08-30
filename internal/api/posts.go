@@ -83,6 +83,9 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		Bool("type_image", searchParams.TypeImage).
 		Bool("type_video", searchParams.TypeVideo).
 		Bool("type_audio", searchParams.TypeAudio).
+		Bool("exclude_image", searchParams.ExcludeImage).
+		Bool("exclude_video", searchParams.ExcludeVideo).
+		Bool("exclude_audio", searchParams.ExcludeAudio).
 		Msg("parsed search params")
 
 	limit := parseLimit(params.Limit)

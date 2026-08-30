@@ -7,6 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConfigRequiresAdminPassword(t *testing.T) {
+	t.Parallel()
+
+	err := (&config{}).validate()
+	require.EqualError(t, err, "admin password is required")
+	assert.NoError(t, (&config{AdminPassword: "hyperboard"}).validate())
+}
+
 func TestParseTagFilters(t *testing.T) {
 	t.Parallel()
 

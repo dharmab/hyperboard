@@ -16,6 +16,9 @@ type Query struct {
 	TypeImage     bool       // Filter to image posts (type:image)
 	TypeVideo     bool       // Filter to video posts (type:video)
 	TypeAudio     bool       // Filter to posts with audio (type:audio)
+	ExcludeImage  bool       // Exclude image posts (-type:image)
+	ExcludeVideo  bool       // Exclude video posts (-type:video)
+	ExcludeAudio  bool       // Exclude posts with audio (-type:audio)
 	CreatedAfter  *time.Time // Filter posts created after this timestamp
 	CreatedBefore *time.Time // Filter posts created before this timestamp
 }

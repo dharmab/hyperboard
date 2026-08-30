@@ -8,8 +8,10 @@ import (
 	"net/url"
 	"slices"
 	"testing"
+	"time"
 	"uuid"
 
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/storage/memory"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/stretchr/testify/assert"
@@ -397,6 +399,29 @@ func TestListTags(t *testing.T) {
 	assertTagRequiredFields(t, listedTag, tag.Name, tag.Description)
 	require.NotNil(t, listedTag.PostCount)
 	assert.Zero(t, *listedTag.PostCount)
+}
+
+func TestTagPostCountExcludesSoftDeletedPosts(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	now := time.Now().UTC()
+	tagName := testTagName()
+	tag, _, err := sqlStore.UpsertTag(t.Context(), tagName, store.TagInput{Name: tagName}, now)
+	require.NoError(t, err)
+	post := createTestPost(t, sqlStore)
+	_, err = sqlStore.UpdatePost(t.Context(), uuid.UUID(post.ID), "", []string{tagName}, now)
+	require.NoError(t, err)
+
+	counts, err := sqlStore.GetTagPostCounts(t.Context(), []uuid.UUID{uuid.UUID(tag.ID)})
+	require.NoError(t, err)
+	assert.Equal(t, 1, counts[uuid.UUID(tag.ID)])
+
+	_, err = sqlStore.SoftDeletePost(t.Context(), uuid.UUID(post.ID), now)
+	require.NoError(t, err)
+	counts, err = sqlStore.GetTagPostCounts(t.Context(), []uuid.UUID{uuid.UUID(tag.ID)})
+	require.NoError(t, err)
+	assert.Zero(t, counts[uuid.UUID(tag.ID)])
 }
 
 func TestUpdateTag(t *testing.T) {

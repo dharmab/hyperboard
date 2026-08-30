@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -66,8 +68,8 @@ func bindConfig(cmd *cobra.Command) {
 }
 
 // loadConfig reads configuration values from viper and returns a populated config struct.
-func loadConfig() *config {
-	return &config{
+func loadConfig() (*config, error) {
+	cfg := &config{
 		Port:                viper.GetString("port"),
 		AdminPassword:       viper.GetString("admin-password"),
 		LogLevel:            viper.GetString("log-level"),
@@ -88,4 +90,28 @@ func loadConfig() *config {
 			UsePathStyle: viper.GetBool("storage-use-path-style"),
 		},
 	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (cfg *config) validate() error {
+	if cfg.AdminPassword == "" {
+		return errors.New("admin password is required")
+	}
+	return nil
+}
+
+func (cfg sqlStoreConfig) dsn() string {
+	dsn := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(cfg.User, cfg.Password),
+		Host:   cfg.Host,
+		Path:   cfg.Database,
+	}
+	query := dsn.Query()
+	query.Set("sslmode", cfg.SSLMode)
+	dsn.RawQuery = query.Encode()
+	return dsn.String()
 }

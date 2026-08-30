@@ -51,7 +51,10 @@ func initConfig() {
 
 // run initializes and starts the API server with the given context.
 func run(ctx context.Context) error {
-	cfg := loadConfig()
+	cfg, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
 
 	level, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
@@ -60,14 +63,7 @@ func run(ctx context.Context) error {
 	zerolog.SetGlobalLevel(level)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s/%s?sslmode=%s",
-		cfg.SQLStore.User,
-		cfg.SQLStore.Password,
-		cfg.SQLStore.Host,
-		cfg.SQLStore.Database,
-		cfg.SQLStore.SSLMode,
-	)
+	dsn := cfg.SQLStore.dsn()
 
 	log.Info().Msg("Running database migrations...")
 	if err := migrations.Migrate(dsn); err != nil {
