@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -47,7 +48,7 @@ func loadConfig() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing tag-filters: %w", err)
 	}
-	return &config{
+	cfg := &config{
 		Port:                  viper.GetString("port"),
 		AdminPassword:         viper.GetString("admin-password"),
 		SessionSecret:         viper.GetString("session-secret"),
@@ -56,7 +57,18 @@ func loadConfig() (*config, error) {
 		TagFilters:            tagFilters,
 		QuickTag:              viper.GetString("quick-tag"),
 		InsecureSessionCookie: viper.GetBool("insecure-session-cookie"),
-	}, nil
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (cfg *config) validate() error {
+	if cfg.AdminPassword == "" {
+		return errors.New("admin password is required")
+	}
+	return nil
 }
 
 // parseTagFilters parses a JSON string into a slice of tag filter definitions.

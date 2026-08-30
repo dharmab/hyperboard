@@ -309,12 +309,16 @@ func (s *PostgresSQLStore) GetTagPostCounts(ctx context.Context, tagIDs []uuid.U
 	//nolint:gosec // placeholders are parameterized $N values, not user input
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT tag_id, COUNT(DISTINCT post_id) FROM (
-			SELECT tag_id, post_id FROM posts_tags WHERE tag_id IN (`+placeholders.String()+`)
+			SELECT pt.tag_id, pt.post_id
+			FROM posts_tags pt
+			JOIN posts p ON p.id = pt.post_id
+			WHERE p.deleted_at IS NULL AND pt.tag_id IN (`+placeholders.String()+`)
 			UNION ALL
 			SELECT tc.cascaded_tag_id AS tag_id, pt.post_id
 			FROM tag_cascades tc
 			JOIN posts_tags pt ON pt.tag_id = tc.tag_id
-			WHERE tc.cascaded_tag_id IN (`+placeholders.String()+`)
+			JOIN posts p ON p.id = pt.post_id
+			WHERE p.deleted_at IS NULL AND tc.cascaded_tag_id IN (`+placeholders.String()+`)
 		) combined GROUP BY tag_id`,
 		args...,
 	)

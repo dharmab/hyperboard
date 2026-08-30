@@ -205,6 +205,15 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 	if params.Query.TypeAudio {
 		queryBuilder.WriteString(" AND has_audio = true")
 	}
+	if params.Query.ExcludeImage {
+		queryBuilder.WriteString(" AND mime_type NOT LIKE 'image/%'")
+	}
+	if params.Query.ExcludeVideo {
+		queryBuilder.WriteString(" AND mime_type NOT LIKE 'video/%'")
+	}
+	if params.Query.ExcludeAudio {
+		queryBuilder.WriteString(" AND has_audio = false")
+	}
 
 	// Apply created_after / created_before filters
 	if params.Query.CreatedAfter != nil {
