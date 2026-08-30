@@ -84,11 +84,11 @@ document.getElementById('posts-search').addEventListener('input', function() {
 });
 
 // Extract last comma-separated term for autocomplete query
-document.getElementById('posts-search').addEventListener('htmx:configRequest', function(e) {
+document.getElementById('posts-search').addEventListener('htmx:config:request', function(e) {
   var value = this.value;
   var lastComma = value.lastIndexOf(',');
   var lastTerm = (lastComma >= 0 ? value.substring(lastComma + 1) : value).trim();
-  e.detail.parameters.q = lastTerm;
+  e.detail.ctx.request.body.set('q', lastTerm);
 });
 
 // Handle autocomplete selection: replace last term

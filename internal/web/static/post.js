@@ -20,6 +20,12 @@ document.addEventListener('ac-select', function(e) {
   }
 });
 
+// Clear the morph-preserved input after a successful tag submission
+document.addEventListener('postTagsUpdated', function() {
+  var tagInput = document.getElementById('tag-input');
+  if (tagInput) tagInput.value = '';
+});
+
 // Submit tag on Enter when no autocomplete item is active
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Enter') return;
@@ -98,12 +104,12 @@ document.addEventListener('keydown', function(e) {
       if (hasTag) {
         htmx.ajax('DELETE', '/posts/' + postId + '/tags/' + encodeURIComponent(quickTag), {
           target: '.post-tags',
-          swap: 'outerHTML'
+          swap: 'outerMorph'
         });
       } else {
         htmx.ajax('POST', '/posts/' + postId + '/tags', {
           target: '.post-tags',
-          swap: 'outerHTML',
+          swap: 'outerMorph',
           values: { q: quickTag }
         });
       }

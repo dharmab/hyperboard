@@ -12,8 +12,8 @@
   // HTMX config for tag suggestion autocomplete
   var convertInput = document.getElementById('convert-target-input');
   if (convertInput) {
-    convertInput.addEventListener('htmx:configRequest', function(e) {
-      e.detail.parameters.q = this.value;
+    convertInput.addEventListener('htmx:config:request', function(e) {
+      e.detail.ctx.request.body.set('q', this.value);
     });
   }
 })();

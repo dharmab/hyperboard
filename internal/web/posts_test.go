@@ -39,6 +39,8 @@ func TestHandlePosts(t *testing.T) {
 	postIDString := postID.String()
 	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
 	assert.Contains(t, body, postIDString)
+	assert.Contains(t, body, `hx-swap:inherited="innerMorph"`)
+	assert.Contains(t, body, `id="post-`+postIDString+`"`)
 }
 
 func TestHandlePost_GET(t *testing.T) {
@@ -47,7 +49,7 @@ func TestHandlePost_GET(t *testing.T) {
 	now := time.Now().UTC()
 	post := types.Post{
 		ID:           postID,
-		MimeType:     "image/webp",
+		MimeType:     "video/mp4",
 		ContentUrl:   "http://storage/posts/" + postID.String() + "/content.webp",
 		ThumbnailUrl: "http://storage/posts/" + postID.String() + "/thumbnail.webp",
 		CreatedAt:    now,
@@ -78,6 +80,8 @@ func TestHandlePost_GET(t *testing.T) {
 
 	body := w.Body.String()
 	assert.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Contains(t, body, "hx-morph-skip")
+	assert.Contains(t, body, `hx-swap="outerMorph"`)
 }
 
 func TestHandlePost_DELETE(t *testing.T) {
@@ -163,6 +167,90 @@ func TestHandlePostTags_TrimsTagName(t *testing.T) {
 	body := w.Body.String()
 	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
 	assert.Equal(t, []types.TagName{"example"}, post.Tags)
+	assert.Equal(t, "postTagsUpdated", w.Header().Get("HX-Trigger"))
+}
+
+func TestHandlePostTags_DuplicateIsNoOp(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.NewV4())
+	now := time.Now().UTC()
+	post := types.Post{
+		ID:        postID,
+		MimeType:  "image/webp",
+		Tags:      []types.TagName{"example"},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	putCalled := false
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/posts/"+postID.String() {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodPut {
+			putCalled = true
+			http.Error(w, "duplicate tag", http.StatusBadRequest)
+			return
+		}
+		jsonResponse(w, http.StatusOK, post)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/posts/"+postID.String()+"/tags", strings.NewReader("q=example"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", postID.String())
+	w := httptest.NewRecorder()
+	app.handlePostTags(w, req)
+
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.False(t, putCalled)
+	assert.Equal(t, []types.TagName{"example"}, post.Tags)
+	assert.Equal(t, "postTagsUpdated", w.Header().Get("HX-Trigger"))
+}
+
+func TestHandlePostTags_ConcurrentDuplicateIsSuccess(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.NewV4())
+	now := time.Now().UTC()
+	post := types.Post{
+		ID:        postID,
+		MimeType:  "image/webp",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	getCalls := 0
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/posts/"+postID.String() {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			getCalls++
+			if getCalls > 1 {
+				post.Tags = []types.TagName{"example"}
+			}
+			jsonResponse(w, http.StatusOK, post)
+		case http.MethodPut:
+			http.Error(w, "conflict", http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/posts/"+postID.String()+"/tags", strings.NewReader("q=example"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", postID.String())
+	w := httptest.NewRecorder()
+	app.handlePostTags(w, req)
+
+	body := w.Body.String()
+	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
+	assert.Equal(t, 2, getCalls)
+	assert.Contains(t, body, "example")
+	assert.Equal(t, "postTagsUpdated", w.Header().Get("HX-Trigger"))
 }
 
 func TestHandlePosts_WithTagFilters(t *testing.T) {
