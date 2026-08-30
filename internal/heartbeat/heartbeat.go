@@ -3,6 +3,7 @@ package heartbeat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -18,6 +19,16 @@ func Run(
 	maxInterval time.Duration,
 	reconcile ReconcileFunc,
 ) error {
+	if minInterval <= 0 {
+		return errors.New("minimum heartbeat interval must be positive")
+	}
+	if maxInterval < minInterval {
+		return errors.New("maximum heartbeat interval must be greater than or equal to minimum interval")
+	}
+	if reconcile == nil {
+		return errors.New("heartbeat reconcile function must not be nil")
+	}
+
 	interval := minInterval
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
