@@ -17,6 +17,7 @@ document.body.addEventListener('htmx:response:error', function(e) {
 
 // Handle HTMX request and swap failures
 document.body.addEventListener('htmx:error', function(e) {
-  var msg = e.detail.error && e.detail.error.message;
-  showError(msg || 'Network error: could not reach server');
+  var error = e.detail.error;
+  var msg = error && (error.message || String(error));
+  showError(msg || 'An unexpected error occurred');
 });
