@@ -1,7 +1,9 @@
 package web
 
 import (
+	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"slices"
 	"sort"
@@ -149,9 +151,24 @@ func (a *app) handlePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handlePostNote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.Header().Set("Allow", http.MethodPut)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
 	id := r.PathValue("id")
-	note := r.FormValue("note")
+	note := r.Form.Get("note")
 
 	postID, err := uuid.Parse(id)
 	if err != nil {
@@ -390,6 +407,7 @@ func (a *app) handleTagSuggestions(w http.ResponseWriter, r *http.Request) {
 		if tag.PostCount != nil {
 			count = *tag.PostCount
 		}
-		_, _ = fmt.Fprintf(w, `<div class="ac-item" data-value=%q>%s <span class="ac-count">(%d)</span></div>`, tag.Name, tag.Name, count)
+		escapedName := html.EscapeString(tag.Name)
+		_, _ = fmt.Fprintf(w, `<div class="ac-item" data-value="%s">%s <span class="ac-count">(%d)</span></div>`, escapedName, escapedName, count)
 	}
 }

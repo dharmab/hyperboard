@@ -1,10 +1,10 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 
 	"github.com/dharmab/hyperboard/internal/storage"
@@ -41,14 +41,23 @@ func (s *Storage) Upload(_ context.Context, key string, data []byte, contentType
 }
 
 // Size returns the size of an object without retrieving its contents.
-func (s *Storage) Size(_ context.Context, key string) (int64, error) {
+func (s *Storage) Size(ctx context.Context, key string) (int64, error) {
+	metadata, err := s.Metadata(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	return metadata.ContentLength, nil
+}
+
+// Metadata describes an object without retrieving its contents.
+func (s *Storage) Metadata(_ context.Context, key string) (*storage.Metadata, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.objects[key]
 	if !ok {
-		return 0, fmt.Errorf("object not found: %s", key)
+		return nil, fmt.Errorf("object not found: %s", key)
 	}
-	return int64(len(entry.data)), nil
+	return &storage.Metadata{ContentType: entry.contentType, ContentLength: int64(len(entry.data))}, nil
 }
 
 // Download retrieves data from memory by key.
@@ -60,9 +69,27 @@ func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error
 		return nil, fmt.Errorf("object not found: %s", key)
 	}
 	return &storage.Media{
-		Body:          io.NopCloser(strings.NewReader(string(entry.data))),
+		Body:          io.NopCloser(bytes.NewReader(entry.data)),
 		ContentType:   entry.contentType,
 		ContentLength: int64(len(entry.data)),
+	}, nil
+}
+
+// DownloadRange retrieves an inclusive byte range from an object.
+func (s *Storage) DownloadRange(_ context.Context, key string, start, end int64) (*storage.Media, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.objects[key]
+	if !ok {
+		return nil, fmt.Errorf("object not found: %s", key)
+	}
+	if start < 0 || end < start || end >= int64(len(entry.data)) {
+		return nil, fmt.Errorf("invalid byte range %d-%d for object %s", start, end, key)
+	}
+	return &storage.Media{
+		Body:          io.NopCloser(bytes.NewReader(entry.data[start : end+1])),
+		ContentType:   entry.contentType,
+		ContentLength: end - start + 1,
 	}, nil
 }
 

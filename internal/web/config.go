@@ -40,6 +40,8 @@ func bindConfig(cmd *cobra.Command) {
 	viper.AutomaticEnv()
 
 	_ = viper.BindPFlags(flags)
+	_ = cmd.MarkFlagRequired("admin-password")
+	_ = cmd.MarkFlagRequired("session-secret")
 }
 
 // loadConfig reads and validates configuration values from viper.
@@ -67,6 +69,9 @@ func loadConfig() (*config, error) {
 func (cfg *config) validate() error {
 	if cfg.AdminPassword == "" {
 		return errors.New("admin password is required")
+	}
+	if cfg.SessionSecret == "" {
+		return errors.New("session secret is required")
 	}
 	return nil
 }

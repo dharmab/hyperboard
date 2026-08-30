@@ -536,6 +536,41 @@ func TestPutPost(t *testing.T) {
 	})
 }
 
+func TestPutPostDeduplicatesCanonicalTags(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	server := NewServer(sqlStore, memory.New())
+	post := createTestPost(t, sqlStore)
+	suffix := uuid.NewV4().String()[:8]
+	canonical := "canonical-" + suffix
+	aliasOne := "alias-one-" + suffix
+	aliasTwo := "alias-two-" + suffix
+	_, _, err := sqlStore.UpsertTag(t.Context(), canonical, store.TagInput{
+		Name:    canonical,
+		Aliases: []string{aliasOne, aliasTwo},
+	}, time.Now().UTC())
+	require.NoError(t, err)
+
+	body := PostUpdateRequest{
+		ID:   types.ID(post.ID),
+		Tags: []types.TagName{canonical, canonical, aliasOne, aliasTwo},
+	}
+	encoded, err := json.Marshal(body)
+	require.NoError(t, err)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/posts/"+post.ID.String(), bytes.NewReader(encoded))
+	response := httptest.NewRecorder()
+	server.PutPost(response, request, types.ID(post.ID))
+
+	responseBody := response.Body.String()
+	require.Equal(t, http.StatusOK, response.Code, "body = %s", responseBody)
+	var updated types.Post
+	decodeJSON(t, response.Body.Bytes(), &updated)
+	require.Len(t, updated.Tags, 1)
+	assert.Equal(t, canonical, updated.Tags[0])
+	assertPostTagNames(t, sqlStore, uuid.UUID(post.ID), []string{canonical})
+}
+
 func TestDeletePost(t *testing.T) {
 	t.Parallel()
 	sqlStore := newTestStore(t)
@@ -593,6 +628,46 @@ func TestGetPostsSortRandom(t *testing.T) {
 	require.NotNil(t, nextPage.Items)
 	require.Len(t, *nextPage.Items, 1)
 	assert.Nil(t, nextPage.Cursor)
+}
+
+func TestGetPostsSortRandomCursorValidation(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	server := NewServer(sqlStore, memory.New())
+	createTestPost(t, sqlStore)
+	search := "sort:random"
+
+	for _, tt := range []struct {
+		name   string
+		cursor string
+	}{
+		{name: "malformed cursor", cursor: "not-valid-base64!!!"},
+		{name: "negative offset", cursor: encodeRandomCursor(randomCursor{Seed: time.Now().Unix() / 21600, Offset: -1})},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search=sort:random", nil)
+			response := httptest.NewRecorder()
+			server.GetPosts(response, request, GetPostsParams{Search: &search, Cursor: &tt.cursor})
+			assert.Equal(t, http.StatusBadRequest, response.Code, "body = %s", response.Body.String())
+		})
+	}
+
+	t.Run("valid old seed restarts at offset zero", func(t *testing.T) {
+		t.Parallel()
+		cursor := encodeRandomCursor(randomCursor{Seed: time.Now().Unix()/21600 - 1, Offset: 1000})
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts?search=sort:random", nil)
+		response := httptest.NewRecorder()
+		server.GetPosts(response, request, GetPostsParams{Search: &search, Cursor: &cursor})
+
+		responseBody := response.Body.String()
+		require.Equal(t, http.StatusOK, response.Code, "body = %s", responseBody)
+		var page PostsResponse
+		decodeJSON(t, response.Body.Bytes(), &page)
+		require.NotNil(t, page.Items)
+		assert.Len(t, *page.Items, 1)
+	})
 }
 
 func TestGetPostsSortByFileSizeWithPagination(t *testing.T) {

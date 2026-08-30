@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"uuid"
 
@@ -13,6 +14,15 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/rs/zerolog/log"
 )
+
+// HeadPostContent returns a post content file's headers without downloading its body.
+func (s *Server) HeadPostContent(w http.ResponseWriter, r *http.Request, id Id) {
+	post, postID, ok := s.getPostByID(w, r, id)
+	if !ok {
+		return
+	}
+	s.serveMediaMetadata(w, r, postID, storageKeyForContent(postID, post.MimeType), "")
+}
 
 // GetPostContent streams a post's content file.
 func (s *Server) GetPostContent(w http.ResponseWriter, r *http.Request, id Id) {
@@ -57,25 +67,117 @@ func (s *Server) getPostByID(w http.ResponseWriter, r *http.Request, id Id) (*mo
 	return post, postID, true
 }
 
+func (s *Server) serveMediaMetadata(w http.ResponseWriter, r *http.Request, postID uuid.UUID, key, filename string) {
+	metadata, err := s.mediaStore.Metadata(r.Context(), key)
+	if err != nil {
+		s.respondToMediaStorageError(w, postID, err)
+		return
+	}
+	setMediaHeaders(w, metadata.ContentType, metadata.ContentLength, filename)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) streamMedia(w http.ResponseWriter, r *http.Request, postID uuid.UUID, key, filename string) {
+	rangeHeader := r.Header.Get("Range")
+	if rangeHeader != "" {
+		metadata, err := s.mediaStore.Metadata(r.Context(), key)
+		if err != nil {
+			s.respondToMediaStorageError(w, postID, err)
+			return
+		}
+		start, end, ok := parseByteRange(rangeHeader, metadata.ContentLength)
+		if !ok {
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", metadata.ContentLength))
+			respondWithError(w, http.StatusRequestedRangeNotSatisfiable, "Invalid or unsatisfiable byte range")
+			return
+		}
+
+		obj, err := s.mediaStore.DownloadRange(r.Context(), key, start, end)
+		if err != nil {
+			s.respondToMediaStorageError(w, postID, err)
+			return
+		}
+		defer func() { _ = obj.Body.Close() }()
+		contentLength := end - start + 1
+		setMediaHeaders(w, metadata.ContentType, contentLength, filename)
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, metadata.ContentLength))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = io.Copy(w, obj.Body)
+		return
+	}
+
 	obj, err := s.mediaStore.Download(r.Context(), key)
 	if err != nil {
-		log.Error().Err(err).Stringer("post_id", postID).Msg("failed to download post content")
-		respondWithError(w, http.StatusNotFound, "Post content not found")
+		s.respondToMediaStorageError(w, postID, err)
 		return
 	}
 	defer func() { _ = obj.Body.Close() }()
+	setMediaHeaders(w, obj.ContentType, obj.ContentLength, filename)
+	_, _ = io.Copy(w, obj.Body)
+}
 
-	w.Header().Set("Content-Type", obj.ContentType)
+func (s *Server) respondToMediaStorageError(w http.ResponseWriter, postID uuid.UUID, err error) {
+	log.Error().Err(err).Stringer("post_id", postID).Msg("failed to retrieve post content")
+	respondWithError(w, http.StatusNotFound, "Post content not found")
+}
+
+func setMediaHeaders(w http.ResponseWriter, contentType string, contentLength int64, filename string) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
+	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if filename != "" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, filename))
 	}
-	if obj.ContentLength > 0 {
-		w.Header().Set("Content-Length", strconv.FormatInt(obj.ContentLength, 10))
+}
+
+// parseByteRange parses value, the complete HTTP Range header value, against
+// size, the total length of the stored object in bytes. It accepts one closed
+// ("bytes=1-3"), open-ended ("bytes=1-"), or suffix ("bytes=-3") range and
+// returns inclusive start and end byte offsets. End offsets and suffix lengths
+// beyond size are clamped to the object. The boolean is false when size is not
+// positive or value is malformed, contains multiple ranges, or cannot select
+// any bytes from the object.
+func parseByteRange(value string, size int64) (int64, int64, bool) {
+	if size <= 0 || !strings.HasPrefix(value, "bytes=") {
+		return 0, 0, false
 	}
-	_, _ = io.Copy(w, obj.Body)
+	spec := strings.TrimPrefix(value, "bytes=")
+	if spec == "" || strings.Contains(spec, ",") || strings.TrimSpace(spec) != spec {
+		return 0, 0, false
+	}
+	startText, endText, found := strings.Cut(spec, "-")
+	if !found || strings.Contains(endText, "-") {
+		return 0, 0, false
+	}
+	if startText == "" {
+		suffixLength, err := strconv.ParseInt(endText, 10, 64)
+		if err != nil || suffixLength <= 0 {
+			return 0, 0, false
+		}
+		if suffixLength > size {
+			suffixLength = size
+		}
+		return size - suffixLength, size - 1, true
+	}
+
+	start, err := strconv.ParseInt(startText, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, false
+	}
+	if endText == "" {
+		return start, size - 1, true
+	}
+	end, err := strconv.ParseInt(endText, 10, 64)
+	if err != nil || end < start {
+		return 0, 0, false
+	}
+	if end >= size {
+		end = size - 1
+	}
+	return start, end, true
 }
 
 // mimeToExt returns a file extension for a given MIME type.

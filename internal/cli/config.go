@@ -26,6 +26,8 @@ func bindConfig(cmd *cobra.Command) {
 	viper.AutomaticEnv()
 
 	_ = viper.BindPFlags(flags)
+	_ = cmd.MarkPersistentFlagRequired("api-url")
+	_ = cmd.MarkPersistentFlagRequired("admin-password")
 }
 
 // loadConfig reads and validates configuration values from viper.

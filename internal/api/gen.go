@@ -110,6 +110,9 @@ type PostsResponse struct {
 // RequestEntityTooLargeResponse defines model for RequestEntityTooLargeResponse.
 type RequestEntityTooLargeResponse = Error
 
+// RequestedRangeNotSatisfiableResponse defines model for RequestedRangeNotSatisfiableResponse.
+type RequestedRangeNotSatisfiableResponse = Error
+
 // TagCategoriesResponse defines model for TagCategoriesResponse.
 type TagCategoriesResponse struct {
 	Cursor *Cursor                     `json:"cursor,omitempty"`
@@ -246,6 +249,9 @@ type ServerInterface interface {
 	// Stream a post's content file.
 	// (GET /api/v1/posts/{id}/content)
 	GetPostContent(w http.ResponseWriter, r *http.Request, id Id)
+	// Retrieve a post content file's headers without downloading its body.
+	// (HEAD /api/v1/posts/{id}/content)
+	HeadPostContent(w http.ResponseWriter, r *http.Request, id Id)
 	// Replace a post's content file. The server re-processes the file and updates contentUrl and mimeType.
 	// (PUT /api/v1/posts/{id}/content)
 	ReplacePostContent(w http.ResponseWriter, r *http.Request, id Id)
@@ -611,6 +617,37 @@ func (siw *ServerInterfaceWrapper) GetPostContent(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPostContent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// HeadPostContent operation middleware
+func (siw *ServerInterfaceWrapper) HeadPostContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.HeadPostContent(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1308,6 +1345,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPost)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.PutPost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.GetPostContent)
+	m.HandleFunc("HEAD "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.HeadPostContent)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}/content", wrapper.ReplacePostContent)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/content/download", wrapper.DownloadPostContent)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/similar", wrapper.GetSimilarPosts)

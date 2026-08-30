@@ -125,6 +125,61 @@ func TestHandlePost_InvalidID(t *testing.T) {
 	assert.Contains(t, body, "Invalid post ID")
 }
 
+func TestHandlePostNote_GETDoesNotUpdate(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.NewV4())
+	apiCalled := false
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiCalled = true
+		http.Error(w, "unexpected API request", http.StatusInternalServerError)
+	}))
+
+	mux := http.NewServeMux()
+	app.registerRoutes(mux)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/posts/"+postID.String()+"/note?note=replaced", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	assert.Equal(t, http.MethodPut, w.Header().Get("Allow"))
+	assert.False(t, apiCalled)
+}
+
+func TestHandlePostNote_RejectsInvalidFormWithoutUpdating(t *testing.T) {
+	t.Parallel()
+	postID := types.ID(uuid.NewV4())
+
+	tests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "malformed", body: "note=%zz", status: http.StatusBadRequest},
+		{name: "oversized", body: "note=" + strings.Repeat("x", int(maxFormBody)), status: http.StatusRequestEntityTooLarge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			apiCalled := false
+			app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				apiCalled = true
+				http.Error(w, "unexpected API request", http.StatusInternalServerError)
+			}))
+
+			mux := http.NewServeMux()
+			app.registerRoutes(mux)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/posts/"+postID.String()+"/note", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+			assert.False(t, apiCalled, "the existing post must not be fetched or updated after a form parse failure")
+		})
+	}
+}
+
 func TestHandlePostTags_TrimsTagName(t *testing.T) {
 	t.Parallel()
 	postID := types.ID(uuid.NewV4())
@@ -327,6 +382,34 @@ func TestHandleTagSuggestions(t *testing.T) {
 		assert.Contains(t, body, expected)
 	}
 	assert.NotContains(t, body, "zulu")
+}
+
+func TestHandleTagSuggestions_EscapesTagName(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	count := 1
+	tags := []types.Tag{{
+		Name:      `needle"><script>alert('x')</script>&`,
+		PostCount: &count,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, client.TagsResponse{Items: &tags})
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tag-suggestions?q=needle", nil)
+	w := httptest.NewRecorder()
+	app.handleTagSuggestions(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	escaped := "needle&#34;&gt;&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;&amp;"
+	assert.Contains(t, body, `data-value="`+escaped+`"`)
+	assert.Contains(t, body, `>`+escaped+` <span class="ac-count">`)
+	assert.NotContains(t, body, "<script>")
+	assert.NotContains(t, body, `data-value="needle">`)
 }
 
 func TestHandleTagSuggestions_Pagination(t *testing.T) {

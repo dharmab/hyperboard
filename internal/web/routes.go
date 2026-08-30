@@ -24,7 +24,7 @@ func (a *app) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/posts-partial", a.handlePosts)
 	mux.HandleFunc("GET /posts/{id}/content", func(w http.ResponseWriter, r *http.Request) {
 		id := url.PathEscape(r.PathValue("id"))
-		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content")
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content", r.Header.Get("Range"))
 		if err != nil {
 			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
 			return
@@ -34,7 +34,7 @@ func (a *app) registerRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /posts/{id}/download", func(w http.ResponseWriter, r *http.Request) {
 		id := url.PathEscape(r.PathValue("id"))
-		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content/download")
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/content/download", r.Header.Get("Range"))
 		if err != nil {
 			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
 			return
@@ -44,7 +44,7 @@ func (a *app) registerRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /posts/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
 		id := url.PathEscape(r.PathValue("id"))
-		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/thumbnail")
+		resp, err := a.media.getRaw(r.Context(), "/api/v1/posts/"+id+"/thumbnail", r.Header.Get("Range"))
 		if err != nil {
 			http.Error(w, "Failed to fetch media", http.StatusBadGateway)
 			return

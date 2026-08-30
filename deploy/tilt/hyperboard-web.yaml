@@ -22,6 +22,7 @@ spec:
           image: hyperboard-web
           args:
             - --admin-password=hyperboard
+            - --session-secret=hyperboard
             - --api-url=http://hyperboard-api
             - --log-level=debug
             - --insecure-session-cookie

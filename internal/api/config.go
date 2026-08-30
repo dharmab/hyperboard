@@ -65,6 +65,7 @@ func bindConfig(cmd *cobra.Command) {
 	viper.AutomaticEnv()
 
 	_ = viper.BindPFlags(flags)
+	_ = cmd.MarkFlagRequired("admin-password")
 }
 
 // loadConfig reads configuration values from viper and returns a populated config struct.

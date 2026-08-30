@@ -101,13 +101,15 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 
 		if params.Cursor != nil && *params.Cursor != "" {
 			var rc randomCursor
-			if err := decodeRandomCursor(*params.Cursor, &rc); err == nil {
-				if rc.Seed == currentSeed {
-					listParams.RandomOffset = rc.Offset
-					logger.Info().Int64("seed", currentSeed).Int("offset", rc.Offset).Msg("resuming random cursor")
-				} else {
-					logger.Info().Int64("old_seed", rc.Seed).Int64("new_seed", currentSeed).Msg("random window rolled, restarting from offset 0")
-				}
+			if err := decodeRandomCursor(*params.Cursor, &rc); err != nil || rc.Offset < 0 {
+				respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+				return
+			}
+			if rc.Seed == currentSeed {
+				listParams.RandomOffset = rc.Offset
+				logger.Info().Int64("seed", currentSeed).Int("offset", rc.Offset).Msg("resuming random cursor")
+			} else {
+				logger.Info().Int64("old_seed", rc.Seed).Int64("new_seed", currentSeed).Msg("random window rolled, restarting from offset 0")
 			}
 		}
 

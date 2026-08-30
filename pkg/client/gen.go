@@ -113,6 +113,9 @@ type PostsResponse struct {
 // RequestEntityTooLargeResponse defines model for RequestEntityTooLargeResponse.
 type RequestEntityTooLargeResponse = Error
 
+// RequestedRangeNotSatisfiableResponse defines model for RequestedRangeNotSatisfiableResponse.
+type RequestedRangeNotSatisfiableResponse = Error
+
 // TagCategoriesResponse defines model for TagCategoriesResponse.
 type TagCategoriesResponse struct {
 	Cursor *Cursor                     `json:"cursor,omitempty"`
@@ -326,6 +329,9 @@ type ClientInterface interface {
 	// GetPostContent request
 	GetPostContent(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// HeadPostContent request
+	HeadPostContent(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ReplacePostContentWithBody request with any body
 	ReplacePostContentWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -536,6 +542,18 @@ func (c *Client) PutPost(ctx context.Context, id Id, body PutPostJSONRequestBody
 
 func (c *Client) GetPostContent(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetPostContentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) HeadPostContent(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHeadPostContentRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1215,6 +1233,40 @@ func NewGetPostContentRequest(server string, id Id) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewHeadPostContentRequest generates requests for HeadPostContent
+func NewHeadPostContentRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/posts/%s/content", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2048,6 +2100,9 @@ type ClientWithResponsesInterface interface {
 	// GetPostContentWithResponse request
 	GetPostContentWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*GetPostContentResponse, error)
 
+	// HeadPostContentWithResponse request
+	HeadPostContentWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*HeadPostContentResponse, error)
+
 	// ReplacePostContentWithBodyWithResponse request with any body
 	ReplacePostContentWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePostContentResponse, error)
 
@@ -2353,6 +2408,7 @@ type GetPostContentResponse struct {
 	JSON400      *BadRequestResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON416      *RequestedRangeNotSatisfiableResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2367,6 +2423,32 @@ func (r GetPostContentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetPostContentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type HeadPostContentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequestResponse
+	JSON403      *ForbiddenResponse
+	JSON404      *NotFoundResponse
+	JSON429      *TooManyRequestsResponse
+	JSON500      *InternalServerErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r HeadPostContentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r HeadPostContentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2409,6 +2491,7 @@ type DownloadPostContentResponse struct {
 	JSON400      *BadRequestResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON416      *RequestedRangeNotSatisfiableResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2462,6 +2545,7 @@ type GetPostThumbnailResponse struct {
 	JSON400      *BadRequestResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON416      *RequestedRangeNotSatisfiableResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2989,6 +3073,15 @@ func (c *ClientWithResponses) GetPostContentWithResponse(ctx context.Context, id
 		return nil, err
 	}
 	return ParseGetPostContentResponse(rsp)
+}
+
+// HeadPostContentWithResponse request returning *HeadPostContentResponse
+func (c *ClientWithResponses) HeadPostContentWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*HeadPostContentResponse, error) {
+	rsp, err := c.HeadPostContent(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseHeadPostContentResponse(rsp)
 }
 
 // ReplacePostContentWithBodyWithResponse request with arbitrary body returning *ReplacePostContentResponse
@@ -3714,6 +3807,67 @@ func ParseGetPostContentResponse(rsp *http.Response) (*GetPostContentResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 416:
+		var dest RequestedRangeNotSatisfiableResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON416 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseHeadPostContentResponse parses an HTTP response from a HeadPostContentWithResponse call
+func ParseHeadPostContentResponse(rsp *http.Response) (*HeadPostContentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &HeadPostContentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ForbiddenResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3850,6 +4004,13 @@ func ParseDownloadPostContentResponse(rsp *http.Response) (*DownloadPostContentR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 416:
+		var dest RequestedRangeNotSatisfiableResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON416 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3964,6 +4125,13 @@ func ParseGetPostThumbnailResponse(rsp *http.Response) (*GetPostThumbnailRespons
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 416:
+		var dest RequestedRangeNotSatisfiableResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON416 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse

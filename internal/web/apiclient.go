@@ -38,12 +38,15 @@ func newMediaClient(baseURL, password string) *mediaClient {
 }
 
 // getRaw performs an authenticated GET request to the API.
-func (c *mediaClient) getRaw(ctx context.Context, path string) (*http.Response, error) {
+func (c *mediaClient) getRaw(ctx context.Context, path, byteRange string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.SetBasicAuth("admin", c.password)
+	if byteRange != "" {
+		req.Header.Set("Range", byteRange)
+	}
 	return c.http.Do(req)
 }
 
@@ -59,24 +62,19 @@ func (c *mediaClient) head(ctx context.Context, path string) (*http.Response, er
 
 // copyMediaResponse streams a media response to the HTTP writer.
 func copyMediaResponse(w http.ResponseWriter, resp *http.Response) {
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "Media not found", resp.StatusCode)
-		return
+	for _, name := range []string{
+		"Content-Type",
+		"Content-Length",
+		"Content-Disposition",
+		"Cache-Control",
+		"X-Content-Type-Options",
+		"Accept-Ranges",
+		"Content-Range",
+	} {
+		if value := resp.Header.Get(name); value != "" {
+			w.Header().Set(name, value)
+		}
 	}
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		w.Header().Set("Content-Type", ct)
-	}
-	if cl := resp.Header.Get("Content-Length"); cl != "" {
-		w.Header().Set("Content-Length", cl)
-	}
-	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
-		w.Header().Set("Content-Disposition", cd)
-	}
-	if cc := resp.Header.Get("Cache-Control"); cc != "" {
-		w.Header().Set("Cache-Control", cc)
-	}
-	if xcto := resp.Header.Get("X-Content-Type-Options"); xcto != "" {
-		w.Header().Set("X-Content-Type-Options", xcto)
-	}
+	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
