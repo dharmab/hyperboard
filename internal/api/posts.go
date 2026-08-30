@@ -282,38 +282,17 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 	defer releaseLock()
 
-	// Fetch the post first to get storage keys for cleanup.
-	post, err := s.sqlStore.GetPost(ctx, postID)
+	_, err = s.sqlStore.SoftDeletePost(ctx, postID, time.Now().UTC())
 	if err != nil {
-		logger.Error().Err(err).Msg("failed to retrieve post for deletion")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post")
-		return
-	}
-
-	contentKey := storageKeyForContent(postID, post.MimeType)
-	thumbnailKey := storageKeyForThumbnail(postID)
-	if err := s.mediaStore.Delete(ctx, contentKey); err != nil {
-		logger.Error().Err(err).Str("key", contentKey).Msg("failed to delete content object")
-		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
-		return
-	}
-	if err := s.mediaStore.Delete(ctx, thumbnailKey); err != nil {
-		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object")
+		logger.Error().Err(err).Msg("failed to mark post for deletion")
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return
 	}
 
-	_, err = s.sqlStore.DeletePost(ctx, postID)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to delete post from database")
-		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
-		return
-	}
-
-	logger.Info().Msg("post deleted")
+	logger.Info().Msg("post marked for deletion")
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -532,6 +532,7 @@ func (s *PostgresSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT DISTINCT t2.name, COALESCE(tc2.color, '')
 		 FROM posts_tags pt
+		 JOIN posts p ON pt.post_id = p.id AND p.deleted_at IS NULL
 		 JOIN tag_cascades tc ON pt.tag_id = tc.tag_id
 		 JOIN tags t2 ON tc.cascaded_tag_id = t2.id
 		 LEFT JOIN tag_categories tc2 ON t2.tag_category_id = tc2.id

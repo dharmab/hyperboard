@@ -30,8 +30,8 @@ type PostStore interface {
 	UpdatePostContent(ctx context.Context, id uuid.UUID, input UpdatePostContentInput) (*models.Post, error)
 	// UpdatePostThumbnail replaces a post's thumbnail URL.
 	UpdatePostThumbnail(ctx context.Context, id uuid.UUID, thumbnailURL string, now time.Time) (*models.Post, error)
-	// DeletePost removes a post by ID, returning the deleted post.
-	DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error)
+	// SoftDeletePost marks a post for asynchronous media and record removal.
+	SoftDeletePost(ctx context.Context, id uuid.UUID, deletedAt time.Time) (*models.Post, error)
 	// FindPostBySHA256 looks up a post by its content hash for deduplication.
 	FindPostBySHA256(ctx context.Context, hash string) (*models.Post, error)
 	// FindSimilarPosts returns posts with perceptual hashes within the configured similarity threshold,
@@ -149,7 +149,7 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 	args := []any{}
 	paramIdx := 1
 
-	queryBuilder.WriteString("SELECT " + postColumns + " FROM posts WHERE 1=1")
+	queryBuilder.WriteString("SELECT " + postColumns + " FROM posts WHERE deleted_at IS NULL")
 
 	// Apply tag inclusion filters (direct tags + cascading tags)
 	for _, tagName := range params.Query.IncludedTags {
@@ -342,7 +342,7 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1 AND deleted_at IS NULL", gofrs.UUID(id))
 	post, err := scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -373,8 +373,8 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
+	// Check that the active post exists.
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1 AND deleted_at IS NULL", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -385,7 +385,7 @@ func (s *PostgresSQLStore) UpdatePost(ctx context.Context, id uuid.UUID, note st
 
 	// Update note and updated_at
 	row = tx.QueryRowContext(ctx,
-		"UPDATE posts SET note = $1, updated_at = $2 WHERE id = $3 RETURNING "+postColumns,
+		"UPDATE posts SET note = $1, updated_at = $2 WHERE id = $3 AND deleted_at IS NULL RETURNING "+postColumns,
 		note, now, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
@@ -443,8 +443,8 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
+	// Check that the active post exists.
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1 AND deleted_at IS NULL", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -455,7 +455,7 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 
 	// Update content fields
 	row = tx.QueryRowContext(ctx,
-		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, file_size = $7, updated_at = $8 WHERE id = $9 RETURNING "+postColumns,
+		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, file_size = $7, updated_at = $8 WHERE id = $9 AND deleted_at IS NULL RETURNING "+postColumns,
 		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.FileSize, input.UpdatedAt, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
@@ -481,8 +481,8 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Check that the post exists
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
+	// Check that the active post exists.
+	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1 AND deleted_at IS NULL", gofrs.UUID(id))
 	_, err = scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -493,7 +493,7 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 
 	// Update thumbnail
 	row = tx.QueryRowContext(ctx,
-		"UPDATE posts SET thumbnail_url = $1, updated_at = $2 WHERE id = $3 RETURNING "+postColumns,
+		"UPDATE posts SET thumbnail_url = $1, updated_at = $2 WHERE id = $3 AND deleted_at IS NULL RETURNING "+postColumns,
 		thumbnailURL, now, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
@@ -512,14 +512,11 @@ func (s *PostgresSQLStore) UpdatePostThumbnail(ctx context.Context, id uuid.UUID
 	return post, nil
 }
 
-func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*models.Post, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	row := tx.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE id = $1", gofrs.UUID(id))
+func (s *PostgresSQLStore) SoftDeletePost(ctx context.Context, id uuid.UUID, deletedAt time.Time) (*models.Post, error) {
+	row := s.db.QueryRowContext(ctx,
+		"UPDATE posts SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL RETURNING "+postColumns,
+		deletedAt, gofrs.UUID(id),
+	)
 	post, err := scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -527,21 +524,11 @@ func (s *PostgresSQLStore) DeletePost(ctx context.Context, id uuid.UUID) (*model
 		}
 		return nil, err
 	}
-
-	_, err = tx.ExecContext(ctx, "DELETE FROM posts WHERE id = $1", gofrs.UUID(id))
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
 	return post, nil
 }
 
 func (s *PostgresSQLStore) FindPostBySHA256(ctx context.Context, hash string) (*models.Post, error) {
-	row := s.db.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE sha256 = $1", hash)
+	row := s.db.QueryRowContext(ctx, "SELECT "+postColumns+" FROM posts WHERE sha256 = $1 AND deleted_at IS NULL", hash)
 	post, err := scanPost(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -563,7 +550,7 @@ func (s *PostgresSQLStore) FindSimilarPosts(ctx context.Context, excludeID uuid.
 	args := []any{}
 	paramIdx := 1
 
-	queryBuilder.WriteString("SELECT " + postColumns + " FROM posts WHERE phash IS NOT NULL")
+	queryBuilder.WriteString("SELECT " + postColumns + " FROM posts WHERE phash IS NOT NULL AND deleted_at IS NULL")
 	fmt.Fprintf(&queryBuilder, " AND bit_count(CAST((phash # $%d) AS bit(64))) <= $%d", paramIdx, paramIdx+1)
 	args = append(args, pHash, s.similarityThreshold)
 	paramIdx += 2

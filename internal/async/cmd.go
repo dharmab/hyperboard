@@ -84,16 +84,27 @@ func run(ctx context.Context, cfg *config) error {
 		return fmt.Errorf("connect to object storage: %w", err)
 	}
 
+	deletions := deletionController{
+		repository: postgresDeletionRepository{pool: pool},
+		mediaStore: mediaStore,
+	}
 	fileSizes := fileSizeController{
 		repository: postgresFileSizeRepository{pool: pool},
 		mediaStore: mediaStore,
+	}
+	reconcile := func(reconcileCtx context.Context) (bool, error) {
+		didWork, err := deletions.Reconcile(reconcileCtx)
+		if err != nil || didWork {
+			return didWork, err
+		}
+		return fileSizes.Reconcile(reconcileCtx)
 	}
 	leaderTask := func(leaderCtx context.Context) error {
 		return heartbeat.Run(
 			leaderCtx,
 			cfg.Controller.MinInterval,
 			cfg.Controller.MaxInterval,
-			fileSizes.Reconcile,
+			reconcile,
 		)
 	}
 
