@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 )
 
 // NewCommand returns the cobra command for the hyperboard-async controller.
@@ -92,20 +93,31 @@ func run(ctx context.Context, cfg *config) error {
 		repository: postgresFileSizeRepository{pool: pool},
 		mediaStore: mediaStore,
 	}
-	reconcile := func(reconcileCtx context.Context) (bool, error) {
-		didWork, err := deletions.Reconcile(reconcileCtx)
-		if err != nil || didWork {
-			return didWork, err
-		}
-		return fileSizes.Reconcile(reconcileCtx)
-	}
 	leaderTask := func(leaderCtx context.Context) error {
-		return heartbeat.Run(
-			leaderCtx,
-			cfg.Controller.MinInterval,
-			cfg.Controller.MaxInterval,
-			reconcile,
-		)
+		group, controllerCtx := errgroup.WithContext(leaderCtx)
+		group.Go(func() error {
+			if err := heartbeat.Run(
+				controllerCtx,
+				cfg.Controller.MinInterval,
+				cfg.Controller.MaxInterval,
+				deletions.Reconcile,
+			); err != nil {
+				return fmt.Errorf("run deletion controller: %w", err)
+			}
+			return nil
+		})
+		group.Go(func() error {
+			if err := heartbeat.Run(
+				controllerCtx,
+				cfg.Controller.MinInterval,
+				cfg.Controller.MaxInterval,
+				fileSizes.Reconcile,
+			); err != nil {
+				return fmt.Errorf("run file size controller: %w", err)
+			}
+			return nil
+		})
+		return group.Wait()
 	}
 
 	log.Info().Str("backend", string(cfg.LeaderElection.Backend)).Msg("Starting async controller")
