@@ -2,6 +2,8 @@ openapi: 3.0.0
 info:
   title: Hyperboard API
   version: 0.1.0
+security:
+  - basicAuth: []
 paths:
   /metrics:
     get:
@@ -55,6 +57,8 @@ paths:
       requestBody:
         $ref: "#/components/requestBodies/TagRequest"
       responses:
+        "200":
+          $ref: "#/components/responses/TagResponse"
         "201":
           $ref: "#/components/responses/TagResponse"
         "400":
@@ -63,6 +67,8 @@ paths:
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "409":
+          $ref: "#/components/responses/ConflictResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -170,6 +176,8 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/TagCategoryResponse"
+        "201":
+          $ref: "#/components/responses/TagCategoryResponse"
         "400":
           $ref: "#/components/responses/BadRequestResponse"
         "401":
@@ -178,6 +186,8 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "409":
+          $ref: "#/components/responses/ConflictResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -248,18 +258,22 @@ paths:
       operationId: uploadPost
       summary: Upload a new post's content.
       requestBody:
-        $ref: "#/components/requestBodies/UploadPostRequest"
+        $ref: "#/components/requestBodies/MediaUploadRequest"
       responses:
         "201":
           $ref: "#/components/responses/CreatedPostResponse"
-        "400":
-          $ref: "#/components/responses/BadRequestResponse"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntityResponse"
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
         "409":
           $ref: "#/components/responses/ConflictResponse"
+        "413":
+          $ref: "#/components/responses/RequestEntityTooLargeResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -354,7 +368,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/id"
       requestBody:
-        $ref: "#/components/requestBodies/UploadPostRequest"
+        $ref: "#/components/requestBodies/MediaUploadRequest"
       responses:
         "200":
           $ref: "#/components/responses/PostResponse"
@@ -366,10 +380,12 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "413":
+          $ref: "#/components/responses/RequestEntityTooLargeResponse"
         "415":
-          $ref: "#/components/responses/BadRequestResponse"
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
         "422":
-          $ref: "#/components/responses/BadRequestResponse"
+          $ref: "#/components/responses/UnprocessableEntityResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -433,7 +449,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFoundResponse"
         "422":
-          $ref: "#/components/responses/BadRequestResponse"
+          $ref: "#/components/responses/UnprocessableEntityResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -444,7 +460,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/id"
       requestBody:
-        $ref: "#/components/requestBodies/UploadPostRequest"
+        $ref: "#/components/requestBodies/ImageUploadRequest"
       responses:
         "200":
           $ref: "#/components/responses/PostResponse"
@@ -456,10 +472,12 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "413":
+          $ref: "#/components/responses/RequestEntityTooLargeResponse"
         "415":
-          $ref: "#/components/responses/BadRequestResponse"
+          $ref: "#/components/responses/UnsupportedMediaTypeResponse"
         "422":
-          $ref: "#/components/responses/BadRequestResponse"
+          $ref: "#/components/responses/UnprocessableEntityResponse"
         "429":
           $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
@@ -497,6 +515,8 @@ paths:
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
     post:
@@ -513,6 +533,8 @@ paths:
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notes/{id}:
@@ -534,6 +556,8 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
     put:
@@ -558,6 +582,8 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
     delete:
@@ -578,10 +604,67 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
 components:
   schemas:
+    PostUpdateRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          $ref: "types-spec.yaml#/components/schemas/ID"
+        note:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        tags:
+          type: array
+          items:
+            $ref: "types-spec.yaml#/components/schemas/TagName"
+          x-go-type-skip-optional-pointer: true
+    TagUpdateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: "types-spec.yaml#/components/schemas/TagName"
+        description:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        category:
+          $ref: "types-spec.yaml#/components/schemas/TagCategoryName"
+        aliases:
+          type: array
+          items:
+            type: string
+          x-go-type-skip-optional-pointer: true
+        cascadingTags:
+          type: array
+          items:
+            $ref: "types-spec.yaml#/components/schemas/TagName"
+          x-go-type-skip-optional-pointer: true
+    TagCategoryUpdateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: "types-spec.yaml#/components/schemas/TagCategoryName"
+        description:
+          allOf:
+            - $ref: "types-spec.yaml#/components/schemas/Description"
+          x-go-type-skip-optional-pointer: true
+        color:
+          type: string
+          description: Hex color.
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          default: "#888888"
+          example: "#ff0000"
+          x-go-type-skip-optional-pointer: true
     Error:
       type: object
       required:
@@ -593,11 +676,16 @@ components:
       type: string
     Limit:
       type: integer
-      minimum: 1
-      maximum: 1024
-      default: 24
+      description: Page size. Omitted or non-positive values use 64; values above 64 are capped at 64.
+      default: 64
     Search:
       type: string
+
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Any username is accepted; the configured administrator password is required.
   parameters:
     id:
       name: id
@@ -637,30 +725,46 @@ components:
         $ref: "#/components/schemas/Search"
   requestBodies:
     TagRequest:
+      description: Tag fields to create or replace. On create, name must match the path; an existing tag may be renamed.
       required: true
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/Tag"
+            $ref: "#/components/schemas/TagUpdateRequest"
     TagCategoryRequest:
+      description: Tag-category fields to create or replace. On create, name must match the path; an existing category may be renamed.
       required: true
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/TagCategory"
-    UploadPostRequest:
+            $ref: "#/components/schemas/TagCategoryUpdateRequest"
+    MediaUploadRequest:
+      description: Raw image or video bytes. Content-Type must begin with image/ or video/.
       required: true
       content:
-        application/octet-stream:
+        image/*:
+          schema:
+            type: string
+            format: binary
+        video/*:
+          schema:
+            type: string
+            format: binary
+    ImageUploadRequest:
+      description: Raw image bytes. Content-Type must begin with image/.
+      required: true
+      content:
+        image/*:
           schema:
             type: string
             format: binary
     PostRequest:
+      description: Mutable post metadata. The body id must equal the path id.
       required: true
       content:
         application/json:
           schema:
-            $ref: "types-spec.yaml#/components/schemas/Post"
+            $ref: "#/components/schemas/PostUpdateRequest"
     NoteRequest:
       required: true
       content:
@@ -673,52 +777,68 @@ components:
             properties:
               title:
                 type: string
+                minLength: 1
+                maxLength: 1024
               content:
                 type: string
+                maxLength: 4194304
   responses:
     MetricsResponse:
-      content:
-        text/plain:
-          schema:
-            type: string
+      description: Metrics endpoint response. The current implementation returns an empty body.
     HealthyResponse:
+      description: The service is healthy or ready.
       content:
-        text/plain:
+        application/json:
           schema:
             type: string
+            example: OK
     UnhealthyResponse:
+      description: A required dependency is not ready.
       content:
-        text/plain:
+        application/json:
           schema:
-            type: string
+            $ref: "#/components/schemas/Error"
     DeletedResponse:
       description: Resource deleted successfully
     BadRequestResponse:
+      description: The request is malformed or fails validation.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
     UnauthorizedResponse:
-      content:
-        application/json:
+      description: HTTP Basic authentication credentials are missing or invalid.
+      headers:
+        WWW-Authenticate:
+          description: HTTP Basic authentication challenge.
           schema:
-            $ref: "#/components/schemas/Error"
+            type: string
+            example: Basic realm="hyperboard"
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Unauthorized
     ForbiddenResponse:
+      description: The authenticated client is not permitted to perform the operation.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
     ConflictResponse:
+      description: The request conflicts with an existing resource.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
     NotFoundResponse:
+      description: The requested resource was not found.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
     TooManyRequestsResponse:
+      description: The client has exceeded an applicable request rate limit.
       headers:
         Retry-After:
           schema:
@@ -729,16 +849,37 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     InternalServerErrorResponse:
+      description: An unexpected server error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RequestEntityTooLargeResponse:
+      description: The media request body exceeds the 4 GiB limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnsupportedMediaTypeResponse:
+      description: The Content-Type is missing or is not an accepted media type.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnprocessableEntityResponse:
+      description: The body was declared as supported media but could not be processed.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
     TagResponse:
+      description: A tag.
       content:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Tag"
     TagsResponse:
+      description: A page of tags.
       content:
         application/json:
           schema:
@@ -751,11 +892,13 @@ components:
               cursor:
                 $ref: "#/components/schemas/Cursor"
     TagCategoryResponse:
+      description: A tag category.
       content:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/TagCategory"
     TagCategoriesResponse:
+      description: A page of tag categories.
       content:
         application/json:
           schema:
@@ -768,6 +911,7 @@ components:
               cursor:
                 $ref: "#/components/schemas/Cursor"
     PostResponse:
+      description: A post.
       content:
         application/json:
           schema:
@@ -775,7 +919,11 @@ components:
     PostContentResponse:
       description: A post's content file. The response Content-Type matches the stored media type.
       content:
-        application/octet-stream:
+        image/*:
+          schema:
+            type: string
+            format: binary
+        video/*:
           schema:
             type: string
             format: binary
@@ -787,11 +935,16 @@ components:
             type: string
           description: Attachment filename for the downloaded content file.
       content:
-        application/octet-stream:
+        image/*:
+          schema:
+            type: string
+            format: binary
+        video/*:
           schema:
             type: string
             format: binary
     CreatedPostResponse:
+      description: The newly created post and any visually similar posts.
       content:
         application/json:
           schema:
@@ -806,6 +959,7 @@ components:
                 items:
                   $ref: "types-spec.yaml#/components/schemas/Post"
     PostsResponse:
+      description: A page of posts.
       content:
         application/json:
           schema:
@@ -818,11 +972,13 @@ components:
               cursor:
                 $ref: "#/components/schemas/Cursor"
     NoteResponse:
+      description: A note.
       content:
         application/json:
           schema:
             $ref: "types-spec.yaml#/components/schemas/Note"
     NotesResponse:
+      description: A collection of notes.
       content:
         application/json:
           schema:

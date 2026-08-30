@@ -1,8 +1,9 @@
 package web
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRenderMarkdown(t *testing.T) {
@@ -20,18 +21,14 @@ func TestRenderMarkdown(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := string(renderMarkdown(tt.input))
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("renderMarkdown(%q) = %q, want it to contain %q", tt.input, got, tt.contains)
-			}
+			renderedHTML := string(renderMarkdown(tt.input))
+			assert.Contains(t, renderedHTML, tt.contains, "renderMarkdown(%q)", tt.input)
 		})
 	}
 }
 
 func TestRenderMarkdown_XSS(t *testing.T) {
 	t.Parallel()
-	got := string(renderMarkdown(`<script>alert("xss")</script>`))
-	if strings.Contains(got, "<script>") {
-		t.Errorf("renderMarkdown should strip <script> tags, got %q", got)
-	}
+	renderedHTML := string(renderMarkdown(`<script>alert("xss")</script>`))
+	assert.NotContains(t, renderedHTML, "<script>", "renderMarkdown should strip script tags")
 }

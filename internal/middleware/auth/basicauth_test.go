@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBasicAuthMiddleware(t *testing.T) {
@@ -72,9 +74,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			middleware(handler).ServeHTTP(w, req)
-			if w.Code != tt.expectCode {
-				t.Errorf("status = %d, want %d", w.Code, tt.expectCode)
-			}
+			assert.Equal(t, tt.expectCode, w.Code)
 		})
 	}
 }

@@ -212,7 +212,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 
 	postID := uuid.UUID(id)
 
-	var post types.Post
+	var post PostUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&post); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -255,10 +255,20 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 
 	postID := uuid.UUID(id)
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
+
+	releaseLock, err := s.acquirePostMutationLock(ctx, postID, logger)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to acquire post mutation lock")
+		respondWithError(w, http.StatusInternalServerError, "Failed to lock post for deletion")
+		return
+	}
+	defer releaseLock()
 
 	// Fetch the post first to get storage keys for cleanup.
 	post, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve post for deletion")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
@@ -267,22 +277,22 @@ func (s *Server) DeletePost(w http.ResponseWriter, r *http.Request, id Id) {
 		return
 	}
 
-	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 	contentKey := storageKeyForContent(postID, post.MimeType)
 	thumbnailKey := storageKeyForThumbnail(postID)
 	if err := s.mediaStore.Delete(ctx, contentKey); err != nil {
 		logger.Error().Err(err).Str("key", contentKey).Msg("failed to delete content object")
-		respondWithError(w, http.StatusInternalServerError, "Failed to delete post content from storage")
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return
 	}
 	if err := s.mediaStore.Delete(ctx, thumbnailKey); err != nil {
 		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to delete thumbnail object")
-		respondWithError(w, http.StatusInternalServerError, "Failed to delete post thumbnail from storage")
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return
 	}
 
 	_, err = s.sqlStore.DeletePost(ctx, postID)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to delete post from database")
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete post")
 		return
 	}

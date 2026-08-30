@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -19,29 +21,103 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	maxMediaBody      int64 = 4 << 30 // 4 GiB
+	postUnlockTimeout       = 10 * time.Second
+)
+
+func readMediaRequestBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	if r.ContentLength > maxMediaBody {
+		return nil, &http.MaxBytesError{Limit: maxMediaBody}
+	}
+	return io.ReadAll(http.MaxBytesReader(w, r.Body, maxMediaBody))
+}
+
+func respondToMediaBodyReadError(w http.ResponseWriter, err error) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		respondWithError(w, http.StatusRequestEntityTooLarge, "Media body exceeds the 4 GiB limit")
+		return
+	}
+	respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+}
+
+func respondToMediaProcessingError(w http.ResponseWriter, err error, message string) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, media.ErrInvalidMedia) {
+		status = http.StatusUnprocessableEntity
+	}
+	respondWithError(w, status, "%s", message)
+}
+
+func validateMediaContentType(r *http.Request, imageOnly bool) (string, error) {
+	rawContentType := r.Header.Get("Content-Type")
+	if rawContentType == "" {
+		return "", errors.New("Content-Type header is required")
+	}
+
+	mediaType, _, err := mime.ParseMediaType(rawContentType)
+	if err != nil {
+		return "", fmt.Errorf("unsupported media type: %s", rawContentType)
+	}
+	mediaType = strings.ToLower(mediaType)
+	if strings.HasPrefix(mediaType, "image/") {
+		return mediaType, nil
+	}
+	if !imageOnly && strings.HasPrefix(mediaType, "video/") {
+		return mediaType, nil
+	}
+	if imageOnly {
+		return "", fmt.Errorf("thumbnail must be an image, got: %s", mediaType)
+	}
+	return "", fmt.Errorf("unsupported media type: %s", mediaType)
+}
+
+func (s *Server) acquirePostMutationLock(ctx context.Context, postID uuid.UUID, logger zerolog.Logger) (func(), error) {
+	lock, err := s.sqlStore.AcquirePostMutationLock(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postUnlockTimeout)
+		defer cancel()
+		if err := lock.Unlock(unlockCtx); err != nil {
+			logger.Error().Err(err).Msg("failed to release post mutation lock")
+		}
+	}, nil
+}
+
+func doesMediaBodyMatchDeclaredMIME(data []byte, declaredMIME string) bool {
+	detectedMIME := http.DetectContentType(data)
+	if !strings.HasPrefix(detectedMIME, "image/") && !strings.HasPrefix(detectedMIME, "video/") {
+		return true
+	}
+	return detectedMIME == declaredMIME
+}
+
 // UploadPost handles uploading new media content as a post.
 func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := *zerolog.Ctx(ctx)
 
-	data, err := io.ReadAll(r.Body)
+	mimeStr, err := validateMediaContentType(r, false)
 	if err != nil {
-		logger.Error().Err(err).Msg("failed to read upload request body")
-		respondWithError(w, http.StatusInternalServerError, "Failed to read request body: %v", err)
+		respondWithError(w, http.StatusUnsupportedMediaType, "%v", err)
 		return
 	}
 
-	mimeStr := r.Header.Get("Content-Type")
-	if mimeStr == "" {
-		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
+	data, err := readMediaRequestBody(w, r)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to read upload request body")
+		respondToMediaBodyReadError(w, err)
 		return
-	}
-	// Strip any parameters (e.g. "; charset=utf-8") to get a bare MIME type.
-	if idx := strings.Index(mimeStr, ";"); idx != -1 {
-		mimeStr = strings.TrimSpace(mimeStr[:idx])
 	}
 
 	logger.Info().Str("mime", mimeStr).Int("size", len(data)).Msg("processing upload")
+
+	if !doesMediaBodyMatchDeclaredMIME(data, mimeStr) {
+		respondWithError(w, http.StatusUnprocessableEntity, "Media body does not match declared Content-Type")
+		return
+	}
 
 	var contentData []byte
 	var contentMIME string
@@ -53,7 +129,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
+			respondToMediaProcessingError(w, err, "Failed to process uploaded image")
 			return
 		}
 	} else if strings.HasPrefix(mimeStr, "video/") {
@@ -63,7 +139,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
+			respondToMediaProcessingError(w, err, "Failed to process uploaded video")
 			return
 		}
 		logger.Info().Bool("has_audio", hasAudioVal).Msg("video processed")
@@ -109,14 +185,14 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	contentURL, err := s.mediaStore.Upload(ctx, contentKey, contentData, contentMIME)
 	if err != nil {
 		logger.Error().Err(err).Str("key", contentKey).Msg("failed to upload content to storage")
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload content: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload post media")
 		return
 	}
 
 	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
 		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload thumbnail to storage")
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to upload post media")
 		return
 	}
 
@@ -138,7 +214,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to insert post into database")
-		respondWithError(w, http.StatusInternalServerError, "Failed to store post: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to create post")
 		return
 	}
 
@@ -170,10 +246,26 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	ctx := r.Context()
 
 	postID := uuid.UUID(id)
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
+
+	mimeStr, err := validateMediaContentType(r, false)
+	if err != nil {
+		respondWithError(w, http.StatusUnsupportedMediaType, "%v", err)
+		return
+	}
+
+	releaseLock, err := s.acquirePostMutationLock(ctx, postID, logger)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to acquire post mutation lock")
+		respondWithError(w, http.StatusInternalServerError, "Failed to lock post for media replacement")
+		return
+	}
+	defer releaseLock()
 
 	// Get existing post to determine old storage keys
 	existingPost, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve post for media replacement")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
@@ -182,19 +274,15 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		return
 	}
 
-	data, err := io.ReadAll(r.Body)
+	data, err := readMediaRequestBody(w, r)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		respondToMediaBodyReadError(w, err)
 		return
 	}
 
-	mimeStr := r.Header.Get("Content-Type")
-	if mimeStr == "" {
-		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
+	if !doesMediaBodyMatchDeclaredMIME(data, mimeStr) {
+		respondWithError(w, http.StatusUnprocessableEntity, "Media body does not match declared Content-Type")
 		return
-	}
-	if idx := strings.Index(mimeStr, ";"); idx != -1 {
-		mimeStr = strings.TrimSpace(mimeStr[:idx])
 	}
 
 	var contentData []byte
@@ -205,7 +293,8 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	if strings.HasPrefix(mimeStr, "image/") {
 		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
+			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement image")
+			respondToMediaProcessingError(w, err, "Failed to process replacement image")
 			return
 		}
 	} else if strings.HasPrefix(mimeStr, "video/") {
@@ -213,7 +302,8 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		contentMIME = mimeStr
 		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
+			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement video")
+			respondToMediaProcessingError(w, err, "Failed to process replacement video")
 			return
 		}
 	} else {
@@ -221,28 +311,21 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		return
 	}
 
-	// Delete old content object if the extension changed (new key won't overwrite old one).
 	oldContentKey := storageKeyForContent(postID, existingPost.MimeType)
 	newContentKey := storageKeyForContent(postID, contentMIME)
-	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
-	if oldContentKey != newContentKey {
-		logger.Info().Str("old_key", oldContentKey).Str("new_key", newContentKey).Msg("mime type changed, deleting old content object")
-		if err := s.mediaStore.Delete(ctx, oldContentKey); err != nil {
-			logger.Error().Err(err).Str("key", oldContentKey).Msg("failed to delete old content object")
-		}
-	}
-
 	thumbnailKey := storageKeyForThumbnail(postID)
 
 	contentURL, err := s.mediaStore.Upload(ctx, newContentKey, contentData, contentMIME)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload content")
+		logger.Error().Err(err).Str("key", newContentKey).Msg("failed to upload replacement content")
+		respondWithError(w, http.StatusInternalServerError, "Failed to replace post media")
 		return
 	}
 
 	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload replacement thumbnail")
+		respondWithError(w, http.StatusInternalServerError, "Failed to replace post media")
 		return
 	}
 
@@ -272,12 +355,18 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 		UpdatedAt:    now,
 	})
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to update replacement media in database")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		respondWithError(w, http.StatusInternalServerError, "Failed to replace post media")
 		return
+	}
+	if oldContentKey != newContentKey {
+		if err := s.mediaStore.Delete(ctx, oldContentKey); err != nil {
+			logger.Error().Err(err).Str("key", oldContentKey).Msg("failed to delete superseded content object")
+		}
 	}
 
 	respond(w, http.StatusOK, postFromModel(model))
@@ -285,11 +374,26 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 
 func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
-
 	postID := uuid.UUID(id)
+	logger := zerolog.Ctx(ctx).With().Stringer("post_id", postID).Logger()
 
-	_, err := s.sqlStore.GetPost(ctx, postID)
+	mimeStr, err := validateMediaContentType(r, true)
 	if err != nil {
+		respondWithError(w, http.StatusUnsupportedMediaType, "%v", err)
+		return
+	}
+
+	releaseLock, err := s.acquirePostMutationLock(ctx, postID, logger)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to acquire post mutation lock")
+		respondWithError(w, http.StatusInternalServerError, "Failed to lock post for thumbnail replacement")
+		return
+	}
+	defer releaseLock()
+
+	_, err = s.sqlStore.GetPost(ctx, postID)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve post for thumbnail replacement")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
@@ -298,47 +402,42 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 
-	data, err := io.ReadAll(r.Body)
+	data, err := readMediaRequestBody(w, r)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to read request body")
+		respondToMediaBodyReadError(w, err)
 		return
 	}
 
-	mimeStr := r.Header.Get("Content-Type")
-	if mimeStr == "" {
-		respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header is required")
-		return
-	}
-	if idx := strings.Index(mimeStr, ";"); idx != -1 {
-		mimeStr = strings.TrimSpace(mimeStr[:idx])
-	}
-
-	if !strings.HasPrefix(mimeStr, "image/") {
-		respondWithError(w, http.StatusUnsupportedMediaType, "Thumbnail must be an image, got: %s", mimeStr)
+	if !doesMediaBodyMatchDeclaredMIME(data, mimeStr) {
+		respondWithError(w, http.StatusUnprocessableEntity, "Media body does not match declared Content-Type")
 		return
 	}
 
 	_, _, thumbnailData, err := media.ProcessImage(data, mimeStr)
 	if err != nil {
-		respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
+		logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement thumbnail")
+		respondToMediaProcessingError(w, err, "Failed to process thumbnail")
 		return
 	}
 
 	thumbnailKey := storageKeyForThumbnail(postID)
+
 	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload replacement thumbnail")
+		respondWithError(w, http.StatusInternalServerError, "Failed to replace post thumbnail")
 		return
 	}
 
 	now := time.Now().UTC()
 	model, err := s.sqlStore.UpdatePostThumbnail(ctx, postID, thumbnailURL, now)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to update post thumbnail in database")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		respondWithError(w, http.StatusInternalServerError, "Failed to replace post thumbnail")
 		return
 	}
 
@@ -351,8 +450,17 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 
 	postID := uuid.UUID(id)
 
+	releaseLock, err := s.acquirePostMutationLock(ctx, postID, logger)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to acquire post mutation lock")
+		respondWithError(w, http.StatusInternalServerError, "Failed to lock post for thumbnail regeneration")
+		return
+	}
+	defer releaseLock()
+
 	post, err := s.sqlStore.GetPost(ctx, postID)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to retrieve post for thumbnail regeneration")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
@@ -365,13 +473,14 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 	obj, err := s.mediaStore.Download(ctx, contentKey)
 	if err != nil {
 		logger.Error().Err(err).Str("key", contentKey).Msg("failed to download content from storage")
-		respondWithError(w, http.StatusInternalServerError, "Failed to download content")
+		respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 		return
 	}
 	data, err := io.ReadAll(obj.Body)
 	_ = obj.Body.Close()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to read content")
+		logger.Error().Err(err).Str("key", contentKey).Msg("failed to read content for thumbnail regeneration")
+		respondWithError(w, http.StatusInternalServerError, "Failed to load post media")
 		return
 	}
 
@@ -380,14 +489,14 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 		_, _, thumbnailData, err = media.ProcessImage(data, post.MimeType)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to process image for thumbnail regeneration")
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process image: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 			return
 		}
 	} else if strings.HasPrefix(post.MimeType, "video/") {
 		thumbnailData, err = media.RegenerateVideoThumbnail(data)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to process video for thumbnail regeneration")
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to process video: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 			return
 		}
 	} else {
@@ -396,20 +505,23 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 	}
 
 	thumbnailKey := storageKeyForThumbnail(postID)
+
 	thumbnailURL, err := s.mediaStore.Upload(ctx, thumbnailKey, thumbnailData, "image/webp")
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload thumbnail")
+		logger.Error().Err(err).Str("key", thumbnailKey).Msg("failed to upload regenerated thumbnail")
+		respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 		return
 	}
 
 	now := time.Now().UTC()
 	model, err := s.sqlStore.UpdatePostThumbnail(ctx, postID, thumbnailURL, now)
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to update regenerated thumbnail in database")
 		if errors.Is(err, store.ErrNotFound) {
 			respondWithError(w, http.StatusNotFound, "Post not found")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to update post")
+		respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 		return
 	}
 

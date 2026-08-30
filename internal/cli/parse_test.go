@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"uuid"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseID(t *testing.T) {
@@ -12,19 +15,13 @@ func TestParseID(t *testing.T) {
 		t.Parallel()
 		expected := uuid.New()
 		got, err := ParseID(expected.String())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got != expected {
-			t.Errorf("got %v, want %v", got, expected)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, got)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
 		t.Parallel()
 		_, err := ParseID("not-a-uuid")
-		if err == nil {
-			t.Error("expected error for invalid UUID")
-		}
+		assert.Error(t, err)
 	})
 }

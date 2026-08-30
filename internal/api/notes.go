@@ -3,7 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"sort"
+	"strings"
+	"unicode/utf8"
 
 	"uuid"
 
@@ -11,6 +15,11 @@ import (
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/rs/zerolog"
+)
+
+const (
+	maxNoteTitleLength   = 1024
+	maxNoteContentLength = 4 << 20
 )
 
 // noteFromModel converts a database Note model to an API Note type.
@@ -34,6 +43,14 @@ func (s *Server) GetNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stable sort in case timestamps are the same
+	sort.Slice(notes, func(i, j int) bool {
+		if notes[i].CreatedAt.Equal(notes[j].CreatedAt) {
+			return notes[i].ID.String() > notes[j].ID.String()
+		}
+		return notes[i].CreatedAt.After(notes[j].CreatedAt)
+	})
+
 	items := make([]types.Note, 0, len(notes))
 	for _, note := range notes {
 		items = append(items, noteFromModel(note))
@@ -50,13 +67,13 @@ func (s *Server) CreateNote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var body CreateNoteJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeNoteRequest(r, &body); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if body.Title == "" {
-		respondWithError(w, http.StatusBadRequest, "Title is required")
+	if err := validateNote(body.Title, body.Content); err != nil {
+		respondWithError(w, http.StatusBadRequest, "%s", err)
 		return
 	}
 
@@ -92,13 +109,13 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 	ctx := r.Context()
 
 	var body PutNoteJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeNoteRequest(r, &body); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if body.Title == "" {
-		respondWithError(w, http.StatusBadRequest, "Title is required")
+	if err := validateNote(body.Title, body.Content); err != nil {
+		respondWithError(w, http.StatusBadRequest, "%s", err)
 		return
 	}
 
@@ -114,6 +131,34 @@ func (s *Server) PutNote(w http.ResponseWriter, r *http.Request, id Id) {
 
 	zerolog.Ctx(ctx).Info().Stringer("note_id", uuid.UUID(id)).Msg("note updated")
 	respond(w, http.StatusOK, noteFromModel(model))
+}
+
+func decodeNoteRequest(r *http.Request, body any) error {
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(body); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request body contains multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func validateNote(title, content string) error {
+	if strings.TrimSpace(title) == "" {
+		return errors.New("title is required")
+	}
+	if utf8.RuneCountInString(title) > maxNoteTitleLength {
+		return errors.New("title is too long")
+	}
+	if utf8.RuneCountInString(content) > maxNoteContentLength {
+		return errors.New("content is too long")
+	}
+	return nil
 }
 
 func (s *Server) DeleteNote(w http.ResponseWriter, r *http.Request, id Id) {

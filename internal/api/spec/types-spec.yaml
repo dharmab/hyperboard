@@ -34,6 +34,7 @@ components:
           $ref: "#/components/schemas/TagCategoryName"
         description:
           type: string
+          x-go-type-skip-optional-pointer: true
         aliases:
           type: array
           items:
@@ -44,10 +45,15 @@ components:
             $ref: "#/components/schemas/TagName"
         postCount:
           type: integer
+          readOnly: true
         createdAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
         updatedAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
     TagCategory:
       type: object
       required:
@@ -60,15 +66,27 @@ components:
         name:
           $ref: "#/components/schemas/TagCategoryName"
         description:
-          $ref: "#/components/schemas/Description"
+          allOf:
+            - $ref: "#/components/schemas/Description"
+          x-go-type-skip-optional-pointer: true
         color:
           type: string
+          description: Hex color.
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          default: "#888888"
+          example: "#ff0000"
+          x-go-type-skip-optional-pointer: true
         tagCount:
           type: integer
+          readOnly: true
         createdAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
         updatedAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
     Post:
       type: object
       required:
@@ -86,30 +104,44 @@ components:
           $ref: "#/components/schemas/ID"
         mimeType:
           type: string
+          readOnly: true
         contentUrl:
-          $ref: "#/components/schemas/URL"
+          allOf:
+            - $ref: "#/components/schemas/URL"
+          readOnly: true
         thumbnailUrl:
-          $ref: "#/components/schemas/URL"
+          allOf:
+            - $ref: "#/components/schemas/URL"
+          readOnly: true
         note:
           type: string
+          x-go-type-skip-optional-pointer: true
         hasAudio:
           type: boolean
+          readOnly: true
         tags:
           type: array
           items:
             $ref: "#/components/schemas/TagName"
+          x-go-type-skip-optional-pointer: true
         tagColors:
           type: object
           additionalProperties:
             type: string
+          readOnly: true
         cascadingTags:
           type: array
           items:
             $ref: "#/components/schemas/TagName"
+          readOnly: true
         createdAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
         updatedAt:
-          $ref: "#/components/schemas/Timestamp"
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          readOnly: true
     Note:
       type: object
       required:

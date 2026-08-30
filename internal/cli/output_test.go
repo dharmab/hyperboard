@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 
 	"uuid"
 
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/goccy/go-yaml"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrintJSON(t *testing.T) {
@@ -20,9 +21,8 @@ func TestPrintJSON(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	if err := printJSON(tag); err != nil {
-		t.Fatalf("printJSON error: %v", err)
-	}
+	printErr := printJSON(tag)
+	require.NoError(t, printErr)
 	_ = w.Close()
 	os.Stdout = old
 
@@ -31,12 +31,9 @@ func TestPrintJSON(t *testing.T) {
 	output := buf.String()
 
 	var decoded types.Tag
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		t.Fatalf("failed to parse JSON output: %v", err)
-	}
-	if decoded.Name != "test-tag" {
-		t.Errorf("Name = %q, want %q", decoded.Name, "test-tag")
-	}
+	unmarshalErr := json.Unmarshal([]byte(output), &decoded)
+	require.NoError(t, unmarshalErr)
+	assert.Equal(t, "test-tag", decoded.Name)
 }
 
 func TestPrintYAML(t *testing.T) {
@@ -46,9 +43,8 @@ func TestPrintYAML(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	if err := printYAML(tag); err != nil {
-		t.Fatalf("printYAML error: %v", err)
-	}
+	printErr := printYAML(tag)
+	require.NoError(t, printErr)
 	_ = w.Close()
 	os.Stdout = old
 
@@ -57,12 +53,9 @@ func TestPrintYAML(t *testing.T) {
 	output := buf.String()
 
 	var decoded types.Tag
-	if err := yaml.Unmarshal([]byte(output), &decoded); err != nil {
-		t.Fatalf("failed to parse YAML output: %v", err)
-	}
-	if decoded.Name != "yaml-tag" {
-		t.Errorf("Name = %q, want %q", decoded.Name, "yaml-tag")
-	}
+	unmarshalErr := yaml.Unmarshal([]byte(output), &decoded)
+	require.NoError(t, unmarshalErr)
+	assert.Equal(t, "yaml-tag", decoded.Name)
 }
 
 func TestPrintTable(t *testing.T) {
@@ -79,9 +72,8 @@ func TestPrintTable(t *testing.T) {
 	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
-	if !strings.Contains(output, "Name") || !strings.Contains(output, "test") {
-		t.Errorf("expected table output to contain 'Name' and 'test', got: %s", output)
-	}
+	assert.Contains(t, output, "Name")
+	assert.Contains(t, output, "test")
 }
 
 func TestPrintListTable(t *testing.T) {
@@ -103,7 +95,6 @@ func TestPrintListTable(t *testing.T) {
 	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
-	if !strings.Contains(output, "tag-1") || !strings.Contains(output, "tag-2") {
-		t.Errorf("expected list table to contain tag names, got: %s", output)
-	}
+	assert.Contains(t, output, "tag-1")
+	assert.Contains(t, output, "tag-2")
 }

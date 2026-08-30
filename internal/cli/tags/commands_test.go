@@ -9,6 +9,8 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/cli"
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFetchAllTags(t *testing.T) {
@@ -35,17 +37,9 @@ func TestFetchAllTags(t *testing.T) {
 
 	app := &cli.App{Config: &cli.Config{APIURL: srv.URL, AdminPassword: "test"}}
 	c, err := app.NewClient()
-	if err != nil {
-		t.Fatalf("NewClient error: %v", err)
-	}
+	require.NoError(t, err)
 	result, err := FetchAllTags(c)
-	if err != nil {
-		t.Fatalf("FetchAllTags error: %v", err)
-	}
-	if len(result) != 1 {
-		t.Fatalf("expected 1 tag, got %d", len(result))
-	}
-	if result[0].Name != "test-tag" {
-		t.Errorf("Name = %v, want test-tag", result[0].Name)
-	}
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "test-tag", result[0].Name)
 }

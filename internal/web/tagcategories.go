@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,14 +15,9 @@ func (a *app) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var errs []string
 
-	catLimit := 1000
-	resp, err := a.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &catLimit})
+	cats, err := a.fetchAllTagCategories(ctx)
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("Failed to load categories: %v", err))
-	}
-	cats := []types.TagCategory{}
-	if resp != nil && resp.JSON200 != nil && resp.JSON200.Items != nil {
-		cats = *resp.JSON200.Items
 	}
 
 	// Tag counts are now provided server-side via TagCategory.TagCount.
@@ -33,6 +29,28 @@ func (a *app) handleTagCategories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.renderTemplate(w, r, "tag_categories", tagCategoriesData{Categories: cats, TagCounts: tagCounts, Error: strings.Join(errs, "; ")})
+}
+
+func (a *app) fetchAllTagCategories(ctx context.Context) ([]types.TagCategory, error) {
+	categories := []types.TagCategory{}
+	var cursor *string
+	for {
+		limit := 64
+		resp, err := a.api.GetTagCategoriesWithResponse(ctx, &client.GetTagCategoriesParams{Limit: &limit, Cursor: cursor})
+		if err != nil {
+			return categories, err
+		}
+		if resp.JSON200 == nil {
+			return categories, fmt.Errorf("API returned HTTP %d: %s", resp.StatusCode(), resp.Body)
+		}
+		if resp.JSON200.Items != nil {
+			categories = append(categories, *resp.JSON200.Items...)
+		}
+		if resp.JSON200.Cursor == nil || *resp.JSON200.Cursor == "" {
+			return categories, nil
+		}
+		cursor = resp.JSON200.Cursor
+	}
 }
 
 // handleTagCategoryEdit serves the tag category edit form and handles creation, updates, and deletion.
@@ -77,7 +95,7 @@ func (a *app) handleTagCategoryEdit(w http.ResponseWriter, r *http.Request) {
 		if isNew {
 			urlName = newName
 		}
-		resp, err := a.api.PutTagCategoryWithResponse(ctx, urlName, cat)
+		resp, err := a.api.PutTagCategoryWithResponse(ctx, urlName, client.NewTagCategoryUpdateRequest(cat))
 		if err != nil || resp.StatusCode() >= 400 {
 			var errMsg string
 			if err != nil {

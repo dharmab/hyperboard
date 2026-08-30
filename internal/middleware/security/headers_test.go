@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSecurityHeadersMiddleware(t *testing.T) {
@@ -32,9 +34,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		t.Run(tt.header, func(t *testing.T) {
 			t.Parallel()
 			got := rec.Header().Get(tt.header)
-			if got != tt.want {
-				t.Errorf("header %s = %q, want %q", tt.header, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

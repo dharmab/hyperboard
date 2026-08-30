@@ -6,5 +6,5 @@
     "Starlark": {
       "enable_language_server": false
     }
-  }
+  },
 }

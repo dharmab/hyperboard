@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"math/rand/v2"
@@ -61,6 +62,9 @@ func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
 	)
 	pngData, err := cmd.Output()
 	if err != nil {
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
+			return nil, fmt.Errorf("%w: ffmpeg extract frame: %w", ErrInvalidMedia, err)
+		}
 		return nil, fmt.Errorf("ffmpeg extract frame: %w", err)
 	}
 

@@ -6,11 +6,16 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	externalRef0 "github.com/dharmab/hyperboard/pkg/types"
 	"github.com/oapi-codegen/runtime"
+)
+
+const (
+	BasicAuthScopes = "basicAuth.Scopes"
 )
 
 // Cursor defines model for Cursor.
@@ -21,11 +26,35 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-// Limit defines model for Limit.
+// Limit Page size. Omitted or non-positive values use 64; values above 64 are capped at 64.
 type Limit = int
+
+// PostUpdateRequest defines model for PostUpdateRequest.
+type PostUpdateRequest struct {
+	ID   externalRef0.ID        `json:"id"`
+	Note string                 `json:"note,omitempty"`
+	Tags []externalRef0.TagName `json:"tags,omitempty"`
+}
 
 // Search defines model for Search.
 type Search = string
+
+// TagCategoryUpdateRequest defines model for TagCategoryUpdateRequest.
+type TagCategoryUpdateRequest struct {
+	// Color Hex color.
+	Color       string                       `json:"color,omitempty"`
+	Description externalRef0.Description     `json:"description,omitempty"`
+	Name        externalRef0.TagCategoryName `json:"name"`
+}
+
+// TagUpdateRequest defines model for TagUpdateRequest.
+type TagUpdateRequest struct {
+	Aliases       []string                      `json:"aliases,omitempty"`
+	CascadingTags []externalRef0.TagName        `json:"cascadingTags,omitempty"`
+	Category      *externalRef0.TagCategoryName `json:"category,omitempty"`
+	Description   string                        `json:"description,omitempty"`
+	Name          externalRef0.TagName          `json:"name"`
+}
 
 // Id defines model for id.
 type Id = externalRef0.ID
@@ -51,6 +80,9 @@ type CreatedPostResponse struct {
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
 
+// HealthyResponse defines model for HealthyResponse.
+type HealthyResponse = string
+
 // InternalServerErrorResponse defines model for InternalServerErrorResponse.
 type InternalServerErrorResponse = Error
 
@@ -75,6 +107,9 @@ type PostsResponse struct {
 	Items  *[]externalRef0.Post `json:"items,omitempty"`
 }
 
+// RequestEntityTooLargeResponse defines model for RequestEntityTooLargeResponse.
+type RequestEntityTooLargeResponse = Error
+
 // TagCategoriesResponse defines model for TagCategoriesResponse.
 type TagCategoriesResponse struct {
 	Cursor *Cursor                     `json:"cursor,omitempty"`
@@ -96,8 +131,14 @@ type TagsResponse struct {
 // TooManyRequestsResponse defines model for TooManyRequestsResponse.
 type TooManyRequestsResponse = Error
 
-// UnauthorizedResponse defines model for UnauthorizedResponse.
-type UnauthorizedResponse = Error
+// UnhealthyResponse defines model for UnhealthyResponse.
+type UnhealthyResponse = Error
+
+// UnprocessableEntityResponse defines model for UnprocessableEntityResponse.
+type UnprocessableEntityResponse = Error
+
+// UnsupportedMediaTypeResponse defines model for UnsupportedMediaTypeResponse.
+type UnsupportedMediaTypeResponse = Error
 
 // NoteRequest defines model for NoteRequest.
 type NoteRequest struct {
@@ -106,13 +147,13 @@ type NoteRequest struct {
 }
 
 // PostRequest defines model for PostRequest.
-type PostRequest = externalRef0.Post
+type PostRequest = PostUpdateRequest
 
 // TagCategoryRequest defines model for TagCategoryRequest.
-type TagCategoryRequest = externalRef0.TagCategory
+type TagCategoryRequest = TagCategoryUpdateRequest
 
 // TagRequest defines model for TagRequest.
-type TagRequest = externalRef0.Tag
+type TagRequest = TagUpdateRequest
 
 // CreateNoteJSONBody defines parameters for CreateNote.
 type CreateNoteJSONBody struct {
@@ -162,13 +203,13 @@ type CreateNoteJSONRequestBody CreateNoteJSONBody
 type PutNoteJSONRequestBody PutNoteJSONBody
 
 // PutPostJSONRequestBody defines body for PutPost for application/json ContentType.
-type PutPostJSONRequestBody = externalRef0.Post
+type PutPostJSONRequestBody = PostUpdateRequest
 
 // PutTagCategoryJSONRequestBody defines body for PutTagCategory for application/json ContentType.
-type PutTagCategoryJSONRequestBody = externalRef0.TagCategory
+type PutTagCategoryJSONRequestBody = TagCategoryUpdateRequest
 
 // PutTagJSONRequestBody defines body for PutTag for application/json ContentType.
-type PutTagJSONRequestBody = externalRef0.Tag
+type PutTagJSONRequestBody = TagUpdateRequest
 
 // ConvertTagToAliasJSONRequestBody defines body for ConvertTagToAlias for application/json ContentType.
 type ConvertTagToAliasJSONRequestBody ConvertTagToAliasJSONBody
@@ -276,6 +317,12 @@ type MiddlewareFunc func(http.Handler) http.Handler
 // GetNotes operation middleware
 func (siw *ServerInterfaceWrapper) GetNotes(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetNotes(w, r)
 	}))
@@ -289,6 +336,12 @@ func (siw *ServerInterfaceWrapper) GetNotes(w http.ResponseWriter, r *http.Reque
 
 // CreateNote operation middleware
 func (siw *ServerInterfaceWrapper) CreateNote(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateNote(w, r)
@@ -315,6 +368,12 @@ func (siw *ServerInterfaceWrapper) DeleteNote(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteNote(w, r, id)
 	}))
@@ -339,6 +398,12 @@ func (siw *ServerInterfaceWrapper) GetNote(w http.ResponseWriter, r *http.Reques
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetNote(w, r, id)
@@ -365,6 +430,12 @@ func (siw *ServerInterfaceWrapper) PutNote(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutNote(w, r, id)
 	}))
@@ -380,6 +451,12 @@ func (siw *ServerInterfaceWrapper) PutNote(w http.ResponseWriter, r *http.Reques
 func (siw *ServerInterfaceWrapper) GetPosts(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetPostsParams
@@ -433,6 +510,12 @@ func (siw *ServerInterfaceWrapper) DeletePost(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeletePost(w, r, id)
 	}))
@@ -457,6 +540,12 @@ func (siw *ServerInterfaceWrapper) GetPost(w http.ResponseWriter, r *http.Reques
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPost(w, r, id)
@@ -483,6 +572,12 @@ func (siw *ServerInterfaceWrapper) PutPost(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutPost(w, r, id)
 	}))
@@ -507,6 +602,12 @@ func (siw *ServerInterfaceWrapper) GetPostContent(w http.ResponseWriter, r *http
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPostContent(w, r, id)
@@ -533,6 +634,12 @@ func (siw *ServerInterfaceWrapper) ReplacePostContent(w http.ResponseWriter, r *
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReplacePostContent(w, r, id)
 	}))
@@ -558,6 +665,12 @@ func (siw *ServerInterfaceWrapper) DownloadPostContent(w http.ResponseWriter, r 
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DownloadPostContent(w, r, id)
 	}))
@@ -582,6 +695,12 @@ func (siw *ServerInterfaceWrapper) GetSimilarPosts(w http.ResponseWriter, r *htt
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetSimilarPostsParams
@@ -619,6 +738,12 @@ func (siw *ServerInterfaceWrapper) GetPostThumbnail(w http.ResponseWriter, r *ht
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPostThumbnail(w, r, id)
 	}))
@@ -643,6 +768,12 @@ func (siw *ServerInterfaceWrapper) RegeneratePostThumbnail(w http.ResponseWriter
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RegeneratePostThumbnail(w, r, id)
@@ -669,6 +800,12 @@ func (siw *ServerInterfaceWrapper) ReplacePostThumbnail(w http.ResponseWriter, r
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReplacePostThumbnail(w, r, id)
 	}))
@@ -684,6 +821,12 @@ func (siw *ServerInterfaceWrapper) ReplacePostThumbnail(w http.ResponseWriter, r
 func (siw *ServerInterfaceWrapper) GetTagCategories(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetTagCategoriesParams
@@ -729,6 +872,12 @@ func (siw *ServerInterfaceWrapper) DeleteTagCategory(w http.ResponseWriter, r *h
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteTagCategory(w, r, tagCategory)
 	}))
@@ -753,6 +902,12 @@ func (siw *ServerInterfaceWrapper) GetTagCategory(w http.ResponseWriter, r *http
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tagCategory", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTagCategory(w, r, tagCategory)
@@ -779,6 +934,12 @@ func (siw *ServerInterfaceWrapper) PutTagCategory(w http.ResponseWriter, r *http
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutTagCategory(w, r, tagCategory)
 	}))
@@ -794,6 +955,12 @@ func (siw *ServerInterfaceWrapper) PutTagCategory(w http.ResponseWriter, r *http
 func (siw *ServerInterfaceWrapper) GetTags(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetTagsParams
@@ -839,6 +1006,12 @@ func (siw *ServerInterfaceWrapper) DeleteTag(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteTag(w, r, tag)
 	}))
@@ -863,6 +1036,12 @@ func (siw *ServerInterfaceWrapper) GetTag(w http.ResponseWriter, r *http.Request
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTag(w, r, tag)
@@ -889,6 +1068,12 @@ func (siw *ServerInterfaceWrapper) PutTag(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutTag(w, r, tag)
 	}))
@@ -914,6 +1099,12 @@ func (siw *ServerInterfaceWrapper) ConvertTagToAlias(w http.ResponseWriter, r *h
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ConvertTagToAlias(w, r, tag)
 	}))
@@ -927,6 +1118,12 @@ func (siw *ServerInterfaceWrapper) ConvertTagToAlias(w http.ResponseWriter, r *h
 
 // UploadPost operation middleware
 func (siw *ServerInterfaceWrapper) UploadPost(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadPost(w, r)

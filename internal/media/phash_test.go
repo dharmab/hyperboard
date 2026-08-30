@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDhash(t *testing.T) {
@@ -13,9 +15,7 @@ func TestDhash(t *testing.T) {
 		img := syntheticImage(100, 100, color.White)
 		h1 := Dhash(img)
 		h2 := Dhash(img)
-		if h1 != h2 {
-			t.Errorf("same image produced different hashes: %d vs %d", h1, h2)
-		}
+		assert.Equal(t, h1, h2)
 	})
 
 	t.Run("different images produce different hashes", func(t *testing.T) {
@@ -24,18 +24,14 @@ func TestDhash(t *testing.T) {
 		img2 := checkerboardImage(100, 100, 25)
 		h1 := Dhash(img1)
 		h2 := Dhash(img2)
-		if h1 == h2 {
-			t.Error("different images produced the same hash")
-		}
+		assert.NotEqual(t, h1, h2)
 	})
 
 	t.Run("patterned image produces non-zero hash", func(t *testing.T) {
 		t.Parallel()
 		img := checkerboardImage(100, 100, 10)
 		h := Dhash(img)
-		if h == 0 {
-			t.Error("checkerboard image should produce non-zero hash")
-		}
+		assert.NotZero(t, h)
 	})
 }
 

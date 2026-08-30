@@ -103,7 +103,10 @@ func serveAPI(ctx context.Context, cfg *config, dsn string) error {
 	s := store.NewPostgresSQLStore(db, cfg.SimilarityThreshold)
 	apiServer := NewServer(s, objStorage)
 	mux := http.NewServeMux()
-	HandlerFromMux(apiServer, mux)
+	HandlerWithOptions(apiServer, StdHTTPServerOptions{
+		BaseRouter:       mux,
+		ErrorHandlerFunc: parameterBindingErrorHandler,
+	})
 	authMiddleware := auth.BasicAuthMiddleware(cfg.AdminPassword, "/healthz", "/readyz", "/metrics")
 	httpServer := &http.Server{
 		Handler:           logging.RequestLoggingMiddleware(authMiddleware(mux)),

@@ -157,7 +157,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 
-	var tag types.Tag
+	var tag TagUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&tag); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -198,15 +198,8 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		tagCategoryID = sql.Null[uuid.UUID]{V: uuid.UUID(category.ID), Valid: true}
 	}
 
-	var aliases []string
-	if tag.Aliases != nil {
-		aliases = *tag.Aliases
-	}
-
-	var cascadingTags []string
-	if tag.CascadingTags != nil {
-		cascadingTags = *tag.CascadingTags
-	}
+	aliases := tag.Aliases
+	cascadingTags := tag.CascadingTags
 
 	now := time.Now().UTC()
 	resultModel, isCreate, err := s.sqlStore.UpsertTag(ctx, name, store.TagInput{
@@ -218,8 +211,8 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		TagCategoryID: tagCategoryID,
 	}, now)
 	if err != nil {
-		if errors.Is(err, store.ErrAliasConflict) {
-			respondWithError(w, http.StatusInternalServerError, "Failed to update tag aliases")
+		if errors.Is(err, store.ErrConflict) {
+			respondWithError(w, http.StatusConflict, "%v", err)
 			return
 		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to save tag")

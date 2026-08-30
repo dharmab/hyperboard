@@ -17,6 +17,10 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+const (
+	BasicAuthScopes = "basicAuth.Scopes"
+)
+
 // Cursor defines model for Cursor.
 type Cursor = string
 
@@ -25,11 +29,35 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-// Limit defines model for Limit.
+// Limit Page size. Omitted or non-positive values use 64; values above 64 are capped at 64.
 type Limit = int
+
+// PostUpdateRequest defines model for PostUpdateRequest.
+type PostUpdateRequest struct {
+	ID   externalRef0.ID        `json:"id"`
+	Note string                 `json:"note,omitempty"`
+	Tags []externalRef0.TagName `json:"tags,omitempty"`
+}
 
 // Search defines model for Search.
 type Search = string
+
+// TagCategoryUpdateRequest defines model for TagCategoryUpdateRequest.
+type TagCategoryUpdateRequest struct {
+	// Color Hex color.
+	Color       string                       `json:"color,omitempty"`
+	Description externalRef0.Description     `json:"description,omitempty"`
+	Name        externalRef0.TagCategoryName `json:"name"`
+}
+
+// TagUpdateRequest defines model for TagUpdateRequest.
+type TagUpdateRequest struct {
+	Aliases       []string                      `json:"aliases,omitempty"`
+	CascadingTags []externalRef0.TagName        `json:"cascadingTags,omitempty"`
+	Category      *externalRef0.TagCategoryName `json:"category,omitempty"`
+	Description   string                        `json:"description,omitempty"`
+	Name          externalRef0.TagName          `json:"name"`
+}
 
 // Id defines model for id.
 type Id = externalRef0.ID
@@ -55,6 +83,9 @@ type CreatedPostResponse struct {
 // ForbiddenResponse defines model for ForbiddenResponse.
 type ForbiddenResponse = Error
 
+// HealthyResponse defines model for HealthyResponse.
+type HealthyResponse = string
+
 // InternalServerErrorResponse defines model for InternalServerErrorResponse.
 type InternalServerErrorResponse = Error
 
@@ -79,6 +110,9 @@ type PostsResponse struct {
 	Items  *[]externalRef0.Post `json:"items,omitempty"`
 }
 
+// RequestEntityTooLargeResponse defines model for RequestEntityTooLargeResponse.
+type RequestEntityTooLargeResponse = Error
+
 // TagCategoriesResponse defines model for TagCategoriesResponse.
 type TagCategoriesResponse struct {
 	Cursor *Cursor                     `json:"cursor,omitempty"`
@@ -100,8 +134,14 @@ type TagsResponse struct {
 // TooManyRequestsResponse defines model for TooManyRequestsResponse.
 type TooManyRequestsResponse = Error
 
-// UnauthorizedResponse defines model for UnauthorizedResponse.
-type UnauthorizedResponse = Error
+// UnhealthyResponse defines model for UnhealthyResponse.
+type UnhealthyResponse = Error
+
+// UnprocessableEntityResponse defines model for UnprocessableEntityResponse.
+type UnprocessableEntityResponse = Error
+
+// UnsupportedMediaTypeResponse defines model for UnsupportedMediaTypeResponse.
+type UnsupportedMediaTypeResponse = Error
 
 // NoteRequest defines model for NoteRequest.
 type NoteRequest struct {
@@ -110,13 +150,13 @@ type NoteRequest struct {
 }
 
 // PostRequest defines model for PostRequest.
-type PostRequest = externalRef0.Post
+type PostRequest = PostUpdateRequest
 
 // TagCategoryRequest defines model for TagCategoryRequest.
-type TagCategoryRequest = externalRef0.TagCategory
+type TagCategoryRequest = TagCategoryUpdateRequest
 
 // TagRequest defines model for TagRequest.
-type TagRequest = externalRef0.Tag
+type TagRequest = TagUpdateRequest
 
 // CreateNoteJSONBody defines parameters for CreateNote.
 type CreateNoteJSONBody struct {
@@ -166,13 +206,13 @@ type CreateNoteJSONRequestBody CreateNoteJSONBody
 type PutNoteJSONRequestBody PutNoteJSONBody
 
 // PutPostJSONRequestBody defines body for PutPost for application/json ContentType.
-type PutPostJSONRequestBody = externalRef0.Post
+type PutPostJSONRequestBody = PostUpdateRequest
 
 // PutTagCategoryJSONRequestBody defines body for PutTagCategory for application/json ContentType.
-type PutTagCategoryJSONRequestBody = externalRef0.TagCategory
+type PutTagCategoryJSONRequestBody = TagCategoryUpdateRequest
 
 // PutTagJSONRequestBody defines body for PutTag for application/json ContentType.
-type PutTagJSONRequestBody = externalRef0.Tag
+type PutTagJSONRequestBody = TagUpdateRequest
 
 // ConvertTagToAliasJSONRequestBody defines body for ConvertTagToAlias for application/json ContentType.
 type ConvertTagToAliasJSONRequestBody ConvertTagToAliasJSONBody
@@ -2076,8 +2116,8 @@ type GetNotesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *NotesResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
+	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
 
@@ -2102,8 +2142,8 @@ type CreateNoteResponse struct {
 	HTTPResponse *http.Response
 	JSON201      *NoteResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
+	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
 
@@ -2126,9 +2166,9 @@ func (r CreateNoteResponse) StatusCode() int {
 type DeleteNoteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
 
@@ -2152,9 +2192,9 @@ type GetNoteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *NoteResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
 
@@ -2179,9 +2219,9 @@ type PutNoteResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *NoteResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
 
@@ -2206,7 +2246,6 @@ type GetPostsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostsResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
@@ -2232,7 +2271,6 @@ type DeletePostResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2260,7 +2298,6 @@ type GetPostResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2288,7 +2325,6 @@ type PutPostResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2315,7 +2351,6 @@ type GetPostContentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2343,11 +2378,11 @@ type ReplacePostContentResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
-	JSON415      *BadRequestResponse
-	JSON422      *BadRequestResponse
+	JSON413      *RequestEntityTooLargeResponse
+	JSON415      *UnsupportedMediaTypeResponse
+	JSON422      *UnprocessableEntityResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2372,7 +2407,6 @@ type DownloadPostContentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2400,7 +2434,6 @@ type GetSimilarPostsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostsResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2427,7 +2460,6 @@ type GetPostThumbnailResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2455,10 +2487,9 @@ type RegeneratePostThumbnailResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
-	JSON422      *BadRequestResponse
+	JSON422      *UnprocessableEntityResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2484,11 +2515,11 @@ type ReplacePostThumbnailResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *PostResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
-	JSON415      *BadRequestResponse
-	JSON422      *BadRequestResponse
+	JSON413      *RequestEntityTooLargeResponse
+	JSON415      *UnsupportedMediaTypeResponse
+	JSON422      *UnprocessableEntityResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2514,7 +2545,6 @@ type GetTagCategoriesResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagCategoriesResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
@@ -2540,7 +2570,6 @@ type DeleteTagCategoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2568,7 +2597,6 @@ type GetTagCategoryResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagCategoryResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2595,10 +2623,11 @@ type PutTagCategoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TagCategoryResponse
+	JSON201      *TagCategoryResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
+	JSON409      *ConflictResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2624,7 +2653,6 @@ type GetTagsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagsResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
@@ -2650,7 +2678,6 @@ type DeleteTagResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2678,7 +2705,6 @@ type GetTagResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2704,10 +2730,11 @@ func (r GetTagResponse) StatusCode() int {
 type PutTagResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *TagResponse
 	JSON201      *TagResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
+	JSON409      *ConflictResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2733,7 +2760,6 @@ type ConvertTagToAliasResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagResponse
 	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON404      *NotFoundResponse
 	JSON429      *TooManyRequestsResponse
@@ -2760,10 +2786,11 @@ type UploadPostResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *CreatedPostResponse
-	JSON400      *BadRequestResponse
-	JSON401      *UnauthorizedResponse
 	JSON403      *ForbiddenResponse
 	JSON409      *ConflictResponse
+	JSON413      *RequestEntityTooLargeResponse
+	JSON415      *UnsupportedMediaTypeResponse
+	JSON422      *UnprocessableEntityResponse
 	JSON429      *TooManyRequestsResponse
 	JSON500      *InternalServerErrorResponse
 }
@@ -2787,6 +2814,7 @@ func (r UploadPostResponse) StatusCode() int {
 type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *HealthyResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2829,6 +2857,8 @@ func (r GetMetricsResponse) StatusCode() int {
 type GetReadinessResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *HealthyResponse
+	JSON503      *UnhealthyResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -3177,19 +3207,19 @@ func ParseGetNotesResponse(rsp *http.Response) (*GetNotesResponse, error) {
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerErrorResponse
@@ -3231,19 +3261,19 @@ func ParseCreateNoteResponse(rsp *http.Response) (*CreateNoteResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerErrorResponse
@@ -3271,13 +3301,6 @@ func ParseDeleteNoteResponse(rsp *http.Response) (*DeleteNoteResponse, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3291,6 +3314,13 @@ func ParseDeleteNoteResponse(rsp *http.Response) (*DeleteNoteResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerErrorResponse
@@ -3325,13 +3355,6 @@ func ParseGetNoteResponse(rsp *http.Response) (*GetNoteResponse, error) {
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3345,6 +3368,13 @@ func ParseGetNoteResponse(rsp *http.Response) (*GetNoteResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerErrorResponse
@@ -3386,13 +3416,6 @@ func ParsePutNoteResponse(rsp *http.Response) (*PutNoteResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3406,6 +3429,13 @@ func ParsePutNoteResponse(rsp *http.Response) (*PutNoteResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequestsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerErrorResponse
@@ -3446,13 +3476,6 @@ func ParseGetPostsResponse(rsp *http.Response) (*GetPostsResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -3500,13 +3523,6 @@ func ParseDeletePostResponse(rsp *http.Response) (*DeletePostResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -3569,13 +3585,6 @@ func ParseGetPostResponse(rsp *http.Response) (*GetPostResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3637,13 +3646,6 @@ func ParsePutPostResponse(rsp *http.Response) (*PutPostResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3697,13 +3699,6 @@ func ParseGetPostContentResponse(rsp *http.Response) (*GetPostContentResponse, e
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -3766,13 +3761,6 @@ func ParseReplacePostContentResponse(rsp *http.Response) (*ReplacePostContentRes
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3787,15 +3775,22 @@ func ParseReplacePostContentResponse(rsp *http.Response) (*ReplacePostContentRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest RequestEntityTooLargeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest BadRequestResponse
+		var dest UnsupportedMediaTypeResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest BadRequestResponse
+		var dest UnprocessableEntityResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3840,13 +3835,6 @@ func ParseDownloadPostContentResponse(rsp *http.Response) (*DownloadPostContentR
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -3909,13 +3897,6 @@ func ParseGetSimilarPostsResponse(rsp *http.Response) (*GetSimilarPostsResponse,
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3969,13 +3950,6 @@ func ParseGetPostThumbnailResponse(rsp *http.Response) (*GetPostThumbnailRespons
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -4038,13 +4012,6 @@ func ParseRegeneratePostThumbnailResponse(rsp *http.Response) (*RegeneratePostTh
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4060,7 +4027,7 @@ func ParseRegeneratePostThumbnailResponse(rsp *http.Response) (*RegeneratePostTh
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest BadRequestResponse
+		var dest UnprocessableEntityResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4113,13 +4080,6 @@ func ParseReplacePostThumbnailResponse(rsp *http.Response) (*ReplacePostThumbnai
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4134,15 +4094,22 @@ func ParseReplacePostThumbnailResponse(rsp *http.Response) (*ReplacePostThumbnai
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest RequestEntityTooLargeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest BadRequestResponse
+		var dest UnsupportedMediaTypeResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest BadRequestResponse
+		var dest UnprocessableEntityResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4195,13 +4162,6 @@ func ParseGetTagCategoriesResponse(rsp *http.Response) (*GetTagCategoriesRespons
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4248,13 +4208,6 @@ func ParseDeleteTagCategoryResponse(rsp *http.Response) (*DeleteTagCategoryRespo
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -4317,13 +4270,6 @@ func ParseGetTagCategoryResponse(rsp *http.Response) (*GetTagCategoryResponse, e
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4378,19 +4324,19 @@ func ParsePutTagCategoryResponse(rsp *http.Response) (*PutTagCategoryResponse, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TagCategoryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequestResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -4405,6 +4351,13 @@ func ParsePutTagCategoryResponse(rsp *http.Response) (*PutTagCategoryResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ConflictResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse
@@ -4453,13 +4406,6 @@ func ParseGetTagsResponse(rsp *http.Response) (*GetTagsResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4506,13 +4452,6 @@ func ParseDeleteTagResponse(rsp *http.Response) (*DeleteTagResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -4575,13 +4514,6 @@ func ParseGetTagResponse(rsp *http.Response) (*GetTagResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4629,6 +4561,13 @@ func ParsePutTagResponse(rsp *http.Response) (*PutTagResponse, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TagResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest TagResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4643,19 +4582,19 @@ func ParsePutTagResponse(rsp *http.Response) (*PutTagResponse, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ConflictResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse
@@ -4703,13 +4642,6 @@ func ParseConvertTagToAliasResponse(rsp *http.Response) (*ConvertTagToAliasRespo
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
@@ -4765,20 +4697,6 @@ func ParseUploadPostResponse(rsp *http.Response) (*UploadPostResponse, error) {
 		}
 		response.JSON201 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequestResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest UnauthorizedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ForbiddenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4792,6 +4710,27 @@ func ParseUploadPostResponse(rsp *http.Response) (*UploadPostResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest RequestEntityTooLargeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaTypeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntityResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequestsResponse
@@ -4825,6 +4764,16 @@ func ParseGetHealthResponse(rsp *http.Response) (*GetHealthResponse, error) {
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -4855,6 +4804,23 @@ func ParseGetReadinessResponse(rsp *http.Response) (*GetReadinessResponse, error
 	response := &GetReadinessResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest UnhealthyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil

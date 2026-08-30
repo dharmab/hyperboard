@@ -53,6 +53,7 @@ type Tag struct {
 
 // TagCategory defines model for TagCategory.
 type TagCategory struct {
+	// Color Hex color.
 	Color       string          `json:"color"`
 	CreatedAt   Timestamp       `json:"createdAt"`
 	Description Description     `json:"description"`

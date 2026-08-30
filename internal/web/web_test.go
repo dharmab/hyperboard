@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAPIProxy_ForwardsRequests(t *testing.T) {
@@ -19,21 +22,16 @@ func TestAPIProxy_ForwardsRequests(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	proxy, err := newAPIProxy(backend.URL)
-	if err != nil {
-		t.Fatalf("newAPIProxy: %v", err)
-	}
+	require.NoError(t, err)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/posts", nil)
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	body, _ := io.ReadAll(rec.Body)
-	if string(body) != `{"ok":true}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
+	body, err := io.ReadAll(rec.Body)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"ok":true}`, string(body))
 }
 
 func TestAPIProxy_PreservesPath(t *testing.T) {
@@ -47,17 +45,13 @@ func TestAPIProxy_PreservesPath(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	proxy, err := newAPIProxy(backend.URL)
-	if err != nil {
-		t.Fatalf("newAPIProxy: %v", err)
-	}
+	require.NoError(t, err)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/tags/foo", nil)
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
 
-	if gotPath != "/api/v1/tags/foo" {
-		t.Fatalf("expected path /api/v1/tags/foo, got %s", gotPath)
-	}
+	assert.Equal(t, "/api/v1/tags/foo", gotPath)
 }
 
 func TestAPIProxy_PreservesHeaders(t *testing.T) {
@@ -71,25 +65,19 @@ func TestAPIProxy_PreservesHeaders(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	proxy, err := newAPIProxy(backend.URL)
-	if err != nil {
-		t.Fatalf("newAPIProxy: %v", err)
-	}
+	require.NoError(t, err)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/posts", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, req)
 
-	if gotAuth != "Bearer test-token" {
-		t.Fatalf("expected Authorization header 'Bearer test-token', got %q", gotAuth)
-	}
+	assert.Equal(t, "Bearer test-token", gotAuth)
 }
 
 func TestAPIProxy_InvalidURL(t *testing.T) {
 	t.Parallel()
 
 	_, err := newAPIProxy("://bad")
-	if err == nil {
-		t.Fatal("expected error for invalid URL, got nil")
-	}
+	require.Error(t, err)
 }

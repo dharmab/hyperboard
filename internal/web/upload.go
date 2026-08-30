@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dharmab/hyperboard/pkg/types"
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/rs/zerolog/log"
 )
 
@@ -66,8 +67,8 @@ func (a *app) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 
 		contentType := header.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/octet-stream"
+		if !strings.HasPrefix(contentType, "image/") && !strings.HasPrefix(contentType, "video/") {
+			contentType = mimetype.Detect(data).String()
 		}
 
 		resp, err := a.api.UploadPostWithBodyWithResponse(ctx, contentType, bytes.NewReader(data))

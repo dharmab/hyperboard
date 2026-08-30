@@ -98,7 +98,7 @@ func (s *Server) GetTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 
 func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name TagCategory) {
 	ctx := r.Context()
-	var req types.TagCategory
+	var req TagCategoryUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -139,6 +139,10 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		Color:       req.Color,
 	}, now)
 	if err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			respondWithError(w, http.StatusConflict, "%v", err)
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Failed to save tag category")
 		return
 	}

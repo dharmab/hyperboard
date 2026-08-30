@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -106,12 +107,21 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 	}
 
 	if err == nil {
+		var conflictingID gofrs.UUID
+		err = tx.QueryRowContext(ctx, "SELECT id FROM tag_categories WHERE name = $1", input.Name).Scan(&conflictingID)
+		if err == nil && conflictingID != existing.ID {
+			return nil, false, fmt.Errorf("%w: tag category name %q is already in use", ErrConflict, input.Name)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, false, err
+		}
+
 		_, err = tx.ExecContext(ctx,
 			"UPDATE tag_categories SET name = $1, description = $2, color = $3, updated_at = $4 WHERE id = $5",
 			input.Name, input.Description, input.Color, now, existing.ID,
 		)
 		if err != nil {
-			return nil, false, err
+			return nil, false, mapConflictError(err)
 		}
 		existing.Name = input.Name
 		existing.Description = input.Description
@@ -119,7 +129,7 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		existing.UpdatedAt = now
 
 		if err := tx.Commit(); err != nil {
-			return nil, false, err
+			return nil, false, mapConflictError(err)
 		}
 		return existing, false, nil
 	}
@@ -130,11 +140,11 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 		input.Name, input.Description, input.Color, now, now,
 	).Scan(&inserted.ID, &inserted.Name, &inserted.Description, &inserted.Color, &inserted.CreatedAt, &inserted.UpdatedAt)
 	if err != nil {
-		return nil, false, err
+		return nil, false, mapConflictError(err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, false, err
+		return nil, false, mapConflictError(err)
 	}
 	return inserted, true, nil
 }

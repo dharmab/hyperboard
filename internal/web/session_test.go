@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSignVerifySession(t *testing.T) {
@@ -16,26 +18,23 @@ func TestSignVerifySession(t *testing.T) {
 	t.Run("valid token", func(t *testing.T) {
 		t.Parallel()
 		token := signSession(secret)
-		if !verifySession(secret, token) {
-			t.Error("valid token should verify successfully")
-		}
+		verified := verifySession(secret, token)
+		assert.True(t, verified, "valid token should verify successfully")
 	})
 
 	t.Run("wrong secret rejects", func(t *testing.T) {
 		t.Parallel()
 		token := signSession(secret)
-		if verifySession("wrong-secret", token) {
-			t.Error("token signed with different secret should not verify")
-		}
+		verified := verifySession("wrong-secret", token)
+		assert.False(t, verified, "token signed with different secret should not verify")
 	})
 
 	t.Run("tampered token rejects", func(t *testing.T) {
 		t.Parallel()
 		token := signSession(secret)
 		tampered := token + "x"
-		if verifySession(secret, tampered) {
-			t.Error("tampered token should not verify")
-		}
+		verified := verifySession(secret, tampered)
+		assert.False(t, verified, "tampered token should not verify")
 	})
 
 	t.Run("malformed token rejects", func(t *testing.T) {
@@ -47,9 +46,8 @@ func TestSignVerifySession(t *testing.T) {
 			"not-base64.also-not-base64",
 		}
 		for _, token := range malformed {
-			if verifySession(secret, token) {
-				t.Errorf("malformed token %q should not verify", token)
-			}
+			verified := verifySession(secret, token)
+			assert.False(t, verified, "malformed token %q should not verify", token)
 		}
 	})
 
@@ -62,8 +60,7 @@ func TestSignVerifySession(t *testing.T) {
 		mac.Write([]byte(ts))
 		sig := mac.Sum(nil)
 		token := base64.RawURLEncoding.EncodeToString([]byte(ts)) + "." + base64.RawURLEncoding.EncodeToString(sig)
-		if verifySession(secret, token) {
-			t.Error("expired token should not verify")
-		}
+		verified := verifySession(secret, token)
+		assert.False(t, verified, "expired token should not verify")
 	})
 }
