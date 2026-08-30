@@ -1,7 +1,7 @@
 [Unit]
 Description=Hyperboard Async Controller
-After=hyperboard-postgresql.service
-Requires=hyperboard-postgresql.service
+After=hyperboard-postgresql.service hyperboard-rustfs.service
+Requires=hyperboard-postgresql.service hyperboard-rustfs.service
 
 [Container]
 Image=ghcr.io/dharmab/hyperboard-async:main
@@ -13,6 +13,12 @@ Environment=HYPERBOARD_ASYNC_POSTGRESQL_USER=${HYPERBOARD_DB_USER}
 Environment=HYPERBOARD_ASYNC_POSTGRESQL_PASSWORD=${HYPERBOARD_DB_PASSWORD}
 Environment=HYPERBOARD_ASYNC_POSTGRESQL_DATABASE=${HYPERBOARD_DB_NAME}
 Environment=HYPERBOARD_ASYNC_POSTGRESQL_SSL_MODE=disable
+Environment=HYPERBOARD_ASYNC_STORAGE_ENDPOINT=http://localhost:9000
+Environment=HYPERBOARD_ASYNC_STORAGE_BUCKET=${HYPERBOARD_STORAGE_BUCKET}
+Environment=HYPERBOARD_ASYNC_STORAGE_ACCESS_KEY=${HYPERBOARD_STORAGE_ACCESS_KEY}
+Environment=HYPERBOARD_ASYNC_STORAGE_SECRET_KEY=${HYPERBOARD_STORAGE_SECRET_KEY}
+Environment=HYPERBOARD_ASYNC_STORAGE_REGION=${HYPERBOARD_STORAGE_REGION}
+Environment=HYPERBOARD_ASYNC_STORAGE_USE_PATH_STYLE=true
 Environment=HYPERBOARD_ASYNC_LOG_LEVEL=info
 
 [Service]

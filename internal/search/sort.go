@@ -10,6 +10,8 @@ const (
 	SortCreatedAt Sort = "sort:created"
 	// SortUpdatedAt orders posts by their last update.
 	SortUpdatedAt Sort = "sort:updated"
+	// SortFileSize orders posts by their content file size.
+	SortFileSize Sort = "sort:file-size"
 )
 
 // Order represents the sort direction for search results.

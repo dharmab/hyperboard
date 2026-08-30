@@ -9,6 +9,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/heartbeat"
 	"github.com/dharmab/hyperboard/internal/leaderelection"
+	storages3 "github.com/dharmab/hyperboard/internal/storage/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -70,15 +71,29 @@ func run(ctx context.Context, cfg *config) error {
 		return fmt.Errorf("connect to database: %w", err)
 	}
 
+	mediaStore, err := storages3.New(
+		shutdownCtx,
+		cfg.ObjectStore.Endpoint,
+		cfg.ObjectStore.Bucket,
+		cfg.ObjectStore.AccessKey,
+		cfg.ObjectStore.SecretKey,
+		cfg.ObjectStore.Region,
+		cfg.ObjectStore.UsePathStyle,
+	)
+	if err != nil {
+		return fmt.Errorf("connect to object storage: %w", err)
+	}
+
+	fileSizes := fileSizeController{
+		repository: postgresFileSizeRepository{pool: pool},
+		mediaStore: mediaStore,
+	}
 	leaderTask := func(leaderCtx context.Context) error {
 		return heartbeat.Run(
 			leaderCtx,
 			cfg.Controller.MinInterval,
 			cfg.Controller.MaxInterval,
-			func(context.Context) (bool, error) {
-				// Controllers will be registered here as asynchronous tasks are added.
-				return false, nil
-			},
+			fileSizes.Reconcile,
 		)
 	}
 

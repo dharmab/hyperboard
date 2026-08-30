@@ -32,6 +32,8 @@ func parseSearch(query string) search.Query {
 			postSearch.Sort = search.SortCreatedAt
 		} else if term == string(search.SortUpdatedAt) {
 			postSearch.Sort = search.SortUpdatedAt
+		} else if term == string(search.SortFileSize) {
+			postSearch.Sort = search.SortFileSize
 		} else if strings.HasPrefix(term, "sort:") {
 			// Ignore unknown sort values
 		} else if term == search.TagTaggedTrue {
@@ -74,7 +76,8 @@ func parseSearch(query string) search.Query {
 
 // postCursor holds cursor state for deterministic post pagination.
 type postCursor struct {
-	Timestamp string `json:"t"`
+	Timestamp string `json:"t,omitempty"`
+	FileSize  *int64 `json:"s,omitempty"`
 	ID        string `json:"id"`
 }
 

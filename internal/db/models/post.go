@@ -17,6 +17,7 @@ type Post struct {
 	HasAudio     bool
 	SHA256       string
 	Phash        sql.Null[int64]
+	FileSize     sql.Null[int64]
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 

@@ -139,10 +139,19 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
-		ts, err := time.Parse(time.RFC3339Nano, pc.Timestamp)
-		if err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid cursor")
-			return
+		if searchParams.Sort == search.SortFileSize {
+			if pc.FileSize == nil {
+				respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+				return
+			}
+			listParams.CursorFileSize = pc.FileSize
+		} else {
+			ts, err := time.Parse(time.RFC3339Nano, pc.Timestamp)
+			if err != nil {
+				respondWithError(w, http.StatusBadRequest, "Invalid cursor")
+				return
+			}
+			listParams.CursorTime = &ts
 		}
 		cursorID, err := uuid.Parse(pc.ID)
 		if err != nil {
@@ -150,7 +159,6 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 			return
 		}
 		cursorStoreID := cursorID
-		listParams.CursorTime = &ts
 		listParams.CursorID = &cursorStoreID
 	}
 
@@ -163,13 +171,22 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	var nextCursor *string
 	if hasMore {
 		last := posts[len(posts)-1]
-		var ts string
-		if searchParams.Sort == search.SortUpdatedAt {
-			ts = last.UpdatedAt.Format(time.RFC3339Nano)
-		} else {
-			ts = last.CreatedAt.Format(time.RFC3339Nano)
+		cursor := postCursor{ID: last.ID.String()}
+		switch searchParams.Sort {
+		case search.SortFileSize:
+			fileSize := int64(-1)
+			if last.FileSize.Valid {
+				fileSize = last.FileSize.V
+			}
+			cursor.FileSize = &fileSize
+		case search.SortUpdatedAt:
+			cursor.Timestamp = last.UpdatedAt.Format(time.RFC3339Nano)
+		case search.SortRandom, search.SortCreatedAt, search.Sort(""):
+			cursor.Timestamp = last.CreatedAt.Format(time.RFC3339Nano)
+		default:
+			cursor.Timestamp = last.CreatedAt.Format(time.RFC3339Nano)
 		}
-		encoded := encodePostCursor(postCursor{Timestamp: ts, ID: last.ID.String()})
+		encoded := encodePostCursor(cursor)
 		nextCursor = &encoded
 	}
 

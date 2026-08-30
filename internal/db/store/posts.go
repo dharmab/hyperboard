@@ -44,12 +44,13 @@ type PostStore interface {
 
 // ListPostsParams holds parameters for listing posts.
 type ListPostsParams struct {
-	Query        search.Query
-	Limit        int
-	CursorTime   *time.Time
-	CursorID     *uuid.UUID
-	RandomSeed   *int64
-	RandomOffset int
+	Query          search.Query
+	Limit          int
+	CursorTime     *time.Time
+	CursorFileSize *int64
+	CursorID       *uuid.UUID
+	RandomSeed     *int64
+	RandomOffset   int
 }
 
 // CreatePostInput holds fields for creating a post.
@@ -61,6 +62,7 @@ type CreatePostInput struct {
 	HasAudio     bool
 	SHA256       string
 	Phash        sql.Null[int64]
+	FileSize     int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -73,16 +75,17 @@ type UpdatePostContentInput struct {
 	HasAudio     bool
 	SHA256       string
 	Phash        sql.Null[int64]
+	FileSize     int64
 	UpdatedAt    time.Time
 }
 
 // postColumns is the SQL column list for post queries.
-const postColumns = "id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at"
+const postColumns = "id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, file_size, created_at, updated_at"
 
 // scanPost scans a single row into a Post model.
 func scanPost(row interface{ Scan(...any) error }) (*models.Post, error) {
 	var p models.Post
-	err := row.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.SHA256, &p.Phash, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.MimeType, &p.ContentURL, &p.ThumbnailURL, &p.Note, &p.HasAudio, &p.SHA256, &p.Phash, &p.FileSize, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -259,15 +262,27 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 		return posts, hasMore, nil
 	}
 
-	// Deterministic sort (created_at or updated_at)
+	// Deterministic sort (created_at, updated_at, or file_size). Unknown legacy
+	// file sizes sort as -1 until the asynchronous backfill completes.
 	sortCol := "created_at"
-	if params.Query.Sort == search.SortUpdatedAt {
+	switch params.Query.Sort {
+	case search.SortUpdatedAt:
 		sortCol = "updated_at"
+	case search.SortFileSize:
+		sortCol = "COALESCE(file_size, -1)"
+	case search.SortRandom, search.SortCreatedAt, search.Sort(""):
+		// Random sorting returns above; created_at is the default deterministic sort.
 	}
 
 	ascending := params.Query.Order == search.OrderAsc
 
-	if params.CursorTime != nil && params.CursorID != nil {
+	var cursorValue any
+	if params.Query.Sort == search.SortFileSize && params.CursorFileSize != nil {
+		cursorValue = *params.CursorFileSize
+	} else if params.Query.Sort != search.SortFileSize && params.CursorTime != nil {
+		cursorValue = *params.CursorTime
+	}
+	if cursorValue != nil && params.CursorID != nil {
 		if ascending {
 			fmt.Fprintf(&queryBuilder,
 				" AND (%s > $%d OR (%s = $%d AND id > $%d))",
@@ -279,7 +294,7 @@ func (s *PostgresSQLStore) ListPosts(ctx context.Context, params ListPostsParams
 				sortCol, paramIdx, sortCol, paramIdx, paramIdx+1,
 			)
 		}
-		args = append(args, *params.CursorTime, gofrs.UUID(*params.CursorID))
+		args = append(args, cursorValue, gofrs.UUID(*params.CursorID))
 		paramIdx += 2
 	}
 
@@ -345,8 +360,8 @@ func (s *PostgresSQLStore) GetPost(ctx context.Context, id uuid.UUID) (*models.P
 
 func (s *PostgresSQLStore) CreatePost(ctx context.Context, input CreatePostInput) (*models.Post, error) {
 	row := s.db.QueryRowContext(ctx,
-		"INSERT INTO posts (id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, created_at, updated_at) VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9) RETURNING "+postColumns,
-		gofrs.UUID(input.ID), input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.CreatedAt, input.UpdatedAt,
+		"INSERT INTO posts (id, mime_type, content_url, thumbnail_url, note, has_audio, sha256, phash, file_size, created_at, updated_at) VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10) RETURNING "+postColumns,
+		gofrs.UUID(input.ID), input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.FileSize, input.CreatedAt, input.UpdatedAt,
 	)
 	return scanPost(row)
 }
@@ -440,8 +455,8 @@ func (s *PostgresSQLStore) UpdatePostContent(ctx context.Context, id uuid.UUID, 
 
 	// Update content fields
 	row = tx.QueryRowContext(ctx,
-		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, updated_at = $7 WHERE id = $8 RETURNING "+postColumns,
-		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.UpdatedAt, gofrs.UUID(id),
+		"UPDATE posts SET mime_type = $1, content_url = $2, thumbnail_url = $3, has_audio = $4, sha256 = $5, phash = $6, file_size = $7, updated_at = $8 WHERE id = $9 RETURNING "+postColumns,
+		input.MimeType, input.ContentURL, input.ThumbnailURL, input.HasAudio, input.SHA256, input.Phash, input.FileSize, input.UpdatedAt, gofrs.UUID(id),
 	)
 	post, err := scanPost(row)
 	if err != nil {

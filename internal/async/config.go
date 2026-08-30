@@ -16,6 +16,7 @@ type config struct {
 	LogLevel       string
 	LeaderElection leaderelection.Config
 	SQLStore       sqlStoreConfig
+	ObjectStore    objectStoreConfig
 	Controller     controllerConfig
 }
 
@@ -25,6 +26,15 @@ type sqlStoreConfig struct {
 	Password string
 	Database string
 	SSLMode  string
+}
+
+type objectStoreConfig struct {
+	Endpoint     string
+	Bucket       string
+	AccessKey    string
+	SecretKey    string
+	Region       string
+	UsePathStyle bool
 }
 
 type controllerConfig struct {
@@ -50,6 +60,13 @@ func bindConfig(cmd *cobra.Command, values *viper.Viper) error {
 	flags.String("postgresql-password", "", "PostgreSQL password")
 	flags.String("postgresql-database", "hyperboard", "PostgreSQL database name")
 	flags.String("postgresql-ssl-mode", "disable", "PostgreSQL SSL mode")
+
+	flags.String("storage-endpoint", "", "S3-compatible storage endpoint")
+	flags.String("storage-bucket", "", "S3 bucket name")
+	flags.String("storage-access-key", "", "S3 access key")
+	flags.String("storage-secret-key", "", "S3 secret key")
+	flags.String("storage-region", "", "S3 region")
+	flags.Bool("storage-use-path-style", false, "Use path-style S3 URLs")
 
 	flags.Duration("controller-min-interval", 100*time.Millisecond, "Fastest controller heartbeat interval")
 	flags.Duration("controller-max-interval", time.Hour, "Slowest controller heartbeat interval")
@@ -83,6 +100,14 @@ func loadConfig(values *viper.Viper) (*config, error) {
 			Password: values.GetString("postgresql-password"),
 			Database: values.GetString("postgresql-database"),
 			SSLMode:  values.GetString("postgresql-ssl-mode"),
+		},
+		ObjectStore: objectStoreConfig{
+			Endpoint:     values.GetString("storage-endpoint"),
+			Bucket:       values.GetString("storage-bucket"),
+			AccessKey:    values.GetString("storage-access-key"),
+			SecretKey:    values.GetString("storage-secret-key"),
+			Region:       values.GetString("storage-region"),
+			UsePathStyle: values.GetBool("storage-use-path-style"),
 		},
 		Controller: controllerConfig{
 			MinInterval: values.GetDuration("controller-min-interval"),

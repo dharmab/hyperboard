@@ -114,6 +114,21 @@ func (st *Storage) Upload(ctx context.Context, key string, data []byte, contentT
 	return url, nil
 }
 
+// Size returns the file size of an object in bytes.
+func (st *Storage) Size(ctx context.Context, key string) (int64, error) {
+	out, err := st.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(st.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("head object %s: %w", key, err)
+	}
+	if out.ContentLength == nil {
+		return 0, fmt.Errorf("head object %s: response has no content length", key)
+	}
+	return *out.ContentLength, nil
+}
+
 // Download retrieves an object by key.
 func (st *Storage) Download(ctx context.Context, key string) (*storage.Media, error) {
 	out, err := st.client.GetObject(ctx, &s3.GetObjectInput{

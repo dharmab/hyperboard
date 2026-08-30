@@ -74,6 +74,14 @@ func TestParseSearch(t *testing.T) {
 			},
 		},
 		{
+			name:  "sort file size",
+			input: "sort:file-size",
+			expect: search.Query{
+				IncludedTags: []types.TagName{},
+				Sort:         search.SortFileSize,
+			},
+		},
+		{
 			name:  "sort random",
 			input: "sort:random",
 			expect: search.Query{
@@ -274,6 +282,7 @@ func FuzzParseSearch(f *testing.F) {
 		" landscape , portrait ",
 		"sort:created",
 		"sort:updated",
+		"sort:file-size",
 		"sort:random",
 		"sort:invalid",
 		"tagged:true",
@@ -557,6 +566,49 @@ func TestGetPostsSortRandom(t *testing.T) {
 	require.NotNil(t, nextPage.Items)
 	require.Len(t, *nextPage.Items, 1)
 	assert.Nil(t, nextPage.Cursor)
+}
+
+func TestGetPostsSortByFileSizeWithPagination(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	server := NewServer(sqlStore, memory.New())
+	handler := newTestHandlerForServer(t, server)
+
+	want := make([]types.ID, 0, 5)
+	for _, fileSize := range []int64{50, 10, 40, 20, 30} {
+		post := createTestPost(t, sqlStore, func(input *store.CreatePostInput) {
+			input.FileSize = fileSize
+		})
+		want = append(want, types.ID(post.ID))
+	}
+	// Ascending file size order for the insertion order above.
+	want = []types.ID{want[1], want[3], want[4], want[2], want[0]}
+
+	var got []types.ID
+	cursor := ""
+	for {
+		target := "/api/v1/posts?search=sort:file-size,order:asc&limit=2"
+		if cursor != "" {
+			target += "&cursor=" + url.QueryEscape(cursor)
+		}
+		response := performRequest(handler, http.MethodGet, target, "", true)
+		responseBody := response.Body.String()
+		require.Equal(t, http.StatusOK, response.Code, "body = %s", responseBody)
+		var body PostsResponse
+		decodeJSON(t, response.Body.Bytes(), &body)
+		require.NotNil(t, body.Items)
+		for _, post := range *body.Items {
+			got = append(got, post.ID)
+		}
+		if body.Cursor == nil {
+			break
+		}
+		cursor = *body.Cursor
+	}
+
+	assert.Equal(t, want, got)
+	assertUniquePostIDs(t, got)
 }
 
 func TestPostsPagination(t *testing.T) {

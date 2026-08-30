@@ -16,6 +16,7 @@ type Media struct {
 type MediaStore interface {
 	Ping(ctx context.Context) error
 	Upload(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
+	Size(ctx context.Context, key string) (int64, error)
 	Download(ctx context.Context, key string) (*Media, error)
 	Delete(ctx context.Context, key string) error
 }
