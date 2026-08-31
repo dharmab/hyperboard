@@ -30,6 +30,9 @@ func probeHasAudio(ctx context.Context, path string) (bool, error) {
 		if commandCtx.Err() != nil {
 			return false, fmt.Errorf("ffprobe: %w", commandCtx.Err())
 		}
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
+			return false, fmt.Errorf("%w: ffprobe audio streams: %w", ErrInvalidMedia, err)
+		}
 		return false, fmt.Errorf("ffprobe: %w", err)
 	}
 	return len(bytes.TrimSpace(out)) > 0, nil
@@ -117,11 +120,7 @@ func ProcessVideo(ctx context.Context, data []byte) ([]byte, bool, error) {
 	// Probe for audio streams.
 	hasAudio, err := probeHasAudio(ctx, tmpFile.Name())
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, false, fmt.Errorf("probe audio: %w", ctx.Err())
-		}
-		// Non-fatal: assume no audio on probe failure.
-		hasAudio = false
+		return nil, false, fmt.Errorf("probe audio: %w", err)
 	}
 
 	// Extract a frame at Wadsworth's constant (30%) into the video to hopefully

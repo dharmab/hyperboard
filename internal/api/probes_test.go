@@ -30,8 +30,8 @@ func TestReadinessFailures(t *testing.T) {
 		mediaErr  error
 		wantError string
 	}{
-		{name: "database", sqlErr: errors.New("database unavailable"), wantError: "Database is not ready: database unavailable"},
-		{name: "object store", mediaErr: errors.New("storage unavailable"), wantError: "Object store is not ready: storage unavailable"},
+		{name: "database", sqlErr: errors.New("database unavailable"), wantError: "Service is not ready"},
+		{name: "object store", mediaErr: errors.New("storage unavailable"), wantError: "Service is not ready"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -43,6 +43,7 @@ func TestReadinessFailures(t *testing.T) {
 			require.Equal(t, http.StatusServiceUnavailable, response.Code, "readiness body: %s", responseBody)
 			assertJSONContentType(t, response.Header().Get("Content-Type"))
 			assert.Contains(t, responseBody, tt.wantError, "readiness body")
+			assert.NotContains(t, responseBody, "unavailable", "readiness response must not expose dependency errors")
 		})
 	}
 }

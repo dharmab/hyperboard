@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -109,8 +110,8 @@ func getPost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get post/%s: %w", id, err)
 	}
 	post := *resp.JSON200
 	return app.PrintResource(post, func() [][2]string {
@@ -151,8 +152,8 @@ func fetchAllPosts(c *client.ClientWithResponses, baseParams *client.GetPostsPar
 		if err != nil {
 			return nil, err
 		}
-		if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-			return nil, err
+		if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+			return nil, fmt.Errorf("list posts: %w", err)
 		}
 		if resp.JSON200.Items != nil {
 			all = append(all, *resp.JSON200.Items...)
@@ -193,14 +194,8 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 	if resp == nil {
 		return errors.New("upload post: server returned no response")
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusCreated, resp.JSON201); err != nil {
 		return fmt.Errorf("upload post: %w", err)
-	}
-	if resp.StatusCode() != 201 {
-		return fmt.Errorf("upload post: unexpected server status %d", resp.StatusCode())
-	}
-	if resp.JSON201 == nil {
-		return errors.New("upload post: server returned 201 without a post response")
 	}
 	post := resp.JSON201.Post
 
@@ -218,14 +213,8 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 		if putResp == nil {
 			return postMetadataError(post.ID, errors.New("server returned no response"))
 		}
-		if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
+		if err := cli.CheckJSONResponse(putResp.StatusCode(), putResp.Body, http.StatusOK, putResp.JSON200); err != nil {
 			return postMetadataError(post.ID, err)
-		}
-		if putResp.StatusCode() != 200 {
-			return postMetadataError(post.ID, fmt.Errorf("unexpected server status %d", putResp.StatusCode()))
-		}
-		if putResp.JSON200 == nil {
-			return postMetadataError(post.ID, errors.New("server returned 200 without a post response"))
 		}
 		post = *putResp.JSON200
 	}
@@ -256,6 +245,12 @@ func parseTagCSV(tagsCSV string) ([]string, error) {
 }
 
 func isValidTagName(name string) bool {
+	for _, prefix := range []string{"sort:", "order:", "tagged:", "type:", "created_after:", "created_before:"} {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+
 	var previous rune
 	for i, current := range name {
 		if i == 0 && !unicode.IsLetter(current) && !unicode.IsDigit(current) {
@@ -286,8 +281,8 @@ func editPost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get post/%s for editing: %w", id, err)
 	}
 	post := *resp.JSON200
 
@@ -312,8 +307,8 @@ func editPost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(putResp.StatusCode(), putResp.Body, http.StatusOK, putResp.JSON200); err != nil {
+		return fmt.Errorf("update post/%s: %w", id, err)
 	}
 	result := *putResp.JSON200
 	return app.PrintResource(result, func() [][2]string {
@@ -334,8 +329,8 @@ func deletePost(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckResponseStatus(resp.StatusCode(), resp.Body, http.StatusNoContent); err != nil {
+		return fmt.Errorf("delete post/%s: %w", id, err)
 	}
 	fmt.Printf("post/%s deleted\n", id)
 	return nil

@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,12 +45,16 @@ func verifySession(secret, token string) bool {
 	if !hmac.Equal(sigBytes, expected) {
 		return false
 	}
-	// Check expiry
-	var ts int64
-	if _, err := fmt.Sscanf(string(tsBytes), "%d", &ts); err != nil {
+	ts, err := strconv.ParseInt(string(tsBytes), 10, 64)
+	if err != nil {
 		return false
 	}
-	return time.Since(time.Unix(ts, 0)) < sessionExpiry
+	now := time.Now()
+	issuedAt := time.Unix(ts, 0)
+	if issuedAt.After(now) {
+		return false
+	}
+	return now.Sub(issuedAt) < sessionExpiry
 }
 
 // setSessionCookie creates and sets an HMAC-signed session cookie.

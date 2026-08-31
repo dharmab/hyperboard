@@ -259,7 +259,7 @@ func (s *Server) PutPost(w http.ResponseWriter, r *http.Request, id Id) {
 	}
 
 	for _, tag := range post.Tags {
-		if !isValidName(tag) {
+		if !isValidTagName(tag) {
 			respondWithError(w, http.StatusBadRequest, "Invalid tag name %q", tag)
 			return
 		}

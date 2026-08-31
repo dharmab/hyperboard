@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // GetHealth handles liveness probe requests.
@@ -17,12 +19,14 @@ func (s *Server) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if err := s.sqlStore.Ping(ctx); err != nil {
-		respondWithError(w, http.StatusServiceUnavailable, "Database is not ready: %v", err)
+		zerolog.Ctx(ctx).Error().Err(err).Str("dependency", "database").Msg("readiness check failed")
+		respondWithError(w, http.StatusServiceUnavailable, "Service is not ready")
 		return
 	}
 
 	if err := s.mediaStore.Ping(ctx); err != nil {
-		respondWithError(w, http.StatusServiceUnavailable, "Object store is not ready: %v", err)
+		zerolog.Ctx(ctx).Error().Err(err).Str("dependency", "object_store").Msg("readiness check failed")
+		respondWithError(w, http.StatusServiceUnavailable, "Service is not ready")
 		return
 	}
 

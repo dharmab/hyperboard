@@ -85,8 +85,8 @@ func getTagCategory(app *cli.App, name string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get tagcategory/%s: %w", name, err)
 	}
 	tc := *resp.JSON200
 	return app.PrintResource(tc, func() [][2]string {
@@ -128,8 +128,8 @@ func fetchAllTagCategories(c *client.ClientWithResponses) ([]types.TagCategory, 
 		if err != nil {
 			return nil, err
 		}
-		if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-			return nil, err
+		if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+			return nil, fmt.Errorf("list tag categories: %w", err)
 		}
 		if resp.JSON200.Items != nil {
 			all = append(all, *resp.JSON200.Items...)
@@ -161,10 +161,7 @@ func createTagCategory(app *cli.App, name string, tc types.TagCategory) error {
 	case 404:
 		// The PUT endpoint is an upsert, so only call it after confirming absence.
 	default:
-		if err := cli.CheckResponse(getResp.StatusCode(), getResp.Body); err != nil {
-			return fmt.Errorf("check whether tagcategory/%s exists: %w", name, err)
-		}
-		return fmt.Errorf("check whether tagcategory/%s exists: unexpected server status %d", name, getResp.StatusCode())
+		return fmt.Errorf("check whether tagcategory/%s exists: %w", name, cli.CheckResponseStatus(getResp.StatusCode(), getResp.Body, http.StatusNotFound))
 	}
 
 	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, client.NewTagCategoryUpdateRequest(tc), func(_ context.Context, req *http.Request) error {
@@ -180,14 +177,8 @@ func createTagCategory(app *cli.App, name string, tc types.TagCategory) error {
 	if resp.StatusCode() == 200 {
 		return fmt.Errorf("tagcategory/%s already exists; the server returned an update response instead of creating it", name)
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusCreated, resp.JSON201); err != nil {
 		return fmt.Errorf("create tagcategory/%s: %w", name, err)
-	}
-	if resp.StatusCode() != 201 {
-		return fmt.Errorf("create tagcategory/%s: unexpected server status %d", name, resp.StatusCode())
-	}
-	if resp.JSON201 == nil {
-		return fmt.Errorf("create tagcategory/%s: server returned 201 without a tag category response", name)
 	}
 	created := *resp.JSON201
 	return app.PrintResource(created, func() [][2]string {
@@ -210,8 +201,8 @@ func editTagCategory(app *cli.App, name string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get tagcategory/%s for editing: %w", name, err)
 	}
 	tc := *resp.JSON200
 
@@ -240,8 +231,8 @@ func editTagCategory(app *cli.App, name string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(putResp.StatusCode(), putResp.Body, http.StatusOK, putResp.JSON200); err != nil {
+		return fmt.Errorf("update tagcategory/%s: %w", name, err)
 	}
 	result := *putResp.JSON200
 	return app.PrintResource(result, func() [][2]string {
@@ -264,8 +255,8 @@ func deleteTagCategory(app *cli.App, name string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckResponseStatus(resp.StatusCode(), resp.Body, http.StatusNoContent); err != nil {
+		return fmt.Errorf("delete tagcategory/%s: %w", name, err)
 	}
 	fmt.Printf("tagcategory/%s deleted\n", name)
 	return nil
