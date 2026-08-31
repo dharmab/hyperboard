@@ -102,8 +102,15 @@ func serveAPI(ctx context.Context, cfg *config, dsn string) error {
 	}
 	defer pool.Close()
 
+	postMutationLockPool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return fmt.Errorf("failed to create post mutation lock pool: %w", err)
+	}
+	defer postMutationLockPool.Close()
+
 	db := stdlib.OpenDBFromPool(pool)
-	s := store.NewPostgresSQLStore(db, cfg.SimilarityThreshold)
+	postMutationLockDB := stdlib.OpenDBFromPool(postMutationLockPool)
+	s := store.NewPostgresSQLStore(db, postMutationLockDB, cfg.SimilarityThreshold)
 	apiServer := NewServer(s, objStorage)
 	mux := http.NewServeMux()
 	HandlerWithOptions(apiServer, StdHTTPServerOptions{

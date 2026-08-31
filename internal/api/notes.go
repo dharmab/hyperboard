@@ -19,7 +19,7 @@ import (
 
 const (
 	maxNoteTitleLength   = 1024
-	maxNoteContentLength = 4 << 20
+	maxNoteContentLength = 1 << 20
 )
 
 // noteFromModel converts a database Note model to an API Note type.

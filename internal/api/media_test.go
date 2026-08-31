@@ -146,11 +146,11 @@ func TestMediaReadStorageErrorStatus(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "missing download", store: &failingReadMediaStore{MediaStore: memory.New(), downloadErr: missingErr}, method: http.MethodGet, wantStatus: http.StatusNotFound},
-		{name: "download dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), downloadErr: dependencyErr}, method: http.MethodGet, wantStatus: http.StatusServiceUnavailable},
+		{name: "download dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), downloadErr: dependencyErr}, method: http.MethodGet, wantStatus: http.StatusInternalServerError},
 		{name: "missing metadata", store: &failingReadMediaStore{MediaStore: memory.New(), metadataErr: missingErr}, method: http.MethodHead, wantStatus: http.StatusNotFound},
-		{name: "metadata dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadataErr: dependencyErr}, method: http.MethodHead, wantStatus: http.StatusServiceUnavailable},
+		{name: "metadata dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadataErr: dependencyErr}, method: http.MethodHead, wantStatus: http.StatusInternalServerError},
 		{name: "missing range download", store: &failingReadMediaStore{MediaStore: memory.New(), metadata: &storage.Metadata{ContentType: "video/mp4", ContentLength: 10}, rangeErr: missingErr}, method: http.MethodGet, rangeValue: "bytes=0-1", wantStatus: http.StatusNotFound},
-		{name: "range dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadata: &storage.Metadata{ContentType: "video/mp4", ContentLength: 10}, rangeErr: dependencyErr}, method: http.MethodGet, rangeValue: "bytes=0-1", wantStatus: http.StatusServiceUnavailable},
+		{name: "range dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadata: &storage.Metadata{ContentType: "video/mp4", ContentLength: 10}, rangeErr: dependencyErr}, method: http.MethodGet, rangeValue: "bytes=0-1", wantStatus: http.StatusInternalServerError},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

@@ -3,6 +3,8 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +38,29 @@ func TestHandleNotes_GET(t *testing.T) {
 	body := w.Body.String()
 	require.Equal(t, http.StatusOK, w.Code, "body = %s", body)
 	assert.Contains(t, body, "Test Note")
+}
+
+func TestHandleNote_PUTRejectsOversizedForm(t *testing.T) {
+	t.Parallel()
+
+	apiCalled := false
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiCalled = true
+		http.Error(w, "unexpected API call", http.StatusInternalServerError)
+	}))
+
+	form := url.Values{
+		"title":   {"Oversized note"},
+		"content": {strings.Repeat("x", int(maxFormBody))},
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/notes/"+uuid.NewV4().String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", uuid.NewV4().String())
+	w := httptest.NewRecorder()
+	maxBody(maxFormBody, app.handleNote).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.False(t, apiCalled)
 }
 
 func TestHandleNotes_POST(t *testing.T) {

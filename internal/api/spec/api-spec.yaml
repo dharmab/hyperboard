@@ -813,7 +813,7 @@ components:
                 maxLength: 1024
               content:
                 type: string
-                maxLength: 4194304
+                maxLength: 1048576
   responses:
     MetricsResponse:
       description: Metrics endpoint response. The current implementation returns an empty body.

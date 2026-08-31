@@ -6,7 +6,7 @@
   var pasteZone = document.getElementById('paste-zone');
 
   var fileMap = new Map();
-  var pendingHashes = new Set();
+  var pendingPreparations = new Set();
   var uploading = false;
 
   function hashFile(file) {
@@ -58,17 +58,19 @@
 
   function addFile(file) {
     if (uploading) return;
-    var placeholderKey = Symbol();
-    pendingHashes.add(placeholderKey);
 
-    Promise.all([hashFile(file), fileToDataURL(file)]).then(function(results) {
+    var preparation = Promise.all([hashFile(file), fileToDataURL(file)]).then(function(results) {
       var key = results[0];
       var dataURL = results[1];
-      pendingHashes.delete(placeholderKey);
       if (fileMap.has(key)) return;
       renderPreview(file, key, dataURL);
       saveQueue();
+    }).catch(function() {
+      showError('Failed to prepare ' + (file.name || 'pasted image') + ' for upload');
+    }).finally(function() {
+      pendingPreparations.delete(preparation);
     });
+    pendingPreparations.add(preparation);
   }
 
   function renderPreview(file, key, dataURL) {
@@ -289,7 +291,7 @@
 
   form.addEventListener('submit', function(e) {
     e.preventDefault();
-    if (fileMap.size === 0) return;
+    if (uploading || (fileMap.size === 0 && pendingPreparations.size === 0)) return;
 
     uploading = true;
     fileInput.disabled = true;
@@ -297,15 +299,17 @@
     pasteZone.contentEditable = 'false';
     pasteZone.classList.add('disabled');
 
-    var entries = [];
-    fileMap.forEach(function(entry) { entries.push(entry); });
+    Promise.all(Array.from(pendingPreparations)).then(function() {
+      var entries = [];
+      fileMap.forEach(function(entry) { entries.push(entry); });
 
-    // Upload files serially
-    var chain = Promise.resolve();
-    entries.forEach(function(entry) {
-      chain = chain.then(function() { return uploadFile(entry); });
-    });
-    chain.then(function() {
+      // Upload files serially
+      var chain = Promise.resolve();
+      entries.forEach(function(entry) {
+        chain = chain.then(function() { return uploadFile(entry); });
+      });
+      return chain;
+    }).then(function() {
       fileMap.clear();
       clearQueue();
     });

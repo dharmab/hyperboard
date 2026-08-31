@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -84,16 +85,26 @@ func (a *app) handleNote(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid note ID", http.StatusBadRequest)
 			return
 		}
+		if err := r.ParseForm(); err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+		title := r.Form.Get("title")
+		content := r.Form.Get("content")
 		resp, err := a.api.PutNoteWithResponse(ctx, types.ID(noteID), client.PutNoteJSONRequestBody{
-			Title:   r.FormValue("title"),
-			Content: r.FormValue("content"),
+			Title:   title,
+			Content: content,
 		})
 		if err != nil || resp.StatusCode() >= 400 {
 			http.Error(w, "Failed to save note", http.StatusInternalServerError)
 			return
 		}
 		// Return rendered markdown for HTMX swap
-		rendered := renderMarkdown(r.FormValue("content"))
+		rendered := renderMarkdown(content)
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = fmt.Fprintf(w, `<div id="note-view" class="note-content mt-2">%s</div>`, string(rendered))
 
