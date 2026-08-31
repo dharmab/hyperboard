@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -69,8 +70,8 @@ func replaceContent(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("replace content for post/%s: %w", id, err)
 	}
 	post := *resp.JSON200
 	return app.PrintResource(post, func() [][2]string {
@@ -102,8 +103,8 @@ func replaceThumbnail(app *cli.App, id, filePath string) error {
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("replace thumbnail for post/%s: %w", id, err)
 	}
 	post := *resp.JSON200
 	return app.PrintResource(post, func() [][2]string {

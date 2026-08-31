@@ -163,9 +163,15 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		return
 	}
 
-	if !isValidName(tag.Name) {
-		respondWithError(w, http.StatusBadRequest, "Tag name must begin with a unicode letter or digit")
+	if !isValidTagName(tag.Name) {
+		respondWithError(w, http.StatusBadRequest, "Invalid tag name %q", tag.Name)
 		return
+	}
+	for _, alias := range tag.Aliases {
+		if alias != "" && !isValidTagName(alias) {
+			respondWithError(w, http.StatusBadRequest, "Invalid tag alias %q", alias)
+			return
+		}
 	}
 
 	// For creates, name in body must match URL
@@ -261,6 +267,14 @@ func (s *Server) ConvertTagToAlias(w http.ResponseWriter, r *http.Request, name 
 
 	if body.Target == "" {
 		respondWithError(w, http.StatusBadRequest, "Target tag name is required")
+		return
+	}
+	if !isValidTagName(name) {
+		respondWithError(w, http.StatusBadRequest, "Invalid tag alias %q", name)
+		return
+	}
+	if !isValidTagName(body.Target) {
+		respondWithError(w, http.StatusBadRequest, "Invalid target tag name %q", body.Target)
 		return
 	}
 	if body.Target == name {

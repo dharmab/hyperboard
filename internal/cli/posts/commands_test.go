@@ -22,7 +22,7 @@ func TestParseTagCSV(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"landscape", "night sky", "portrait"}, tags)
 
-	for _, value := range []string{" ", ",portrait", "landscape,", "landscape,,portrait", "-invalid", "two  spaces"} {
+	for _, value := range []string{" ", ",portrait", "landscape,", "landscape,,portrait", "-invalid", "two  spaces", "sort:random", "order:asc", "tagged:true", "type:image", "created_after:2024", "created_before:2024"} {
 		t.Run(value, func(t *testing.T) {
 			t.Parallel()
 			_, err := parseTagCSV(value)

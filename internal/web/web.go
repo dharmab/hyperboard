@@ -141,7 +141,7 @@ func run() error {
 
 	protected := http.NewServeMux()
 	a.registerRoutes(protected)
-	mux.Handle("/", a.sessionMiddleware(protected))
+	mux.Handle("/", a.sessionMiddleware(a.csrfMiddleware(protected)))
 
 	httpServer := &http.Server{
 		Handler:           loginBodyReadDeadline(logging.RequestLoggingMiddleware(security.SecurityHeadersMiddleware(mux))),

@@ -101,6 +101,9 @@ func (cfg *config) validate() error {
 	if cfg.AdminPassword == "" {
 		return errors.New("admin password is required")
 	}
+	if cfg.SimilarityThreshold < 0 || cfg.SimilarityThreshold > 64 {
+		return errors.New("similarity threshold must be between 0 and 64")
+	}
 	return nil
 }
 

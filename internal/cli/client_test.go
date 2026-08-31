@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,17 +26,16 @@ func TestNewClient(t *testing.T) {
 	require.NotNil(t, c)
 }
 
-func TestCheckResponse(t *testing.T) {
+func TestCheckResponseStatus(t *testing.T) {
 	t.Parallel()
-	t.Run("success", func(t *testing.T) {
-		t.Parallel()
-		err := CheckResponse(http.StatusOK, nil)
-		assert.NoError(t, err)
-	})
+	require.NoError(t, CheckResponseStatus(http.StatusOK, nil, http.StatusOK))
+	require.ErrorContains(t, CheckResponseStatus(http.StatusCreated, nil, http.StatusOK), "expected HTTP 200, got HTTP 201")
+	require.ErrorContains(t, CheckResponseStatus(http.StatusInternalServerError, []byte("bad"), http.StatusOK), "bad")
+}
 
-	t.Run("error", func(t *testing.T) {
-		t.Parallel()
-		err := CheckResponse(http.StatusInternalServerError, []byte("bad"))
-		assert.Error(t, err)
-	})
+func TestCheckJSONResponse(t *testing.T) {
+	t.Parallel()
+	payload := struct{}{}
+	require.NoError(t, CheckJSONResponse(http.StatusOK, nil, http.StatusOK, &payload))
+	require.ErrorContains(t, CheckJSONResponse[struct{}](http.StatusOK, nil, http.StatusOK, nil), "did not contain the expected JSON body")
 }

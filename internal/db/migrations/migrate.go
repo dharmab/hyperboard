@@ -34,10 +34,10 @@ func Migrate(dsn string) error {
 	defer func() {
 		sourceErr, databaseErr := migrator.Close()
 		if sourceErr != nil {
-			log.Error().Err(err).Msg("Error closing migration source")
+			log.Error().Err(sourceErr).Msg("Error closing migration source")
 		}
 		if databaseErr != nil {
-			log.Error().Err(err).Msg("Error closing migration database")
+			log.Error().Err(databaseErr).Msg("Error closing migration database")
 		}
 	}()
 	if err := migrator.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {

@@ -1,6 +1,18 @@
 package api
 
-import "unicode"
+import (
+	"strings"
+	"unicode"
+)
+
+var reservedTagPrefixes = [...]string{
+	"sort:",
+	"order:",
+	"tagged:",
+	"type:",
+	"created_after:",
+	"created_before:",
+}
 
 // isValidName reports whether name begins with a unicode letter or digit,
 // does not end with whitespace, and does not contain consecutive whitespace.
@@ -16,6 +28,20 @@ func isValidName(name string) bool {
 		prev = r
 	}
 	return prev != 0 && !unicode.IsSpace(prev)
+}
+
+// isValidTagName reports whether name is valid and can be represented literally
+// by the comma-separated search grammar.
+func isValidTagName(name string) bool {
+	if !isValidName(name) || strings.ContainsRune(name, ',') || strings.HasPrefix(name, "-") {
+		return false
+	}
+	for _, prefix := range reservedTagPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 // isValidHexColor reports whether s is a valid 6-digit hex color (e.g. "#ff0000").

@@ -7,12 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigRequiresAdminPassword(t *testing.T) {
+func TestConfigValidation(t *testing.T) {
 	t.Parallel()
 
-	err := (&config{}).validate()
-	require.EqualError(t, err, "admin password is required")
-	assert.NoError(t, (&config{AdminPassword: "hyperboard"}).validate())
+	require.EqualError(t, (&config{}).validate(), "admin password is required")
+	assert.NoError(t, (&config{AdminPassword: "hyperboard", SimilarityThreshold: 0}).validate())
+	assert.NoError(t, (&config{AdminPassword: "hyperboard", SimilarityThreshold: 64}).validate())
+	require.EqualError(t, (&config{AdminPassword: "hyperboard", SimilarityThreshold: -1}).validate(), "similarity threshold must be between 0 and 64")
+	require.EqualError(t, (&config{AdminPassword: "hyperboard", SimilarityThreshold: 65}).validate(), "similarity threshold must be between 0 and 64")
 }
 
 func TestSQLStoreDSNEscapesCredentials(t *testing.T) {

@@ -50,6 +50,30 @@ func TestIsValidName(t *testing.T) {
 	}
 }
 
+func TestIsValidTagName(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		valid bool
+	}{
+		{name: "landscape", valid: true},
+		{name: "sorter", valid: true},
+		{name: "foo,bar", valid: false},
+		{name: "sort:random", valid: false},
+		{name: "order:asc", valid: false},
+		{name: "tagged:true", valid: false},
+		{name: "type:image", valid: false},
+		{name: "created_after:2024", valid: false},
+		{name: "created_before:2024", valid: false},
+		{name: "-landscape", valid: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.valid, isValidTagName(tt.name))
+		})
+	}
+}
+
 func TestIsValidHexColor(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -82,7 +106,7 @@ func TestPutTagValidation(t *testing.T) {
 	t.Parallel()
 	server := newTestServer(t)
 
-	for _, name := range []string{"-bad", "_bad", " bad", "!bad", "bad ", "bad  tag"} {
+	for _, name := range []string{"-bad", "_bad", " bad", "!bad", "bad ", "bad  tag", "bad,tag", "sort:random", "order:asc", "tagged:true", "type:image", "created_after:2024", "created_before:2024"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			body := types.Tag{Name: name, Description: "test"}

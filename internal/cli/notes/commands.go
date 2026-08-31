@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,9 +30,9 @@ func Register(app *cli.App) {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
-				return getNote(app, args[0])
+				return getNote(cmd.Context(), app, args[0])
 			}
-			return listNotes(app)
+			return listNotes(cmd.Context(), app)
 		},
 	}
 
@@ -63,7 +64,7 @@ func Register(app *cli.App) {
 				return errors.New("either -f/--file or --title is required")
 			}
 
-			return createNote(app, title, content)
+			return createNote(cmd.Context(), app, title, content)
 		},
 	}
 	createNoteCmd.Flags().StringVarP(&noteFile, "file", "f", "", "Path to markdown file")
@@ -75,7 +76,7 @@ func Register(app *cli.App) {
 		Short: "Edit a note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return editNote(app, args[0])
+			return editNote(cmd.Context(), app, args[0])
 		},
 	}
 
@@ -84,7 +85,7 @@ func Register(app *cli.App) {
 		Short: "Delete a note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return deleteNote(app, args[0])
+			return deleteNote(cmd.Context(), app, args[0])
 		},
 	}
 
@@ -94,7 +95,7 @@ func Register(app *cli.App) {
 	app.DeleteCmd.AddCommand(deleteNoteCmd)
 }
 
-func getNote(app *cli.App, id string) error {
+func getNote(ctx context.Context, app *cli.App, id string) error {
 	c, err := app.NewClient()
 	if err != nil {
 		return err
@@ -103,12 +104,12 @@ func getNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetNoteWithResponse(context.TODO(), types.ID(noteID))
+	resp, err := c.GetNoteWithResponse(ctx, types.ID(noteID))
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get note/%s: %w", id, err)
 	}
 	note := *resp.JSON200
 	return app.PrintResource(note, func() [][2]string {
@@ -126,20 +127,20 @@ func getNote(app *cli.App, id string) error {
 	})
 }
 
-func listNotes(app *cli.App) error {
+func listNotes(ctx context.Context, app *cli.App) error {
 	c, err := app.NewClient()
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetNotesWithResponse(context.TODO())
+	resp, err := c.GetNotesWithResponse(ctx)
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("list notes: %w", err)
 	}
 	var notes []types.Note
-	if resp.JSON200 != nil && resp.JSON200.Items != nil {
+	if resp.JSON200.Items != nil {
 		notes = *resp.JSON200.Items
 	}
 	return app.PrintList(notes, []string{"ID", "TITLE", "CREATED"}, func() [][]string {
@@ -151,20 +152,20 @@ func listNotes(app *cli.App) error {
 	})
 }
 
-func createNote(app *cli.App, title, content string) error {
+func createNote(ctx context.Context, app *cli.App, title, content string) error {
 	c, err := app.NewClient()
 	if err != nil {
 		return err
 	}
-	resp, err := c.CreateNoteWithResponse(context.TODO(), client.CreateNoteJSONRequestBody{
+	resp, err := c.CreateNoteWithResponse(ctx, client.CreateNoteJSONRequestBody{
 		Title:   title,
 		Content: content,
 	})
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusCreated, resp.JSON201); err != nil {
+		return fmt.Errorf("create note: %w", err)
 	}
 	note := *resp.JSON201
 	return app.PrintResource(note, func() [][2]string {
@@ -182,7 +183,7 @@ func createNote(app *cli.App, title, content string) error {
 	})
 }
 
-func editNote(app *cli.App, id string) error {
+func editNote(ctx context.Context, app *cli.App, id string) error {
 	c, err := app.NewClient()
 	if err != nil {
 		return err
@@ -191,12 +192,12 @@ func editNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.GetNoteWithResponse(context.TODO(), types.ID(noteID))
+	resp, err := c.GetNoteWithResponse(ctx, types.ID(noteID))
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(resp.StatusCode(), resp.Body, http.StatusOK, resp.JSON200); err != nil {
+		return fmt.Errorf("get note/%s for editing: %w", id, err)
 	}
 	note := *resp.JSON200
 
@@ -215,15 +216,15 @@ func editNote(app *cli.App, id string) error {
 		return nil
 	}
 
-	putResp, err := c.PutNoteWithResponse(context.TODO(), types.ID(noteID), client.PutNoteJSONRequestBody{
+	putResp, err := c.PutNoteWithResponse(ctx, types.ID(noteID), client.PutNoteJSONRequestBody{
 		Title:   edited.Title,
 		Content: edited.Content,
 	})
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
-		return err
+	if err := cli.CheckJSONResponse(putResp.StatusCode(), putResp.Body, http.StatusOK, putResp.JSON200); err != nil {
+		return fmt.Errorf("update note/%s: %w", id, err)
 	}
 	result := *putResp.JSON200
 	return app.PrintResource(result, func() [][2]string {
@@ -241,7 +242,7 @@ func editNote(app *cli.App, id string) error {
 	})
 }
 
-func deleteNote(app *cli.App, id string) error {
+func deleteNote(ctx context.Context, app *cli.App, id string) error {
 	c, err := app.NewClient()
 	if err != nil {
 		return err
@@ -250,12 +251,12 @@ func deleteNote(app *cli.App, id string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.DeleteNoteWithResponse(context.TODO(), types.ID(noteID))
+	resp, err := c.DeleteNoteWithResponse(ctx, types.ID(noteID))
 	if err != nil {
 		return err
 	}
-	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+	if err := cli.CheckResponseStatus(resp.StatusCode(), resp.Body, http.StatusNoContent); err != nil {
+		return fmt.Errorf("delete note/%s: %w", id, err)
 	}
 	fmt.Printf("note/%s deleted\n", id)
 	return nil

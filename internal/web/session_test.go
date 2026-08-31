@@ -51,16 +51,21 @@ func TestSignVerifySession(t *testing.T) {
 		}
 	})
 
-	t.Run("expired token rejects", func(t *testing.T) {
-		t.Parallel()
-		// Construct a token with an expired timestamp
-		expired := time.Now().Add(-(sessionExpiry + time.Hour))
-		ts := strconv.FormatInt(expired.Unix(), 10)
+	signedTokenAt := func(issuedAt time.Time) string {
+		ts := strconv.FormatInt(issuedAt.Unix(), 10)
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write([]byte(ts))
 		sig := mac.Sum(nil)
-		token := base64.RawURLEncoding.EncodeToString([]byte(ts)) + "." + base64.RawURLEncoding.EncodeToString(sig)
-		verified := verifySession(secret, token)
-		assert.False(t, verified, "expired token should not verify")
+		return base64.RawURLEncoding.EncodeToString([]byte(ts)) + "." + base64.RawURLEncoding.EncodeToString(sig)
+	}
+
+	t.Run("expired token rejects", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, verifySession(secret, signedTokenAt(time.Now().Add(-(sessionExpiry+time.Hour)))))
+	})
+
+	t.Run("future token rejects", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, verifySession(secret, signedTokenAt(time.Now().Add(time.Minute))))
 	})
 }
