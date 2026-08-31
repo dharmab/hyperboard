@@ -4,6 +4,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,13 +70,20 @@ func TestStorage_DownloadRangeRejectsInvalidBounds(t *testing.T) {
 	}
 }
 
-func TestStorage_DownloadNonexistent(t *testing.T) {
+func TestStorage_MissingObjectErrors(t *testing.T) {
 	t.Parallel()
 	s := New()
 	ctx := t.Context()
 
-	_, err := s.Download(ctx, "missing")
-	assert.Error(t, err)
+	_, metadataErr := s.Metadata(ctx, "missing")
+	require.ErrorIs(t, metadataErr, storage.ErrNotFound)
+	_, sizeErr := s.Size(ctx, "missing")
+	require.ErrorIs(t, sizeErr, storage.ErrNotFound)
+	_, downloadErr := s.Download(ctx, "missing")
+	require.ErrorIs(t, downloadErr, storage.ErrNotFound)
+	_, rangeErr := s.DownloadRange(ctx, "missing", 0, 1)
+	require.ErrorIs(t, rangeErr, storage.ErrNotFound)
+	assert.NotErrorIs(t, assert.AnError, storage.ErrNotFound)
 }
 
 func TestStorage_DeleteThenDownload(t *testing.T) {

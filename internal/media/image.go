@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -10,13 +11,16 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
+const mediaSubprocessTimeout = 2 * time.Minute
+
 // EncodeWebP shells out to cwebp to encode an image.Image to WebP bytes.
-func EncodeWebP(img image.Image, quality int) ([]byte, error) {
+func EncodeWebP(ctx context.Context, img image.Image, quality int) ([]byte, error) {
 	// Write the image to a temp PNG file for cwebp to read.
 	inFile, err := os.CreateTemp("", "hyperboard-img-in-*.png")
 	if err != nil {
@@ -38,12 +42,17 @@ func EncodeWebP(img image.Image, quality int) ([]byte, error) {
 	_ = outFile.Close()
 	defer func() { _ = os.Remove(outFile.Name()) }()
 
-	cmd := exec.Command("cwebp",
+	commandCtx, cancel := context.WithTimeout(ctx, mediaSubprocessTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(commandCtx, "cwebp",
 		"-q", strconv.Itoa(quality),
 		inFile.Name(),
 		"-o", outFile.Name(),
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
+		if commandCtx.Err() != nil {
+			return nil, fmt.Errorf("cwebp encode: %w", commandCtx.Err())
+		}
 		return nil, fmt.Errorf("cwebp encode: %w: %s", err, out)
 	}
 
@@ -97,7 +106,7 @@ const MaxWebPDimension = 16383
 
 // ProcessImage converts an image to WebP (unless too large) and generates a thumbnail.
 // Returns (contentBytes, mimeType, thumbnailBytes, error).
-func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, error) {
+func ProcessImage(ctx context.Context, data []byte, detectedMIME string) ([]byte, string, []byte, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("%w: decode image: %w", ErrInvalidMedia, err)
@@ -123,7 +132,7 @@ func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 		content = data
 		mime = MIMEWebP
 	} else {
-		encoded, err := EncodeWebP(img, 85)
+		encoded, err := EncodeWebP(ctx, img, 85)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("encode webp: %w", err)
 		}
@@ -133,7 +142,7 @@ func ProcessImage(data []byte, detectedMIME string) ([]byte, string, []byte, err
 
 	// Generate thumbnail (512x512 max, preserve aspect ratio).
 	thumb := FitImage(img, 512, 512)
-	thumbBytes, err := EncodeWebP(thumb, 80)
+	thumbBytes, err := EncodeWebP(ctx, thumb, 80)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("encode thumbnail: %w", err)
 	}

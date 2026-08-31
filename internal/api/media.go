@@ -12,6 +12,7 @@ import (
 
 	"github.com/dharmab/hyperboard/internal/db/models"
 	"github.com/dharmab/hyperboard/internal/db/store"
+	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/rs/zerolog/log"
 )
 
@@ -118,8 +119,12 @@ func (s *Server) streamMedia(w http.ResponseWriter, r *http.Request, postID uuid
 }
 
 func (s *Server) respondToMediaStorageError(w http.ResponseWriter, postID uuid.UUID, err error) {
+	if errors.Is(err, storage.ErrNotFound) {
+		respondWithError(w, http.StatusNotFound, "Post content not found")
+		return
+	}
 	log.Error().Err(err).Stringer("post_id", postID).Msg("failed to retrieve post content")
-	respondWithError(w, http.StatusNotFound, "Post content not found")
+	respondWithError(w, http.StatusServiceUnavailable, "Object store is unavailable")
 }
 
 func setMediaHeaders(w http.ResponseWriter, contentType string, contentLength int64, filename string) {

@@ -1,10 +1,83 @@
 package web
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestEscapePathSegment(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "tag%2Fname%20with%20spaces%3F%23", escapePathSegment("tag/name with spaces?#"))
+}
+
+func TestResourceNamesArePathEscapedInTemplates(t *testing.T) {
+	t.Parallel()
+
+	tmpls, err := parseTemplates()
+	require.NoError(t, err)
+
+	render := func(t *testing.T, name string, data any) string {
+		t.Helper()
+		var output bytes.Buffer
+		require.NoError(t, tmpls[name].ExecuteTemplate(&output, name, data))
+		return output.String()
+	}
+
+	const (
+		tagName         = "tag/name ?#"
+		escapedTagName  = "tag%2Fname%20%3F%23"
+		categoryName    = "category/name ?#"
+		escapedCategory = "category%2Fname%20%3F%23"
+	)
+
+	t.Run("tag listing links", func(t *testing.T) {
+		t.Parallel()
+		category := categoryName
+		postCount := 1
+		body := render(t, "tags", tagsData{
+			Tags: []types.Tag{{Name: tagName, Category: &category, PostCount: &postCount}},
+		})
+		assert.Contains(t, body, `href="/tags/`+escapedTagName+`"`)
+		assert.Contains(t, body, `href="/tag-categories/`+escapedCategory+`"`)
+		assert.Contains(t, body, `href="/?search=tag%2fname%20%3f%23"`)
+	})
+
+	t.Run("tag edit actions", func(t *testing.T) {
+		t.Parallel()
+		body := render(t, "tag_edit", tagEditData{CurrentName: tagName})
+		assert.Contains(t, body, `action="/tags/`+escapedTagName+`"`)
+		assert.Contains(t, body, `hx-delete="/tags/`+escapedTagName+`"`)
+		assert.Contains(t, body, `action="/tags/`+escapedTagName+`/convert-to-alias"`)
+		assert.Contains(t, body, `hx-get="/tag-suggestions?exclude=tag/name ?#"`)
+	})
+
+	t.Run("category listing link", func(t *testing.T) {
+		t.Parallel()
+		body := render(t, "tag_categories", tagCategoriesData{
+			Categories: []types.TagCategory{{Name: categoryName}},
+		})
+		assert.Contains(t, body, `href="/tag-categories/`+escapedCategory+`"`)
+	})
+
+	t.Run("category edit actions", func(t *testing.T) {
+		t.Parallel()
+		body := render(t, "tag_category_edit", tagCategoryEditData{CurrentName: categoryName})
+		assert.Contains(t, body, `action="/tag-categories/`+escapedCategory+`"`)
+		assert.Contains(t, body, `hx-delete="/tag-categories/`+escapedCategory+`"`)
+	})
+
+	t.Run("post tag removal action", func(t *testing.T) {
+		t.Parallel()
+		body := render(t, "post", postData{Post: types.Post{Tags: []string{tagName}}})
+		assert.Contains(t, body, `/tags/`+escapedTagName+`"`)
+		assert.Contains(t, body, `href="/?search=tag%2fname%20%3f%23"`)
+	})
+}
 
 func TestFormatSize(t *testing.T) {
 	t.Parallel()

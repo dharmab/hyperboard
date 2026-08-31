@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/dharmab/hyperboard/internal/storage"
 	"github.com/rs/zerolog/log"
 )
@@ -20,10 +21,14 @@ type Storage struct {
 	client   *s3.Client
 	bucket   string
 	endpoint string
+	region   string
 }
 
 // New creates a new S3 Storage.
 func New(ctx context.Context, endpoint, bucket, accessKey, secretKey, region string, usePathStyle bool) (*Storage, error) {
+	if region == "" {
+		region = "us-east-1"
+	}
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
@@ -41,6 +46,7 @@ func New(ctx context.Context, endpoint, bucket, accessKey, secretKey, region str
 		client:   client,
 		bucket:   bucket,
 		endpoint: endpoint,
+		region:   region,
 	}
 
 	if err := st.ensureBucketExists(ctx); err != nil {
@@ -69,11 +75,25 @@ func (st *Storage) ensureBucketExists(ctx context.Context) error {
 	}
 
 	log.Info().Str("bucket", st.bucket).Msg("bucket does not exist, creating")
-	_, err = st.client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: aws.String(st.bucket),
-	})
-	if err != nil {
+	input := &s3.CreateBucketInput{Bucket: aws.String(st.bucket)}
+	if st.region != "" && st.region != "us-east-1" {
+		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
+			LocationConstraint: types.BucketLocationConstraint(st.region),
+		}
+	}
+	_, err = st.client.CreateBucket(ctx, input)
+	if err == nil {
+		return nil
+	}
+	if !isBucketCreationConflict(err) {
 		return fmt.Errorf("create bucket: %w", err)
+	}
+
+	// Another instance may have created the bucket after our initial check.
+	// Only accept the conflict after confirming that this client can access it.
+	if _, headErr := st.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(st.bucket)}); headErr != nil {
+		verificationErr := fmt.Errorf("subsequent check: %w", headErr)
+		return fmt.Errorf("create bucket conflict: %w", errors.Join(err, verificationErr))
 	}
 	return nil
 }
@@ -86,6 +106,29 @@ func isNotFoundError(err error) bool {
 		return true
 	}
 	return false
+}
+
+func isBucketCreationConflict(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.ErrorCode() == "BucketAlreadyOwnedByYou" || apiErr.ErrorCode() == "BucketAlreadyExists"
+}
+
+func (st *Storage) objectError(ctx context.Context, operation, key string, err error) error {
+	if _, ok := errors.AsType[*types.NoSuchKey](err); ok {
+		return fmt.Errorf("%s %s: %w", operation, key, errors.Join(storage.ErrNotFound, err))
+	}
+
+	if _, ok := errors.AsType[*types.NotFound](err); ok {
+		// HeadObject commonly returns the same generic 404 for a missing key and
+		// a missing bucket. Confirm the bucket before classifying the key as absent.
+		if _, headErr := st.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(st.bucket)}); headErr == nil {
+			return fmt.Errorf("%s %s: %w", operation, key, errors.Join(storage.ErrNotFound, err))
+		}
+	}
+	return fmt.Errorf("%s %s: %w", operation, key, err)
 }
 
 // Ping checks connectivity to the S3-compatible object store.
@@ -130,7 +173,7 @@ func (st *Storage) Metadata(ctx context.Context, key string) (*storage.Metadata,
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("head object %s: %w", key, err)
+		return nil, st.objectError(ctx, "head object", key, err)
 	}
 	if out.ContentLength == nil {
 		return nil, fmt.Errorf("head object %s: response has no content length", key)
@@ -149,7 +192,7 @@ func (st *Storage) Download(ctx context.Context, key string) (*storage.Media, er
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("download %s: %w", key, err)
+		return nil, st.objectError(ctx, "download", key, err)
 	}
 	ct := "application/octet-stream"
 	if out.ContentType != nil {
@@ -174,7 +217,7 @@ func (st *Storage) DownloadRange(ctx context.Context, key string, start, end int
 		Range:  aws.String(fmt.Sprintf("bytes=%d-%d", start, end)),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("download range %s bytes=%d-%d: %w", key, start, end, err)
+		return nil, st.objectError(ctx, fmt.Sprintf("download range bytes=%d-%d", start, end), key, err)
 	}
 	contentType := "application/octet-stream"
 	if out.ContentType != nil {

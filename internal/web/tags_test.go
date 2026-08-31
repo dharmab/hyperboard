@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +92,28 @@ func TestHandleTagConvertToAlias(t *testing.T) {
 	location := w.Header().Get("Location")
 	require.Equal(t, http.StatusSeeOther, w.Code, "body = %s", body)
 	assert.Equal(t, "/tags/target-tag", location)
+}
+
+func TestHandleTagConvertToAlias_PathEscapesRedirectTarget(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/convert-to-alias") {
+			jsonResponse(w, http.StatusOK, types.Tag{Name: "target/name ?#"})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	form := url.Values{"target": {"target/name ?#"}}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tags/source-tag/convert-to-alias", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("name", "source-tag")
+	w := httptest.NewRecorder()
+	app.handleTagConvertToAlias(w, req)
+
+	require.Equal(t, http.StatusSeeOther, w.Code, "body = %s", w.Body.String())
+	assert.Equal(t, "/tags/target%2Fname%20%3F%23", w.Header().Get("Location"))
 }
 
 func TestHandleTagConvertToAlias_EmptyTarget(t *testing.T) {

@@ -150,8 +150,18 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 }
 
 func (s *PostgresSQLStore) DeleteTagCategory(ctx context.Context, name string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM tag_categories WHERE name = $1", name)
-	return err
+	result, err := s.db.ExecContext(ctx, "DELETE FROM tag_categories WHERE name = $1", name)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *PostgresSQLStore) GetTagCountsByCategory(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID]int, error) {

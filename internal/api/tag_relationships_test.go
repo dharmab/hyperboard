@@ -196,6 +196,65 @@ func TestConvertTagToAlias(t *testing.T) {
 	assert.Equal(t, targetName, (*tags.Items)[0].Name)
 }
 
+func TestConvertTagToAliasSerializesConcurrentConversions(t *testing.T) {
+	t.Parallel()
+
+	sqlStore, pool := newTestStoreWithPool(t)
+	now := time.Now().UTC()
+	suffix := uuid.NewV4().String()[:8]
+	sourceName := "concurrent-source-" + suffix
+	targetName := "concurrent-target-" + suffix
+	for _, name := range []string{sourceName, targetName} {
+		_, _, err := sqlStore.UpsertTag(t.Context(), name, store.TagInput{Name: name}, now)
+		require.NoError(t, err, "create tag %q", name)
+	}
+
+	lockTx, err := pool.Begin(t.Context())
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback(t.Context()) }()
+	_, err = lockTx.Exec(t.Context(), "SELECT id FROM tags WHERE name = $1 FOR UPDATE", sourceName)
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	errorsByCall := make(chan error, 2)
+	for range 2 {
+		go func() {
+			<-start
+			_, convertErr := sqlStore.ConvertTagToAlias(t.Context(), sourceName, targetName)
+			errorsByCall <- convertErr
+		}()
+	}
+	close(start)
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := pool.QueryRow(t.Context(),
+			"SELECT COUNT(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'",
+		).Scan(&waiting)
+		return err == nil && waiting >= 2
+	}, 5*time.Second, 10*time.Millisecond, "both conversions should queue behind the source row lock")
+	require.NoError(t, lockTx.Commit(t.Context()))
+
+	var successes, notFoundErrors int
+	for range 2 {
+		convertErr := <-errorsByCall
+		switch {
+		case convertErr == nil:
+			successes++
+		case errors.Is(convertErr, store.ErrNotFound):
+			notFoundErrors++
+		default:
+			require.NoError(t, convertErr)
+		}
+	}
+	assert.Equal(t, 1, successes)
+	assert.Equal(t, 1, notFoundErrors)
+
+	resolved, err := sqlStore.ResolveAlias(t.Context(), sourceName)
+	require.NoError(t, err)
+	assert.Equal(t, targetName, resolved)
+}
+
 func TestCascadingTagUpdatesDeduplicateCanonicalTargets(t *testing.T) {
 	t.Parallel()
 

@@ -447,6 +447,9 @@ func TestDeleteTag(t *testing.T) {
 
 	missingResponse := performRequest(handler, http.MethodGet, tagPath(tag.Name), "", true)
 	assert.Equal(t, http.StatusNotFound, missingResponse.Code, "body: %s", missingResponse.Body.String())
+
+	deleteMissingResponse := performRequest(handler, http.MethodDelete, tagPath(tag.Name), "", true)
+	assert.Equal(t, http.StatusNotFound, deleteMissingResponse.Code, "body: %s", deleteMissingResponse.Body.String())
 }
 
 func createTagFixture(t *testing.T) (http.Handler, types.Tag) {

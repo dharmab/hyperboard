@@ -120,6 +120,9 @@ func TestDeleteTagCategory(t *testing.T) {
 
 	missingResponse := performRequest(handler, http.MethodGet, categoryPath(category.Name), "", true)
 	assert.Equal(t, http.StatusNotFound, missingResponse.Code, "body: %s", missingResponse.Body.String())
+
+	deleteMissingResponse := performRequest(handler, http.MethodDelete, categoryPath(category.Name), "", true)
+	assert.Equal(t, http.StatusNotFound, deleteMissingResponse.Code, "body: %s", deleteMissingResponse.Body.String())
 }
 
 func createTagCategoryFixture(t *testing.T) (http.Handler, types.TagCategory) {

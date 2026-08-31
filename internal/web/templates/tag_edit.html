@@ -5,7 +5,7 @@
 {{define "content"}}
 <h1>{{if .IsNew}}New Tag{{else}}Edit Tag{{end}}</h1>
 {{if .Error}}<div class="alert-error">{{.Error}}</div>{{end}}
-<form method="POST" action="/tags/{{.CurrentName}}">
+<form method="POST" action="/tags/{{pathEscape .CurrentName}}">
   <div class="form-group">
     <label>Name</label>
     <input type="text" name="name" value="{{.Tag.Name}}" required>
@@ -36,7 +36,7 @@
   <button type="submit" class="btn btn-primary">Save</button>
   {{if not .IsNew}}
   <button type="button" class="btn btn-danger"
-    hx-delete="/tags/{{.CurrentName}}"
+    hx-delete="/tags/{{pathEscape .CurrentName}}"
     hx-confirm="Delete tag {{.CurrentName}}?"
     hx-target="body"
     hx-push-url="/tags">Delete</button>
@@ -48,7 +48,7 @@
 <p style="color:var(--base04);margin-bottom:1rem">
   Merge this tag into another tag. All posts will be re-tagged, and this tag's name and aliases will become aliases of the target.
 </p>
-<form method="POST" action="/tags/{{.CurrentName}}/convert-to-alias"
+<form method="POST" action="/tags/{{pathEscape .CurrentName}}/convert-to-alias"
   id="convert-to-alias-form"
   data-confirm-message="Convert &quot;{{.CurrentName}}&quot; into an alias? This cannot be undone.">
   <div class="form-group" style="max-width:400px">

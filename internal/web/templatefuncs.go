@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"net/url"
 	"slices"
 	"strings"
 )
@@ -13,6 +14,11 @@ const defaultColor = "var(--base03)"
 
 // quickTagEmoji is the emoji displayed next to the file size when a post has the quick-tag.
 const quickTagEmoji = "⭐"
+
+// escapePathSegment escapes a single dynamic URL path segment.
+func escapePathSegment(segment string) string {
+	return url.PathEscape(segment)
+}
 
 // templateFuncs returns the FuncMap of custom template functions for HTML rendering.
 func templateFuncs() template.FuncMap {
@@ -38,6 +44,7 @@ func templateFuncs() template.FuncMap {
 		"join_strings": func(s []string, sep string) string {
 			return strings.Join(s, sep)
 		},
+		"pathEscape": escapePathSegment,
 		"catColor": func(colors map[string]string, cat *string) string {
 			if cat == nil || colors == nil {
 				return defaultColor

@@ -101,6 +101,78 @@ func (s *trackingMediaStore) resetCalls() {
 	s.rangeCalls = 0
 }
 
+type failingReadMediaStore struct {
+	storage.MediaStore
+	metadata    *storage.Metadata
+	metadataErr error
+	downloadErr error
+	rangeErr    error
+}
+
+func (s *failingReadMediaStore) Metadata(ctx context.Context, key string) (*storage.Metadata, error) {
+	if s.metadataErr != nil {
+		return nil, s.metadataErr
+	}
+	if s.metadata != nil {
+		return s.metadata, nil
+	}
+	return s.MediaStore.Metadata(ctx, key)
+}
+
+func (s *failingReadMediaStore) Download(ctx context.Context, key string) (*storage.Media, error) {
+	if s.downloadErr != nil {
+		return nil, s.downloadErr
+	}
+	return s.MediaStore.Download(ctx, key)
+}
+
+func (s *failingReadMediaStore) DownloadRange(ctx context.Context, key string, start, end int64) (*storage.Media, error) {
+	if s.rangeErr != nil {
+		return nil, s.rangeErr
+	}
+	return s.MediaStore.DownloadRange(ctx, key, start, end)
+}
+
+func TestMediaReadStorageErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	missingErr := fmt.Errorf("wrapped missing object: %w", storage.ErrNotFound)
+	dependencyErr := errors.New("object store unavailable")
+	for _, tt := range []struct {
+		name       string
+		store      *failingReadMediaStore
+		method     string
+		rangeValue string
+		wantStatus int
+	}{
+		{name: "missing download", store: &failingReadMediaStore{MediaStore: memory.New(), downloadErr: missingErr}, method: http.MethodGet, wantStatus: http.StatusNotFound},
+		{name: "download dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), downloadErr: dependencyErr}, method: http.MethodGet, wantStatus: http.StatusServiceUnavailable},
+		{name: "missing metadata", store: &failingReadMediaStore{MediaStore: memory.New(), metadataErr: missingErr}, method: http.MethodHead, wantStatus: http.StatusNotFound},
+		{name: "metadata dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadataErr: dependencyErr}, method: http.MethodHead, wantStatus: http.StatusServiceUnavailable},
+		{name: "missing range download", store: &failingReadMediaStore{MediaStore: memory.New(), metadata: &storage.Metadata{ContentType: "video/mp4", ContentLength: 10}, rangeErr: missingErr}, method: http.MethodGet, rangeValue: "bytes=0-1", wantStatus: http.StatusNotFound},
+		{name: "range dependency failure", store: &failingReadMediaStore{MediaStore: memory.New(), metadata: &storage.Metadata{ContentType: "video/mp4", ContentLength: 10}, rangeErr: dependencyErr}, method: http.MethodGet, rangeValue: "bytes=0-1", wantStatus: http.StatusServiceUnavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sqlStore := newTestStore(t)
+			post := createTestPost(t, sqlStore)
+			server := NewServer(sqlStore, tt.store)
+			request := httptest.NewRequestWithContext(t.Context(), tt.method, "/api/v1/posts/"+post.ID.String()+"/content", nil)
+			if tt.rangeValue != "" {
+				request.Header.Set("Range", tt.rangeValue)
+			}
+			response := httptest.NewRecorder()
+			if tt.method == http.MethodHead {
+				server.HeadPostContent(response, request, types.ID(post.ID))
+			} else {
+				server.GetPostContent(response, request, types.ID(post.ID))
+			}
+			assert.Equal(t, tt.wantStatus, response.Code, "body = %q", response.Body.String())
+			assertJSONContentType(t, response.Header().Get("Content-Type"))
+		})
+	}
+}
+
 func TestMediaHeadAndRanges(t *testing.T) {
 	t.Parallel()
 
@@ -440,7 +512,7 @@ func encodeTestMP4WithAudio(t *testing.T, fill color.Color) []byte {
 	rgba := color.RGBAModel.Convert(fill).(color.RGBA)
 	colorValue := fmt.Sprintf("0x%02x%02x%02x", rgba.R, rgba.G, rgba.B)
 	path := t.TempDir() + "/fixture.mp4"
-	cmd := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c="+colorValue+":s=16x16:d=2:r=2", "-f", "lavfi", "-i", "sine=frequency=1000:duration=2", "-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", path) //nolint:gosec // test arguments are generated locally
+	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c="+colorValue+":s=16x16:d=2:r=2", "-f", "lavfi", "-i", "sine=frequency=1000:duration=2", "-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", path) //nolint:gosec // test arguments are generated locally
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "encode MP4 fixture with audio: %s", output)
 	data, err := os.ReadFile(path)

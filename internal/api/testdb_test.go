@@ -92,6 +92,12 @@ func newTestServer(t *testing.T) *Server {
 
 func newTestStore(t *testing.T) store.SQLStore {
 	t.Helper()
+	sqlStore, _ := newTestStoreWithPool(t)
+	return sqlStore
+}
+
+func newTestStoreWithPool(t *testing.T) (store.SQLStore, *pgxpool.Pool) {
+	t.Helper()
 
 	databaseName := "test_" + strings.ReplaceAll(uuid.NewV4().String(), "-", "")
 	_, err := testAdminPool.Exec(context.Background(), `CREATE DATABASE "`+databaseName+`"`)
@@ -115,7 +121,7 @@ func newTestStore(t *testing.T) store.SQLStore {
 	})
 
 	db := stdlib.OpenDBFromPool(pool)
-	return store.NewPostgresSQLStore(db, 5)
+	return store.NewPostgresSQLStore(db, 5), pool
 }
 
 func dropTestDatabase(t *testing.T, databaseName string) {

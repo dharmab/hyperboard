@@ -14,7 +14,7 @@ func TestProcessVideoRejectsInvalidMedia(t *testing.T) {
 		t.Skip("ffmpeg not available")
 	}
 
-	_, _, err := ProcessVideo([]byte("not a video"))
+	_, _, err := ProcessVideo(t.Context(), []byte("not a video"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidMedia)
 }

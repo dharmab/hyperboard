@@ -69,7 +69,7 @@ func TestFitImage(t *testing.T) {
 func TestProcessImageRejectsInvalidMedia(t *testing.T) {
 	t.Parallel()
 
-	_, _, _, err := ProcessImage([]byte("not an image"), "image/png")
+	_, _, _, err := ProcessImage(t.Context(), []byte("not an image"), "image/png")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidMedia)
 }
@@ -83,7 +83,7 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		img := syntheticColorImage(64, 64)
 		pngData := encodePNG(t, img)
 
-		content, mime, thumbnail, err := ProcessImage(pngData, "image/png")
+		content, mime, thumbnail, err := ProcessImage(t.Context(), pngData, "image/png")
 		require.NoError(t, err)
 		assert.Equal(t, MIMEWebP, mime)
 		assert.NotEmpty(t, content)
@@ -92,10 +92,10 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 
 	t.Run("webp passthrough", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
 		img := syntheticColorImage(64, 64)
-		webpData, err := EncodeWebP(img, 85)
+		webpData, err := EncodeWebP(t.Context(), img, 85)
 		require.NoError(t, err)
 
-		content, mime, thumbnail, err := ProcessImage(webpData, MIMEWebP)
+		content, mime, thumbnail, err := ProcessImage(t.Context(), webpData, MIMEWebP)
 		require.NoError(t, err)
 		assert.Equal(t, MIMEWebP, mime)
 		assert.Equal(t, webpData, content)

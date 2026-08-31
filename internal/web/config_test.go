@@ -7,16 +7,94 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigRequiresCredentials(t *testing.T) {
+func TestConfigValidation(t *testing.T) {
 	t.Parallel()
 
-	err := (&config{}).validate()
-	require.EqualError(t, err, "admin password is required")
+	validConfig := config{
+		AdminPassword: "hyperboard",
+		SessionSecret: "session-secret",
+		APIURL:        "https://api.example.com",
+	}
 
-	err = (&config{AdminPassword: "hyperboard"}).validate()
-	require.EqualError(t, err, "session secret is required")
+	tests := []struct {
+		name      string
+		mutate    func(*config)
+		errString string
+	}{
+		{
+			name: "valid HTTP URL",
+			mutate: func(cfg *config) {
+				cfg.APIURL = "http://localhost:8081/api"
+			},
+		},
+		{name: "valid HTTPS URL"},
+		{
+			name: "missing admin password",
+			mutate: func(cfg *config) {
+				cfg.AdminPassword = ""
+			},
+			errString: "admin password is required",
+		},
+		{
+			name: "missing session secret",
+			mutate: func(cfg *config) {
+				cfg.SessionSecret = ""
+			},
+			errString: "session secret is required",
+		},
+		{
+			name: "missing API URL",
+			mutate: func(cfg *config) {
+				cfg.APIURL = ""
+			},
+			errString: "API URL is required",
+		},
+		{
+			name: "relative API URL",
+			mutate: func(cfg *config) {
+				cfg.APIURL = "/api"
+			},
+			errString: "API URL must be an absolute HTTP or HTTPS URL with a host",
+		},
+		{
+			name: "HTTP URL without host",
+			mutate: func(cfg *config) {
+				cfg.APIURL = "http:/api"
+			},
+			errString: "API URL must be an absolute HTTP or HTTPS URL with a host",
+		},
+		{
+			name: "API URL with port but no hostname",
+			mutate: func(cfg *config) {
+				cfg.APIURL = "http://:8081"
+			},
+			errString: "API URL must be an absolute HTTP or HTTPS URL with a host",
+		},
+		{
+			name: "unsupported scheme",
+			mutate: func(cfg *config) {
+				cfg.APIURL = "ftp://api.example.com"
+			},
+			errString: "API URL must be an absolute HTTP or HTTPS URL with a host",
+		},
+	}
 
-	assert.NoError(t, (&config{AdminPassword: "hyperboard", SessionSecret: "session-secret"}).validate())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := validConfig
+			if tt.mutate != nil {
+				tt.mutate(&cfg)
+			}
+
+			err := cfg.validate()
+			if tt.errString == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tt.errString)
+		})
+	}
 }
 
 func TestParseTagFilters(t *testing.T) {
