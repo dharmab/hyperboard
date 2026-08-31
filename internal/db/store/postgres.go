@@ -8,15 +8,18 @@ import (
 // PostgresSQLStore implements the Store interface using a PostgreSQL database.
 type PostgresSQLStore struct {
 	db                  *sql.DB
+	postMutationLockDB  *sql.DB
 	similarityThreshold int
 }
 
 var _ SQLStore = &PostgresSQLStore{}
 
-// NewPostgresSQLStore creates a new PostgresStore backed by the given *sql.DB.
-func NewPostgresSQLStore(db *sql.DB, similarityThreshold int) *PostgresSQLStore {
+// NewPostgresSQLStore creates a new PostgresStore backed by the given data and
+// advisory-lock connection pools.
+func NewPostgresSQLStore(db, postMutationLockDB *sql.DB, similarityThreshold int) *PostgresSQLStore {
 	return &PostgresSQLStore{
 		db:                  db,
+		postMutationLockDB:  postMutationLockDB,
 		similarityThreshold: similarityThreshold,
 	}
 }

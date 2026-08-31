@@ -22,10 +22,11 @@ type postgresPostMutationLock struct {
 	err  error
 }
 
-// AcquirePostMutationLock serializes mutations for postID without blocking
-// mutations for other posts. The stable key incorporates every UUID byte.
+// AcquirePostMutationLock serializes mutations for postID. Advisory locks use
+// a dedicated pool so blocked lock waiters cannot consume connections needed by
+// the lock holder's data operations.
 func (s *PostgresSQLStore) AcquirePostMutationLock(ctx context.Context, postID uuid.UUID) (PostMutationLock, error) {
-	conn, err := s.db.Conn(ctx)
+	conn, err := s.postMutationLockDB.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get connection for post mutation lock: %w", err)
 	}

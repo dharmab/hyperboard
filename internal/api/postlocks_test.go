@@ -41,6 +41,45 @@ func TestPostMutationLockSerializesSamePost(t *testing.T) {
 	require.NoError(t, second.Unlock(t.Context()))
 }
 
+func TestPostMutationLockWaitersLeavePoolCapacityForHolder(t *testing.T) {
+	t.Parallel()
+
+	sqlStore, pool := newTestStoreWithPool(t)
+	postID := uuid.NewV4()
+	first, err := sqlStore.AcquirePostMutationLock(t.Context(), postID)
+	require.NoError(t, err)
+
+	waitCtx, cancel := context.WithCancel(t.Context())
+	waiterCount := int(pool.Config().MaxConns) + 1
+	started := make(chan struct{}, waiterCount)
+	results := make(chan error, waiterCount)
+	for range waiterCount {
+		go func() {
+			started <- struct{}{}
+			lock, lockErr := sqlStore.AcquirePostMutationLock(waitCtx, postID)
+			if lockErr == nil {
+				lockErr = lock.Unlock(context.WithoutCancel(waitCtx))
+			}
+			results <- lockErr
+		}()
+	}
+	for range waiterCount {
+		<-started
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	require.Zero(t, pool.Stat().AcquiredConns(), "advisory-lock waiters must not consume data pool connections")
+	pingCtx, stopPing := context.WithTimeout(t.Context(), time.Second)
+	require.NoError(t, sqlStore.Ping(pingCtx), "the lock holder must retain database pool capacity")
+	stopPing()
+
+	cancel()
+	for range waiterCount {
+		require.ErrorIs(t, <-results, context.Canceled)
+	}
+	require.NoError(t, first.Unlock(t.Context()))
+}
+
 func TestPostMutationLockDoesNotSerializeDifferentPosts(t *testing.T) {
 	t.Parallel()
 

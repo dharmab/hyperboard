@@ -124,7 +124,7 @@ func (s *Server) respondToMediaStorageError(w http.ResponseWriter, postID uuid.U
 		return
 	}
 	log.Error().Err(err).Stringer("post_id", postID).Msg("failed to retrieve post content")
-	respondWithError(w, http.StatusServiceUnavailable, "Object store is unavailable")
+	respondWithError(w, http.StatusInternalServerError, "Failed to retrieve post content")
 }
 
 func setMediaHeaders(w http.ResponseWriter, contentType string, contentLength int64, filename string) {

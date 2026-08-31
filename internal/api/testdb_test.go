@@ -59,12 +59,24 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	lockPool, err := pgxpool.New(context.Background(), testDSN)
+	if err != nil {
+		pool.Close()
+		if stopErr := postgres.Stop(); stopErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to stop embedded postgres after lock pool creation failure: %v\n", stopErr)
+		}
+		fmt.Fprintf(os.Stderr, "failed to create lock pool: %v\n", err)
+		os.Exit(1)
+	}
+
 	testAdminPool = pool
 	db := stdlib.OpenDBFromPool(pool)
-	testSQLStore = store.NewPostgresSQLStore(db, 5)
+	lockDB := stdlib.OpenDBFromPool(lockPool)
+	testSQLStore = store.NewPostgresSQLStore(db, lockDB, 5)
 
 	code := m.Run()
 
+	lockPool.Close()
 	pool.Close()
 	if err := postgres.Stop(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to stop embedded postgres: %v\n", err)
@@ -115,13 +127,21 @@ func newTestStoreWithPool(t *testing.T) (store.SQLStore, *pgxpool.Pool) {
 		dropTestDatabase(t, databaseName)
 	}
 	require.NoError(t, err, "connect to isolated test database")
+	lockPool, err := pgxpool.New(context.Background(), dsn)
+	if err != nil {
+		pool.Close()
+		dropTestDatabase(t, databaseName)
+	}
+	require.NoError(t, err, "connect post mutation lock pool to isolated test database")
 	t.Cleanup(func() {
+		lockPool.Close()
 		pool.Close()
 		dropTestDatabase(t, databaseName)
 	})
 
 	db := stdlib.OpenDBFromPool(pool)
-	return store.NewPostgresSQLStore(db, 5), pool
+	lockDB := stdlib.OpenDBFromPool(lockPool)
+	return store.NewPostgresSQLStore(db, lockDB, 5), pool
 }
 
 func dropTestDatabase(t *testing.T, databaseName string) {
