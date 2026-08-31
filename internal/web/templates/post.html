@@ -72,7 +72,7 @@
     {{range .Post.Tags}}
     <span class="badge" style="border-left-color: {{tagColor $.Post.TagColors .}}">
       <a href="/?search={{.}}" class="badge-link">{{.}}</a>
-      <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{.}}" hx-target=".post-tags" hx-swap="outerMorph">×</a>
+      <a class="badge-remove" hx-delete="/posts/{{$.Post.ID}}/tags/{{pathEscape .}}" hx-target=".post-tags" hx-swap="outerMorph">×</a>
     </span>
     {{end}}
     {{if .Post.CascadingTags}}{{range deref_strings .Post.CascadingTags}}

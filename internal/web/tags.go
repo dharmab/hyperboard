@@ -193,5 +193,5 @@ func (a *app) handleTagConvertToAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/tags/"+targetName, http.StatusSeeOther)
+	http.Redirect(w, r, "/tags/"+escapePathSegment(targetName), http.StatusSeeOther)
 }

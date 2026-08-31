@@ -55,7 +55,7 @@ func (s *Storage) Metadata(_ context.Context, key string) (*storage.Metadata, er
 	defer s.mu.Unlock()
 	entry, ok := s.objects[key]
 	if !ok {
-		return nil, fmt.Errorf("object not found: %s", key)
+		return nil, fmt.Errorf("%w: %s", storage.ErrNotFound, key)
 	}
 	return &storage.Metadata{ContentType: entry.contentType, ContentLength: int64(len(entry.data))}, nil
 }
@@ -66,7 +66,7 @@ func (s *Storage) Download(_ context.Context, key string) (*storage.Media, error
 	defer s.mu.Unlock()
 	entry, ok := s.objects[key]
 	if !ok {
-		return nil, fmt.Errorf("object not found: %s", key)
+		return nil, fmt.Errorf("%w: %s", storage.ErrNotFound, key)
 	}
 	return &storage.Media{
 		Body:          io.NopCloser(bytes.NewReader(entry.data)),
@@ -81,7 +81,7 @@ func (s *Storage) DownloadRange(_ context.Context, key string, start, end int64)
 	defer s.mu.Unlock()
 	entry, ok := s.objects[key]
 	if !ok {
-		return nil, fmt.Errorf("object not found: %s", key)
+		return nil, fmt.Errorf("%w: %s", storage.ErrNotFound, key)
 	}
 	if start < 0 || end < start || end >= int64(len(entry.data)) {
 		return nil, fmt.Errorf("invalid byte range %d-%d for object %s", start, end, key)

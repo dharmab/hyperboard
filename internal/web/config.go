@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -72,6 +73,16 @@ func (cfg *config) validate() error {
 	}
 	if cfg.SessionSecret == "" {
 		return errors.New("session secret is required")
+	}
+	if cfg.APIURL == "" {
+		return errors.New("API URL is required")
+	}
+	apiURL, err := url.Parse(cfg.APIURL)
+	if err != nil {
+		return fmt.Errorf("API URL must be an absolute HTTP or HTTPS URL with a host: %w", err)
+	}
+	if !apiURL.IsAbs() || (apiURL.Scheme != "http" && apiURL.Scheme != "https") || apiURL.Hostname() == "" {
+		return errors.New("API URL must be an absolute HTTP or HTTPS URL with a host")
 	}
 	return nil
 }

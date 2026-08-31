@@ -47,6 +47,7 @@ type TagInput struct {
 	Aliases       []string
 	CascadingTags []string
 	TagCategoryID sql.Null[uuid.UUID]
+	CreateOnly    bool
 }
 
 // CascadingTag holds a cascading tag name and its category color.
@@ -209,6 +210,9 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 
 	var resultModel models.Tag
 	isCreate := errors.Is(err, sql.ErrNoRows)
+	if input.CreateOnly && !isCreate {
+		return nil, false, fmt.Errorf("%w: tag %q already exists", ErrConflict, urlName)
+	}
 
 	var conflictingTagID gofrs.UUID
 	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", input.Name).Scan(&conflictingTagID)
@@ -280,12 +284,16 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 }
 
 func (s *PostgresSQLStore) DeleteTag(ctx context.Context, name string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM tags WHERE name = $1", name)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM tags WHERE name = $1", name)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
 		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -574,9 +582,11 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Look up source tag
+	// Lock the source row so concurrent conversions of the same source serialize.
+	// Under PostgreSQL READ COMMITTED semantics, a waiter re-checks the row after
+	// the lock is released and observes no row if the winning transaction deleted it.
 	var sourceID gofrs.UUID
-	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", sourceName).Scan(&sourceID)
+	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1 FOR UPDATE", sourceName).Scan(&sourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("source tag %q: %w", sourceName, ErrNotFound)
@@ -659,10 +669,18 @@ func (s *PostgresSQLStore) ConvertTagToAlias(ctx context.Context, sourceName, ta
 		return nil, err
 	}
 
-	// Delete source tag (cascades aliases)
-	_, err = tx.ExecContext(ctx, "DELETE FROM tags WHERE id = $1", sourceID)
+	// Delete source tag (cascades aliases), revalidating that the locked source
+	// still matched in case its state changed before this transaction acquired it.
+	deleteResult, err := tx.ExecContext(ctx, "DELETE FROM tags WHERE id = $1 AND name = $2", sourceID, sourceName)
 	if err != nil {
 		return nil, err
+	}
+	rowsAffected, err := deleteResult.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("source tag %q: %w", sourceName, ErrNotFound)
 	}
 
 	// Add source name + source aliases as aliases of target

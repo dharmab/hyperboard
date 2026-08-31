@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +13,50 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCreateTagRefusesExistingTag(t *testing.T) {
+	t.Parallel()
+	var putRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.WriteHeader(http.StatusOK)
+		case http.MethodPut:
+			putRequests.Add(1)
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	app := &cli.App{Config: &cli.Config{APIURL: srv.URL, AdminPassword: "test"}}
+	err := createTag(app, "existing", types.Tag{Name: "existing"})
+	require.ErrorContains(t, err, "tag/existing already exists")
+	assert.Zero(t, putRequests.Load(), "create must not call the upsert endpoint for an existing tag")
+}
+
+func TestCreateTagHandlesPutUpdateResponse(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"not found"}`))
+		case http.MethodPut:
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	app := &cli.App{Config: &cli.Config{APIURL: srv.URL, AdminPassword: "test"}}
+	err := createTag(app, "raced", types.Tag{Name: "raced"})
+	require.ErrorContains(t, err, "tag/raced already exists")
+	require.ErrorContains(t, err, "update response")
+}
 
 func TestFetchAllTags(t *testing.T) {
 	t.Parallel()

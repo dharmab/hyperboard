@@ -30,6 +30,9 @@ var embeddedFiles embed.FS
 // newResourceName is a sentinel path value indicating a new resource is being created.
 const newResourceName = "_new"
 
+// loginBodyReadTimeout limits how long an unauthenticated client may take to send the login form.
+const loginBodyReadTimeout = 10 * time.Second
+
 // configPath is the path to the configuration file, set via CLI flag.
 var configPath string
 
@@ -53,6 +56,24 @@ func NewCommand() *cobra.Command {
 		}
 	})
 	return cmd
+}
+
+// loginBodyReadDeadline applies a network read deadline only to public login submissions.
+// It intentionally sits outside response-wrapping middleware so ResponseController can
+// reach the server's underlying connection, and leaves authenticated uploads unrestricted.
+func loginBodyReadDeadline(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/login" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		controller := http.NewResponseController(w)
+		if err := controller.SetReadDeadline(time.Now().Add(loginBodyReadTimeout)); err == nil {
+			defer func() { _ = controller.SetReadDeadline(time.Time{}) }()
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // initConfig reads the config file if configPath is set.
@@ -123,7 +144,7 @@ func run() error {
 	mux.Handle("/", a.sessionMiddleware(protected))
 
 	httpServer := &http.Server{
-		Handler:           logging.RequestLoggingMiddleware(security.SecurityHeadersMiddleware(mux)),
+		Handler:           loginBodyReadDeadline(logging.RequestLoggingMiddleware(security.SecurityHeadersMiddleware(mux))),
 		Addr:              ":" + cfg.Port,
 		ReadHeaderTimeout: 30 * time.Second,
 	}

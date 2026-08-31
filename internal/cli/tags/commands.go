@@ -3,6 +3,7 @@ package tags
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/cli"
@@ -159,12 +160,47 @@ func createTag(app *cli.App, name string, tag types.Tag) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.PutTagWithResponse(context.TODO(), name, client.NewTagUpdateRequest(tag))
+
+	getResp, err := c.GetTagWithResponse(context.TODO(), name)
 	if err != nil {
-		return err
+		return fmt.Errorf("check whether tag/%s exists: %w", name, err)
+	}
+	if getResp == nil {
+		return fmt.Errorf("check whether tag/%s exists: server returned no response", name)
+	}
+	switch getResp.StatusCode() {
+	case 200:
+		return fmt.Errorf("tag/%s already exists; use `hyperboardctl edit tag %s` to modify it", name, name)
+	case 404:
+		// The PUT endpoint is an upsert, so only call it after confirming absence.
+	default:
+		if err := cli.CheckResponse(getResp.StatusCode(), getResp.Body); err != nil {
+			return fmt.Errorf("check whether tag/%s exists: %w", name, err)
+		}
+		return fmt.Errorf("check whether tag/%s exists: unexpected server status %d", name, getResp.StatusCode())
+	}
+
+	resp, err := c.PutTagWithResponse(context.TODO(), name, client.NewTagUpdateRequest(tag), func(_ context.Context, req *http.Request) error {
+		req.Header.Set("If-None-Match", "*")
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create tag/%s: %w", name, err)
+	}
+	if resp == nil {
+		return fmt.Errorf("create tag/%s: server returned no response", name)
+	}
+	if resp.StatusCode() == 200 {
+		return fmt.Errorf("tag/%s already exists; the server returned an update response instead of creating it", name)
 	}
 	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+		return fmt.Errorf("create tag/%s: %w", name, err)
+	}
+	if resp.StatusCode() != 201 {
+		return fmt.Errorf("create tag/%s: unexpected server status %d", name, resp.StatusCode())
+	}
+	if resp.JSON201 == nil {
+		return fmt.Errorf("create tag/%s: server returned 201 without a tag response", name)
 	}
 	created := *resp.JSON201
 	return app.PrintResource(created, func() [][2]string {

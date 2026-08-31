@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -14,8 +15,10 @@ import (
 
 // probeHasAudio uses ffprobe to check if a video file contains an audio stream.
 // The caller provides a path to the video file on disk.
-func probeHasAudio(path string) (bool, error) {
-	cmd := exec.Command("ffprobe",
+func probeHasAudio(ctx context.Context, path string) (bool, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, mediaSubprocessTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(commandCtx, "ffprobe",
 		"-v", "quiet",
 		"-select_streams", "a",
 		"-show_entries", "stream=codec_type",
@@ -24,14 +27,19 @@ func probeHasAudio(path string) (bool, error) {
 	)
 	out, err := cmd.Output()
 	if err != nil {
+		if commandCtx.Err() != nil {
+			return false, fmt.Errorf("ffprobe: %w", commandCtx.Err())
+		}
 		return false, fmt.Errorf("ffprobe: %w", err)
 	}
 	return len(bytes.TrimSpace(out)) > 0, nil
 }
 
 // probeDuration uses ffprobe to return the duration of a video in seconds.
-func probeDuration(path string) (float64, error) {
-	cmd := exec.Command("ffprobe",
+func probeDuration(ctx context.Context, path string) (float64, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, mediaSubprocessTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(commandCtx, "ffprobe",
 		"-v", "quiet",
 		"-show_entries", "format=duration",
 		"-of", "csv=p=0",
@@ -39,6 +47,9 @@ func probeDuration(path string) (float64, error) {
 	)
 	out, err := cmd.Output()
 	if err != nil {
+		if commandCtx.Err() != nil {
+			return 0, fmt.Errorf("ffprobe duration: %w", commandCtx.Err())
+		}
 		return 0, fmt.Errorf("ffprobe duration: %w", err)
 	}
 	s := strings.TrimSpace(string(out))
@@ -51,8 +62,10 @@ func probeDuration(path string) (float64, error) {
 
 // extractThumbnail extracts a frame at the given offset (in seconds) from the
 // video at path, scales it to fit within 512x512, and returns WebP-encoded bytes.
-func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
-	cmd := exec.Command("ffmpeg",
+func extractThumbnail(ctx context.Context, path string, offsetSeconds float64) ([]byte, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, mediaSubprocessTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(commandCtx, "ffmpeg",
 		"-ss", strconv.FormatFloat(offsetSeconds, 'f', 3, 64),
 		"-i", path,
 		"-vframes", "1",
@@ -62,6 +75,9 @@ func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
 	)
 	pngData, err := cmd.Output()
 	if err != nil {
+		if commandCtx.Err() != nil {
+			return nil, fmt.Errorf("ffmpeg extract frame: %w", commandCtx.Err())
+		}
 		if _, ok := errors.AsType[*exec.ExitError](err); ok {
 			return nil, fmt.Errorf("%w: ffmpeg extract frame: %w", ErrInvalidMedia, err)
 		}
@@ -74,7 +90,7 @@ func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
 	}
 
 	thumb := FitImage(img, 512, 512)
-	thumbBytes, err := EncodeWebP(thumb, 80)
+	thumbBytes, err := EncodeWebP(ctx, thumb, 80)
 	if err != nil {
 		return nil, fmt.Errorf("encode thumbnail: %w", err)
 	}
@@ -85,7 +101,7 @@ func extractThumbnail(path string, offsetSeconds float64) ([]byte, error) {
 // ProcessVideo extracts a thumbnail from a video file and probes for audio.
 // Returns (thumbnailData, hasAudio, error). The video data is written to a
 // single temp file shared by both ffmpeg and ffprobe.
-func ProcessVideo(data []byte) ([]byte, bool, error) {
+func ProcessVideo(ctx context.Context, data []byte) ([]byte, bool, error) {
 	tmpFile, err := os.CreateTemp("", "hyperboard-video-*")
 	if err != nil {
 		return nil, false, fmt.Errorf("create temp file: %w", err)
@@ -99,8 +115,11 @@ func ProcessVideo(data []byte) ([]byte, bool, error) {
 	_ = tmpFile.Close()
 
 	// Probe for audio streams.
-	hasAudio, err := probeHasAudio(tmpFile.Name())
+	hasAudio, err := probeHasAudio(ctx, tmpFile.Name())
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, false, fmt.Errorf("probe audio: %w", ctx.Err())
+		}
 		// Non-fatal: assume no audio on probe failure.
 		hasAudio = false
 	}
@@ -109,10 +128,12 @@ func ProcessVideo(data []byte) ([]byte, bool, error) {
 	// get a visually interesting thumbnail
 	const wadsworthConstant = 0.30
 	offset := 1.0
-	if duration, err := probeDuration(tmpFile.Name()); err == nil && duration > 0 {
+	if duration, probeErr := probeDuration(ctx, tmpFile.Name()); probeErr == nil && duration > 0 {
 		offset = duration * wadsworthConstant
+	} else if ctx.Err() != nil {
+		return nil, false, fmt.Errorf("probe duration: %w", ctx.Err())
 	}
-	thumbBytes, err := extractThumbnail(tmpFile.Name(), offset)
+	thumbBytes, err := extractThumbnail(ctx, tmpFile.Name(), offset)
 	if err != nil {
 		return nil, false, err
 	}
@@ -122,7 +143,7 @@ func ProcessVideo(data []byte) ([]byte, bool, error) {
 
 // RegenerateVideoThumbnail extracts a thumbnail from a random frame between
 // 25% and 75% of the video duration.
-func RegenerateVideoThumbnail(data []byte) ([]byte, error) {
+func RegenerateVideoThumbnail(ctx context.Context, data []byte) ([]byte, error) {
 	tmpFile, err := os.CreateTemp("", "hyperboard-video-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp file: %w", err)
@@ -136,10 +157,12 @@ func RegenerateVideoThumbnail(data []byte) ([]byte, error) {
 	_ = tmpFile.Close()
 
 	offset := 1.0
-	if duration, err := probeDuration(tmpFile.Name()); err == nil && duration > 0 {
+	if duration, probeErr := probeDuration(ctx, tmpFile.Name()); probeErr == nil && duration > 0 {
 		// Pick a random position between 25% and 75% of the video.
 		offset = duration * (0.25 + rand.Float64()*0.50) //nolint:gosec // not security-sensitive
+	} else if ctx.Err() != nil {
+		return nil, fmt.Errorf("probe duration: %w", ctx.Err())
 	}
 
-	return extractThumbnail(tmpFile.Name(), offset)
+	return extractThumbnail(ctx, tmpFile.Name(), offset)
 }

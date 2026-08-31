@@ -21,7 +21,7 @@
   {{range .Categories}}
     <tr>
       <td data-value="{{.Name}}">
-        <a href="/tag-categories/{{.Name}}">{{.Name}}</a>
+        <a href="/tag-categories/{{pathEscape .Name}}">{{.Name}}</a>
       </td>
       <td data-value="{{.Description}}">{{.Description}}</td>
       <td data-value="{{index $.TagCounts .Name}}">{{index $.TagCounts .Name}}</td>

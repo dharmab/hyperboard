@@ -2,8 +2,12 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 )
+
+// ErrNotFound indicates that an object does not exist in the media store.
+var ErrNotFound = errors.New("storage object not found")
 
 // Metadata describes a stored object without retrieving its contents.
 type Metadata struct {

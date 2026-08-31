@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -594,6 +595,36 @@ func TestDeletePost(t *testing.T) {
 	getW := httptest.NewRecorder()
 	srv.GetPost(getW, getReq, postID)
 	require.Equal(t, http.StatusNotFound, getW.Code, "post still found after delete")
+}
+
+func TestGetPostsReturnsErrorWhenCascadingTagsCannotBeLoaded(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		search *string
+	}{
+		{name: "deterministic"},
+		{name: "random", search: new("sort:random")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sqlStore := newTestStore(t)
+			createTestPost(t, sqlStore)
+			server := NewServer(faultInjectingSQLStore{
+				SQLStore:                sqlStore,
+				getPostCascadingTagsErr: errors.New("injected cascading tag failure"),
+			}, memory.New())
+			limit := 24
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/posts", nil)
+			response := httptest.NewRecorder()
+
+			server.GetPosts(response, request, GetPostsParams{Search: tt.search, Limit: &limit})
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+			assert.Contains(t, response.Body.String(), "Failed to retrieve cascading tags")
+		})
+	}
 }
 
 func TestGetPostsSortRandom(t *testing.T) {

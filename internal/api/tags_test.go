@@ -358,6 +358,28 @@ func assertConflictResponse(t *testing.T, response *httptest.ResponseRecorder) {
 	assert.NotEmpty(t, responseError.Message, "conflict response message")
 }
 
+func TestPutTagCreateOnlyDoesNotUpdateExistingTag(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	server := NewServer(sqlStore, memory.New())
+	name := testTagName()
+	_, _, err := sqlStore.UpsertTag(t.Context(), name, store.TagInput{Name: name, Description: "original"}, time.Now().UTC())
+	require.NoError(t, err)
+	body, err := json.Marshal(types.Tag{Name: name, Description: "replacement"})
+	require.NoError(t, err)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tags/"+url.PathEscape(name), bytes.NewReader(body))
+	request.Header.Set("If-None-Match", "*")
+	response := httptest.NewRecorder()
+
+	server.PutTag(response, request, name)
+
+	assert.Equal(t, http.StatusConflict, response.Code)
+	stored, err := sqlStore.GetTag(t.Context(), name)
+	require.NoError(t, err)
+	assert.Equal(t, "original", stored.Description)
+}
+
 func TestCreateTag(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandlerForServer(t, NewServer(newTestStore(t), memory.New()))
@@ -447,6 +469,9 @@ func TestDeleteTag(t *testing.T) {
 
 	missingResponse := performRequest(handler, http.MethodGet, tagPath(tag.Name), "", true)
 	assert.Equal(t, http.StatusNotFound, missingResponse.Code, "body: %s", missingResponse.Body.String())
+
+	deleteMissingResponse := performRequest(handler, http.MethodDelete, tagPath(tag.Name), "", true)
+	assert.Equal(t, http.StatusNotFound, deleteMissingResponse.Code, "body: %s", deleteMissingResponse.Body.String())
 }
 
 func createTagFixture(t *testing.T) (http.Handler, types.Tag) {

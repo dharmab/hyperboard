@@ -209,6 +209,7 @@ func (s *Server) PutTag(w http.ResponseWriter, r *http.Request, name Tag) {
 		Aliases:       aliases,
 		CascadingTags: cascadingTags,
 		TagCategoryID: tagCategoryID,
+		CreateOnly:    r.Header.Get("If-None-Match") == "*",
 	}, now)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {

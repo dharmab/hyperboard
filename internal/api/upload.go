@@ -126,7 +126,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(mimeStr, "image/") {
 		logger.Info().Str("mime", mimeStr).Msg("processing as image")
-		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
+		contentData, contentMIME, thumbnailData, err = media.ProcessImage(ctx, data, mimeStr)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process image")
 			respondToMediaProcessingError(w, err, "Failed to process uploaded image")
@@ -136,7 +136,7 @@ func (s *Server) UploadPost(w http.ResponseWriter, r *http.Request) {
 		logger.Info().Str("mime", mimeStr).Msg("processing as video")
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(ctx, data)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process video")
 			respondToMediaProcessingError(w, err, "Failed to process uploaded video")
@@ -292,7 +292,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	var hasAudioVal bool
 
 	if strings.HasPrefix(mimeStr, "image/") {
-		contentData, contentMIME, thumbnailData, err = media.ProcessImage(data, mimeStr)
+		contentData, contentMIME, thumbnailData, err = media.ProcessImage(ctx, data, mimeStr)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement image")
 			respondToMediaProcessingError(w, err, "Failed to process replacement image")
@@ -301,7 +301,7 @@ func (s *Server) ReplacePostContent(w http.ResponseWriter, r *http.Request, id I
 	} else if strings.HasPrefix(mimeStr, "video/") {
 		contentData = data
 		contentMIME = mimeStr
-		thumbnailData, hasAudioVal, err = media.ProcessVideo(data)
+		thumbnailData, hasAudioVal, err = media.ProcessVideo(ctx, data)
 		if err != nil {
 			logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement video")
 			respondToMediaProcessingError(w, err, "Failed to process replacement video")
@@ -415,7 +415,7 @@ func (s *Server) ReplacePostThumbnail(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 
-	_, _, thumbnailData, err := media.ProcessImage(data, mimeStr)
+	_, _, thumbnailData, err := media.ProcessImage(ctx, data, mimeStr)
 	if err != nil {
 		logger.Error().Err(err).Str("mime", mimeStr).Msg("failed to process replacement thumbnail")
 		respondToMediaProcessingError(w, err, "Failed to process thumbnail")
@@ -488,14 +488,14 @@ func (s *Server) RegeneratePostThumbnail(w http.ResponseWriter, r *http.Request,
 
 	var thumbnailData []byte
 	if strings.HasPrefix(post.MimeType, "image/") {
-		_, _, thumbnailData, err = media.ProcessImage(data, post.MimeType)
+		_, _, thumbnailData, err = media.ProcessImage(ctx, data, post.MimeType)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to process image for thumbnail regeneration")
 			respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")
 			return
 		}
 	} else if strings.HasPrefix(post.MimeType, "video/") {
-		thumbnailData, err = media.RegenerateVideoThumbnail(data)
+		thumbnailData, err = media.RegenerateVideoThumbnail(ctx, data)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to process video for thumbnail regeneration")
 			respondWithError(w, http.StatusInternalServerError, "Failed to regenerate post thumbnail")

@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 	"uuid"
 
+	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/storage/memory"
 	"github.com/dharmab/hyperboard/pkg/types"
 	"github.com/stretchr/testify/assert"
@@ -52,6 +54,31 @@ func TestPutTagCategoryColorValidation(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, response.Code)
 		})
 	}
+}
+
+func TestPutTagCategoryCreateOnlyDoesNotUpdateExistingCategory(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	server := NewServer(sqlStore, memory.New())
+	name := testCategoryName()
+	_, _, err := sqlStore.UpsertTagCategory(t.Context(), name, store.TagCategoryInput{
+		Name: name, Description: "original", Color: "#123456",
+	}, time.Now().UTC())
+	require.NoError(t, err)
+	body, err := json.Marshal(types.TagCategory{Name: name, Description: "replacement", Color: "#654321"})
+	require.NoError(t, err)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/v1/tagCategories/"+url.PathEscape(name), bytes.NewReader(body))
+	request.Header.Set("If-None-Match", "*")
+	response := httptest.NewRecorder()
+
+	server.PutTagCategory(response, request, name)
+
+	assert.Equal(t, http.StatusConflict, response.Code)
+	stored, err := sqlStore.GetTagCategory(t.Context(), name)
+	require.NoError(t, err)
+	assert.Equal(t, "original", stored.Description)
+	assert.Equal(t, "#123456", stored.Color)
 }
 
 func TestCreateTagCategory(t *testing.T) {
@@ -120,6 +147,9 @@ func TestDeleteTagCategory(t *testing.T) {
 
 	missingResponse := performRequest(handler, http.MethodGet, categoryPath(category.Name), "", true)
 	assert.Equal(t, http.StatusNotFound, missingResponse.Code, "body: %s", missingResponse.Body.String())
+
+	deleteMissingResponse := performRequest(handler, http.MethodDelete, categoryPath(category.Name), "", true)
+	assert.Equal(t, http.StatusNotFound, deleteMissingResponse.Code, "body: %s", deleteMissingResponse.Body.String())
 }
 
 func createTagCategoryFixture(t *testing.T) (http.Handler, types.TagCategory) {
