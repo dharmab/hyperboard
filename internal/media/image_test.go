@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -74,12 +75,16 @@ func TestProcessImageRejectsInvalidMedia(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidMedia)
 }
 
-func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+func TestProcessImage(t *testing.T) {
+	t.Parallel()
+
 	if _, err := exec.LookPath("cwebp"); err != nil {
 		t.Skip("cwebp not available")
 	}
 
-	t.Run("small png to webp", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+	t.Run("small png to webp", func(t *testing.T) {
+		t.Parallel()
+
 		img := syntheticColorImage(64, 64)
 		pngData := encodePNG(t, img)
 
@@ -90,7 +95,9 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		assert.NotEmpty(t, thumbnail)
 	})
 
-	t.Run("webp passthrough", func(t *testing.T) { //nolint:paralleltest // requires cwebp binary
+	t.Run("webp passthrough", func(t *testing.T) {
+		t.Parallel()
+
 		img := syntheticColorImage(64, 64)
 		webpData, err := EncodeWebP(t.Context(), img, 85)
 		require.NoError(t, err)
@@ -101,6 +108,27 @@ func TestProcessImage(t *testing.T) { //nolint:paralleltest // requires cwebp bi
 		assert.Equal(t, webpData, content)
 		assert.NotEmpty(t, thumbnail)
 	})
+
+	for _, orientation := range []uint16{6, 8} {
+		t.Run(fmt.Sprintf("JPEG EXIF orientation %d", orientation), func(t *testing.T) {
+			t.Parallel()
+
+			jpegData := encodeJPEG(t, syntheticColorImage(40, 20))
+			jpegData = addJPEGAPP1(t, jpegData, exifPayload(orientation))
+
+			content, mime, thumbnail, err := ProcessImage(t.Context(), jpegData, "image/jpeg")
+			require.NoError(t, err)
+			assert.Equal(t, MIMEWebP, mime)
+
+			contentImage, _, err := image.Decode(bytes.NewReader(content))
+			require.NoError(t, err)
+			assert.Equal(t, image.Rect(0, 0, 20, 40), contentImage.Bounds())
+
+			thumbnailImage, _, err := image.Decode(bytes.NewReader(thumbnail))
+			require.NoError(t, err)
+			assert.Equal(t, image.Rect(0, 0, 20, 40), thumbnailImage.Bounds())
+		})
+	}
 }
 
 func syntheticColorImage(w, h int) image.Image {

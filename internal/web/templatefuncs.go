@@ -20,6 +20,11 @@ func escapePathSegment(segment string) string {
 	return url.PathEscape(segment)
 }
 
+// escapeQueryComponent escapes a value for use as one URL query component.
+func escapeQueryComponent(component string) string {
+	return url.QueryEscape(component)
+}
+
 // templateFuncs returns the FuncMap of custom template functions for HTML rendering.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -44,7 +49,8 @@ func templateFuncs() template.FuncMap {
 		"join_strings": func(s []string, sep string) string {
 			return strings.Join(s, sep)
 		},
-		"pathEscape": escapePathSegment,
+		"pathEscape":  escapePathSegment,
+		"queryEscape": escapeQueryComponent,
 		"catColor": func(colors map[string]string, cat *string) string {
 			if cat == nil || colors == nil {
 				return defaultColor

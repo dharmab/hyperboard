@@ -83,10 +83,20 @@ func storageKeyFromURL(mediaURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	const marker = "/posts/"
-	index := strings.Index(parsed.Path, marker)
-	if index < 0 {
-		return "", fmt.Errorf("URL path %q does not contain %q", parsed.Path, marker)
+	parts := strings.Split(parsed.Path, "/")
+	invalidPathErr := fmt.Errorf("URL path %q does not end in posts/<post-id>/<filename>", parsed.Path)
+	if len(parts) < 4 {
+		return "", invalidPathErr
 	}
-	return strings.TrimPrefix(parsed.Path[index:], "/"), nil
+
+	keyParts := parts[len(parts)-3:]
+	hasPostsDirectory := keyParts[0] == "posts"
+	hasPostID := keyParts[1] != ""
+	hasFilename := keyParts[2] != ""
+	hasValidStructure := hasPostsDirectory && hasPostID && hasFilename
+	if !hasValidStructure {
+		return "", invalidPathErr
+	}
+
+	return strings.Join(keyParts, "/"), nil
 }

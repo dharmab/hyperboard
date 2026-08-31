@@ -47,6 +47,7 @@ type TagInput struct {
 	Aliases       []string
 	CascadingTags []string
 	TagCategoryID sql.Null[uuid.UUID]
+	CreateOnly    bool
 }
 
 // CascadingTag holds a cascading tag name and its category color.
@@ -209,6 +210,9 @@ func (s *PostgresSQLStore) UpsertTag(ctx context.Context, urlName string, input 
 
 	var resultModel models.Tag
 	isCreate := errors.Is(err, sql.ErrNoRows)
+	if input.CreateOnly && !isCreate {
+		return nil, false, fmt.Errorf("%w: tag %q already exists", ErrConflict, urlName)
+	}
 
 	var conflictingTagID gofrs.UUID
 	err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE name = $1", input.Name).Scan(&conflictingTagID)

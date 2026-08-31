@@ -15,6 +15,12 @@ func TestEscapePathSegment(t *testing.T) {
 	assert.Equal(t, "tag%2Fname%20with%20spaces%3F%23", escapePathSegment("tag/name with spaces?#"))
 }
 
+func TestEscapeQueryComponent(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "tag%2Fname+with+spaces%3F%23%26%2B", escapeQueryComponent("tag/name with spaces?#&+"))
+}
+
 func TestResourceNamesArePathEscapedInTemplates(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +59,7 @@ func TestResourceNamesArePathEscapedInTemplates(t *testing.T) {
 		assert.Contains(t, body, `action="/tags/`+escapedTagName+`"`)
 		assert.Contains(t, body, `hx-delete="/tags/`+escapedTagName+`"`)
 		assert.Contains(t, body, `action="/tags/`+escapedTagName+`/convert-to-alias"`)
-		assert.Contains(t, body, `hx-get="/tag-suggestions?exclude=tag/name ?#"`)
+		assert.Contains(t, body, `hx-get="/tag-suggestions?exclude=tag%2Fname&#43;%3F%23"`)
 	})
 
 	t.Run("category listing link", func(t *testing.T) {
@@ -77,6 +83,20 @@ func TestResourceNamesArePathEscapedInTemplates(t *testing.T) {
 		assert.Contains(t, body, `/tags/`+escapedTagName+`"`)
 		assert.Contains(t, body, `href="/?search=tag%2fname%20%3f%23"`)
 	})
+}
+
+func TestPostsInfiniteScrollQueryValuesAreEscaped(t *testing.T) {
+	t.Parallel()
+
+	tmpls, err := parseTemplates()
+	require.NoError(t, err)
+
+	var output bytes.Buffer
+	require.NoError(t, tmpls["posts"].ExecuteTemplate(&output, "posts-items", postsData{
+		NextCursor: "cursor/+ ?#&",
+		Search:     "tag/name ?#&+",
+	}))
+	assert.Contains(t, output.String(), `hx-get="/posts-partial?cursor=cursor%2F%2B&#43;%3F%23%26&search=tag%2Fname&#43;%3F%23%26%2B"`)
 }
 
 func TestFormatSize(t *testing.T) {

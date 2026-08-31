@@ -137,6 +137,7 @@ func (s *Server) PutTagCategory(w http.ResponseWriter, r *http.Request, name Tag
 		Name:        req.Name,
 		Description: req.Description,
 		Color:       req.Color,
+		CreateOnly:  r.Header.Get("If-None-Match") == "*",
 	}, now)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {

@@ -35,6 +35,7 @@ type TagCategoryInput struct {
 	Name        string
 	Description string
 	Color       string
+	CreateOnly  bool
 }
 
 func (s *PostgresSQLStore) ListTagCategories(ctx context.Context, cursor *string, limit int) (models.TagCategorySlice, bool, error) {
@@ -107,6 +108,10 @@ func (s *PostgresSQLStore) UpsertTagCategory(ctx context.Context, urlName string
 	}
 
 	if err == nil {
+		if input.CreateOnly {
+			return nil, false, fmt.Errorf("%w: tag category %q already exists", ErrConflict, urlName)
+		}
+
 		var conflictingID gofrs.UUID
 		err = tx.QueryRowContext(ctx, "SELECT id FROM tag_categories WHERE name = $1", input.Name).Scan(&conflictingID)
 		if err == nil && conflictingID != existing.ID {

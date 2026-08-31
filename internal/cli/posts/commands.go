@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dharmab/hyperboard/internal/cli"
 	"github.com/dharmab/hyperboard/pkg/client"
@@ -165,6 +166,11 @@ func fetchAllPosts(c *client.ClientWithResponses, baseParams *client.GetPostsPar
 }
 
 func createPost(app *cli.App, filePath, tagsCSV, note string) error {
+	tags, err := parseTagCSV(tagsCSV)
+	if err != nil {
+		return err
+	}
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filePath, err)
@@ -182,26 +188,44 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 	}
 	resp, err := c.UploadPostWithBodyWithResponse(context.TODO(), mimeStr, bytes.NewReader(data))
 	if err != nil {
-		return err
+		return fmt.Errorf("upload post: %w", err)
+	}
+	if resp == nil {
+		return errors.New("upload post: server returned no response")
 	}
 	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+		return fmt.Errorf("upload post: %w", err)
+	}
+	if resp.StatusCode() != 201 {
+		return fmt.Errorf("upload post: unexpected server status %d", resp.StatusCode())
+	}
+	if resp.JSON201 == nil {
+		return errors.New("upload post: server returned 201 without a post response")
 	}
 	post := resp.JSON201.Post
 
 	if tagsCSV != "" || note != "" {
 		if tagsCSV != "" {
-			post.Tags = strings.Split(tagsCSV, ",")
+			post.Tags = tags
 		}
 		if note != "" {
 			post.Note = note
 		}
 		putResp, err := c.PutPostWithResponse(context.TODO(), post.ID, client.NewPostUpdateRequest(post))
 		if err != nil {
-			return err
+			return postMetadataError(post.ID, err)
+		}
+		if putResp == nil {
+			return postMetadataError(post.ID, errors.New("server returned no response"))
 		}
 		if err := cli.CheckResponse(putResp.StatusCode(), putResp.Body); err != nil {
-			return err
+			return postMetadataError(post.ID, err)
+		}
+		if putResp.StatusCode() != 200 {
+			return postMetadataError(post.ID, fmt.Errorf("unexpected server status %d", putResp.StatusCode()))
+		}
+		if putResp.JSON200 == nil {
+			return postMetadataError(post.ID, errors.New("server returned 200 without a post response"))
 		}
 		post = *putResp.JSON200
 	}
@@ -209,6 +233,44 @@ func createPost(app *cli.App, filePath, tagsCSV, note string) error {
 	return app.PrintResource(post, func() [][2]string {
 		return TableRows(post)
 	})
+}
+
+func parseTagCSV(tagsCSV string) ([]string, error) {
+	if tagsCSV == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(tagsCSV, ",")
+	tags := make([]string, len(parts))
+	for i, part := range parts {
+		tag := strings.TrimSpace(part)
+		if tag == "" {
+			return nil, fmt.Errorf("invalid --tags value: tag %d is empty", i+1)
+		}
+		if !isValidTagName(tag) {
+			return nil, fmt.Errorf("invalid --tags value: %q is not a valid tag name", tag)
+		}
+		tags[i] = tag
+	}
+	return tags, nil
+}
+
+func isValidTagName(name string) bool {
+	var previous rune
+	for i, current := range name {
+		if i == 0 && !unicode.IsLetter(current) && !unicode.IsDigit(current) {
+			return false
+		}
+		if unicode.IsSpace(current) && unicode.IsSpace(previous) {
+			return false
+		}
+		previous = current
+	}
+	return previous != 0 && !unicode.IsSpace(previous)
+}
+
+func postMetadataError(id types.ID, err error) error {
+	return fmt.Errorf("post %s was created, but updating its metadata failed: %w; recover with `hyperboardctl edit post %s`", id, err, id)
 }
 
 func editPost(app *cli.App, id string) error {

@@ -56,7 +56,7 @@
     <div class="ac-wrapper">
       <input type="text" name="target" id="convert-target-input" required
         placeholder="type to search…"
-        hx-get="/tag-suggestions?exclude={{.CurrentName}}"
+        hx-get="/tag-suggestions?exclude={{queryEscape .CurrentName}}"
         hx-trigger="input changed delay:300ms"
         hx-target="next .ac-dropdown"
         autocomplete="off">

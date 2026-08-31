@@ -129,7 +129,11 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 		items := make([]types.Post, 0, len(posts))
 		for _, post := range posts {
 			p := postFromModel(post)
-			cts, _ := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
+			cts, err := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to retrieve cascading tags")
+				return
+			}
 			applyCascadingTags(&p, cts)
 			items = append(items, p)
 		}
@@ -198,7 +202,11 @@ func (s *Server) GetPosts(w http.ResponseWriter, r *http.Request, params GetPost
 	items := make([]types.Post, 0, len(posts))
 	for _, post := range posts {
 		p := postFromModel(post)
-		cts, _ := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
+		cts, err := s.sqlStore.GetPostCascadingTags(ctx, uuid.UUID(post.ID))
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve cascading tags")
+			return
+		}
 		applyCascadingTags(&p, cts)
 		items = append(items, p)
 	}

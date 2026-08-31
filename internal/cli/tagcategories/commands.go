@@ -3,6 +3,7 @@ package tagcategories
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/dharmab/hyperboard/internal/cli"
@@ -146,12 +147,47 @@ func createTagCategory(app *cli.App, name string, tc types.TagCategory) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, client.NewTagCategoryUpdateRequest(tc))
+
+	getResp, err := c.GetTagCategoryWithResponse(context.TODO(), name)
 	if err != nil {
-		return err
+		return fmt.Errorf("check whether tagcategory/%s exists: %w", name, err)
+	}
+	if getResp == nil {
+		return fmt.Errorf("check whether tagcategory/%s exists: server returned no response", name)
+	}
+	switch getResp.StatusCode() {
+	case 200:
+		return fmt.Errorf("tagcategory/%s already exists; use `hyperboardctl edit tagcategory %s` to modify it", name, name)
+	case 404:
+		// The PUT endpoint is an upsert, so only call it after confirming absence.
+	default:
+		if err := cli.CheckResponse(getResp.StatusCode(), getResp.Body); err != nil {
+			return fmt.Errorf("check whether tagcategory/%s exists: %w", name, err)
+		}
+		return fmt.Errorf("check whether tagcategory/%s exists: unexpected server status %d", name, getResp.StatusCode())
+	}
+
+	resp, err := c.PutTagCategoryWithResponse(context.TODO(), name, client.NewTagCategoryUpdateRequest(tc), func(_ context.Context, req *http.Request) error {
+		req.Header.Set("If-None-Match", "*")
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create tagcategory/%s: %w", name, err)
+	}
+	if resp == nil {
+		return fmt.Errorf("create tagcategory/%s: server returned no response", name)
+	}
+	if resp.StatusCode() == 200 {
+		return fmt.Errorf("tagcategory/%s already exists; the server returned an update response instead of creating it", name)
 	}
 	if err := cli.CheckResponse(resp.StatusCode(), resp.Body); err != nil {
-		return err
+		return fmt.Errorf("create tagcategory/%s: %w", name, err)
+	}
+	if resp.StatusCode() != 201 {
+		return fmt.Errorf("create tagcategory/%s: unexpected server status %d", name, resp.StatusCode())
+	}
+	if resp.JSON201 == nil {
+		return fmt.Errorf("create tagcategory/%s: server returned 201 without a tag category response", name)
 	}
 	created := *resp.JSON201
 	return app.PrintResource(created, func() [][2]string {

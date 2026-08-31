@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 
+	"uuid"
+
 	"github.com/dharmab/hyperboard/internal/db/store"
 	"github.com/dharmab/hyperboard/internal/storage"
 )
 
 type faultInjectingSQLStore struct {
 	store.SQLStore
-	pingErr              error
-	convertTagToAliasErr error
+	pingErr                 error
+	convertTagToAliasErr    error
+	getPostCascadingTagsErr error
 }
 
 func (s faultInjectingSQLStore) Ping(ctx context.Context) error {
@@ -26,6 +29,13 @@ func (s faultInjectingSQLStore) ConvertTagToAlias(ctx context.Context, sourceNam
 		return nil, s.convertTagToAliasErr
 	}
 	return s.SQLStore.ConvertTagToAlias(ctx, sourceName, targetName)
+}
+
+func (s faultInjectingSQLStore) GetPostCascadingTags(ctx context.Context, postID uuid.UUID) ([]store.CascadingTag, error) {
+	if s.getPostCascadingTagsErr != nil {
+		return nil, s.getPostCascadingTagsErr
+	}
+	return s.SQLStore.GetPostCascadingTags(ctx, postID)
 }
 
 type faultInjectingMediaStore struct {

@@ -107,7 +107,7 @@ const MaxWebPDimension = 16383
 // ProcessImage converts an image to WebP (unless too large) and generates a thumbnail.
 // Returns (contentBytes, mimeType, thumbnailBytes, error).
 func ProcessImage(ctx context.Context, data []byte, detectedMIME string) ([]byte, string, []byte, error) {
-	img, _, err := image.Decode(bytes.NewReader(data))
+	img, _, err := decodeOrientedImage(data)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("%w: decode image: %w", ErrInvalidMedia, err)
 	}
@@ -148,4 +148,15 @@ func ProcessImage(ctx context.Context, data []byte, detectedMIME string) ([]byte
 	}
 
 	return content, mime, thumbBytes, nil
+}
+
+func decodeOrientedImage(data []byte) (image.Image, string, error) {
+	img, format, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", err
+	}
+	if format == "jpeg" {
+		img = applyEXIFOrientation(img, exifOrientation(data))
+	}
+	return img, format, nil
 }

@@ -1,7 +1,6 @@
 package media
 
 import (
-	"bytes"
 	"fmt"
 	"image"
 
@@ -33,7 +32,7 @@ func Dhash(img image.Image) int64 {
 
 // DhashFromBytes decodes image bytes and computes the dHash.
 func DhashFromBytes(data []byte) (int64, error) {
-	img, _, err := image.Decode(bytes.NewReader(data))
+	img, _, err := decodeOrientedImage(data)
 	if err != nil {
 		return 0, fmt.Errorf("decode image for phash: %w", err)
 	}
