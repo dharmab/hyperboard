@@ -69,7 +69,7 @@ Example:
 
 ## Full Example
 
-```
+```sh
 hyperboard-web \
   --tag-filters='[{"label":"material-icons-star","tags":["favorite"]},{"label":"Genre","tags":["portrait","landscape","street","macro"]},{"label":"B&W","tags":["black_and_white"]}]' \
   --quick-tag=favorite
