@@ -30,7 +30,7 @@ func (w *statusWriter) WriteHeader(code int) {
 // RequestLoggingMiddleware is HTTP middleware that assigns a request ID and logs each request.
 func RequestLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := r.Header.Get("X-Request-Id")
+		requestID := r.Header.Get("X-Request-ID")
 		if requestID == "" {
 			b := make([]byte, 8)
 			_, _ = rand.Read(b)
@@ -43,7 +43,7 @@ func RequestLoggingMiddleware(next http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, requestIDKey, requestID)
 		r = r.WithContext(ctx)
 
-		w.Header().Set("X-Request-Id", requestID)
+		w.Header().Set("X-Request-ID", requestID)
 
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
