@@ -269,7 +269,17 @@
           }
         } else {
           wrapper.classList.add('upload-error');
-          statusEl.textContent = resp.error || resp.message || 'Upload failed';
+          var message = resp.error || resp.message || 'Upload failed';
+          var duplicate = xhr.status === 409 && message.match(/^Duplicate of existing post ([0-9a-f-]{36})$/i);
+          if (duplicate) {
+            statusEl.textContent = 'Duplicate of existing post ';
+            var duplicateLink = document.createElement('a');
+            duplicateLink.href = '/posts/' + encodeURIComponent(duplicate[1]);
+            duplicateLink.textContent = duplicate[1];
+            statusEl.appendChild(duplicateLink);
+          } else {
+            statusEl.textContent = message;
+          }
         }
         // Always resolve — success, failure, and similar-post notices never
         // block the rest of the batch.
