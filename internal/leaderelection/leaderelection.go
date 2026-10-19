@@ -201,13 +201,17 @@ func holdPostgresLeadership(ctx context.Context, conn *pgxpool.Conn, cfg Config,
 			var one int
 			if err := conn.QueryRow(ctx, "SELECT 1").Scan(&one); err != nil {
 				cancel()
-				<-taskErr
+				if err := <-taskErr; err != nil && !errors.Is(err, context.Canceled) {
+					log.Warn().Err(err).Msg("task failed during stop")
+				}
 				log.Warn().Err(err).Msg("Lost PostgreSQL leadership connection")
 				return errLeadershipLost
 			}
 		case <-ctx.Done():
 			cancel()
-			<-taskErr
+			if err := <-taskErr; err != nil && !errors.Is(err, context.Canceled) {
+				log.Warn().Err(err).Msg("task failed during stop")
+			}
 			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer releaseCancel()
 			//nolint:contextcheck // the parent is canceled; lock release needs a short-lived fresh context
