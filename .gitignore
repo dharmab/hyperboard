@@ -7,6 +7,9 @@ bin/
 # Go
 vendor/
 
+# JavaScript
+node_modules/
+
 # Editor
 *.swp
 *.swo

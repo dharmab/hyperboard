@@ -1,6 +1,13 @@
 function toggleRandom() {
   var input = document.getElementById('posts-search');
-  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== '' && !s.startsWith('sort:'); });
+  var terms = input.value
+    .split(',')
+    .map(function (s) {
+      return s.trim();
+    })
+    .filter(function (s) {
+      return s !== '' && !s.startsWith('sort:');
+    });
   if (!hasRandomTerm(input.value)) {
     terms.push('sort:random');
   }
@@ -9,7 +16,14 @@ function toggleRandom() {
 }
 
 function hasRandomTerm(value) {
-  return value.split(',').map(function(s) { return s.trim(); }).indexOf('sort:random') >= 0;
+  return (
+    value
+      .split(',')
+      .map(function (s) {
+        return s.trim();
+      })
+      .indexOf('sort:random') >= 0
+  );
 }
 
 function updateRandomButton() {
@@ -26,7 +40,14 @@ updateRandomButton();
 function cycleTagFilter(btn) {
   var tags = JSON.parse(btn.dataset.tags);
   var input = document.getElementById('posts-search');
-  var terms = input.value.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s !== ''; });
+  var terms = input.value
+    .split(',')
+    .map(function (s) {
+      return s.trim();
+    })
+    .filter(function (s) {
+      return s !== '';
+    });
 
   var activeIndex = -1;
   for (var i = 0; i < tags.length; i++) {
@@ -51,7 +72,9 @@ function cycleTagFilter(btn) {
 
 function updateTagFilterButtons() {
   var input = document.getElementById('posts-search');
-  var terms = input.value.split(',').map(function(s) { return s.trim(); });
+  var terms = input.value.split(',').map(function (s) {
+    return s.trim();
+  });
   var btns = document.querySelectorAll('.tag-filter-btn');
   for (var i = 0; i < btns.length; i++) {
     var btnTags = JSON.parse(btns[i].dataset.tags);
@@ -73,29 +96,37 @@ updateTagFilterButtons();
 
 document.getElementById('btn-random').addEventListener('click', toggleRandom);
 
-document.querySelectorAll('.tag-filter-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() { cycleTagFilter(this); });
+document.querySelectorAll('.tag-filter-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    cycleTagFilter(this);
+  });
 });
 
 // Update random/filter buttons on input
-document.getElementById('posts-search').addEventListener('input', function() {
+document.getElementById('posts-search').addEventListener('input', function () {
   updateRandomButton();
   updateTagFilterButtons();
 });
 
 // Extract last comma-separated term for autocomplete query
-document.getElementById('posts-search').addEventListener('htmx:config:request', function(e) {
-  var value = this.value;
-  var lastComma = value.lastIndexOf(',');
-  var lastTerm = (lastComma >= 0 ? value.substring(lastComma + 1) : value).trim();
-  e.detail.ctx.request.body.set('q', lastTerm);
-});
+document
+  .getElementById('posts-search')
+  .addEventListener('htmx:config:request', function (e) {
+    var value = this.value;
+    var lastComma = value.lastIndexOf(',');
+    var lastTerm = (
+      lastComma >= 0 ? value.substring(lastComma + 1) : value
+    ).trim();
+    e.detail.ctx.request.body.set('q', lastTerm);
+  });
 
 // Handle autocomplete selection: replace last term
-document.addEventListener('ac-select', function(e) {
+document.addEventListener('ac-select', function (e) {
   var search = document.getElementById('posts-search');
   if (e.target !== search) return;
   var v = e.detail.originalValue;
   var lastComma = v.lastIndexOf(',');
-  search.value = (lastComma >= 0 ? v.substring(0, lastComma + 1) + ' ' : '') + e.detail.value;
+  search.value =
+    (lastComma >= 0 ? v.substring(0, lastComma + 1) + ' ' : '') +
+    e.detail.value;
 });

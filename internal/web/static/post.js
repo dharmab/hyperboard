@@ -1,9 +1,9 @@
 // Note editor (only present when post has no note yet)
-(function() {
+(function () {
   var addNoteBtn = document.getElementById('btn-add-note');
   if (!addNoteBtn) return;
 
-  addNoteBtn.addEventListener('click', function() {
+  addNoteBtn.addEventListener('click', function () {
     var container = document.getElementById('post-note');
     var tpl = document.getElementById('note-editor-tpl');
     container.innerHTML = tpl.innerHTML;
@@ -13,7 +13,7 @@
 })();
 
 // Tag autocomplete selection: click the Add button
-document.addEventListener('ac-select', function(e) {
+document.addEventListener('ac-select', function (e) {
   var tagInput = document.getElementById('tag-input');
   if (e.target === tagInput) {
     tagInput.closest('.post-tags-add').querySelector('button').click();
@@ -21,13 +21,13 @@ document.addEventListener('ac-select', function(e) {
 });
 
 // Clear the morph-preserved input after a successful tag submission
-document.addEventListener('postTagsUpdated', function() {
+document.addEventListener('postTagsUpdated', function () {
   var tagInput = document.getElementById('tag-input');
   if (tagInput) tagInput.value = '';
 });
 
 // Submit tag on Enter when no autocomplete item is active
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter') return;
   var tagInput = document.getElementById('tag-input');
   if (!tagInput || e.target !== tagInput) return;
@@ -38,12 +38,17 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Keyboard shortcuts
-(function() {
+(function () {
   function isInputFocused() {
     var el = document.activeElement;
     if (!el) return false;
     var tag = el.tagName.toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+    return (
+      tag === 'input' ||
+      tag === 'textarea' ||
+      tag === 'select' ||
+      el.isContentEditable
+    );
   }
 
   function getPostId() {
@@ -51,7 +56,7 @@ document.addEventListener('keydown', function(e) {
     return el ? el.getAttribute('data-post-id') : null;
   }
 
-  document.addEventListener('keydown', function(e) {
+  document.addEventListener('keydown', function (e) {
     if (isInputFocused()) return;
 
     var postId = getPostId();
@@ -70,11 +75,11 @@ document.addEventListener('keydown', function(e) {
         search = 'sort:created,created_before:' + createdAt;
       }
       fetch('/search.json?limit=1&search=' + encodeURIComponent(search))
-        .then(function(resp) {
+        .then(function (resp) {
           if (!resp.ok) return;
           return resp.json();
         })
-        .then(function(data) {
+        .then(function (data) {
           if (data && data.items && data.items.length > 0) {
             window.location.href = '/posts/' + data.items[0].id;
           }
@@ -92,7 +97,9 @@ document.addEventListener('keydown', function(e) {
       e.preventDefault();
 
       // Check if quick tag is among explicit (non-cascade) badges
-      var badges = tagsEl.querySelectorAll('.badge:not(.badge-cascade) .badge-link');
+      var badges = tagsEl.querySelectorAll(
+        '.badge:not(.badge-cascade) .badge-link'
+      );
       var hasTag = false;
       for (var i = 0; i < badges.length; i++) {
         if (badges[i].textContent.trim() === quickTag) {
@@ -102,15 +109,19 @@ document.addEventListener('keydown', function(e) {
       }
 
       if (hasTag) {
-        htmx.ajax('DELETE', '/posts/' + postId + '/tags/' + encodeURIComponent(quickTag), {
-          target: '.post-tags',
-          swap: 'outerMorph'
-        });
+        htmx.ajax(
+          'DELETE',
+          '/posts/' + postId + '/tags/' + encodeURIComponent(quickTag),
+          {
+            target: '.post-tags',
+            swap: 'outerMorph',
+          }
+        );
       } else {
         htmx.ajax('POST', '/posts/' + postId + '/tags', {
           target: '.post-tags',
           swap: 'outerMorph',
-          values: { q: quickTag }
+          values: { q: quickTag },
         });
       }
     }
