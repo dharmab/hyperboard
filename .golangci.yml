@@ -153,6 +153,7 @@ linters:
         path: "(testdb_test|scripts/generate)"
         text: "net.Listen"
     paths:
+      - node_modules/
       - third_party$
       - builtin$
       - examples$
@@ -167,6 +168,7 @@ formatters:
   exclusions:
     generated: lax
     paths:
+      - node_modules/
       - third_party$
       - builtin$
       - examples$
