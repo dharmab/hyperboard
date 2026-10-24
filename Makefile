@@ -2,6 +2,8 @@
 
 .DEFAULT_GOAL := help
 
+GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
+
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-30s %s\n", $$1, $$2}'
 
@@ -21,15 +23,15 @@ lint: lint-go lint-js ## Lint source code
 
 lint-go: ## Lint Go source code
 	go tool golangci-lint run
-	go vet ./...
-	go fix -diff ./...
-	gofmt -s -d .
+	go vet $(GO_PACKAGES)
+	go fix -diff $(GO_PACKAGES)
+	find . -type d -name node_modules -prune -o -type f -name '*.go' -exec gofmt -s -d {} +
 
 format: format-go format-js ## Format source code
 
 format-go: ## Format Go source code
-	go fix ./...
-	gofmt -s -w .
+	go fix $(GO_PACKAGES)
+	find . -type d -name node_modules -prune -o -type f -name '*.go' -exec gofmt -s -w {} +
 
 lint-js: ## Lint JavaScript source code
 	bun run lint
