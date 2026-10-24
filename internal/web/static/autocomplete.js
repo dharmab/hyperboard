@@ -1,5 +1,5 @@
 // Autocomplete keyboard navigation and selection for .ac-dropdown widgets
-(function() {
+(function () {
   function getItems(dropdown) {
     return dropdown.querySelectorAll('.ac-item');
   }
@@ -11,12 +11,17 @@
   function selectItem(input, value) {
     var originalValue = input.value;
     input.value = value;
-    input.dispatchEvent(new CustomEvent('ac-select', { bubbles: true, detail: { value: value, originalValue: originalValue } }));
+    input.dispatchEvent(
+      new CustomEvent('ac-select', {
+        bubbles: true,
+        detail: { value: value, originalValue: originalValue },
+      })
+    );
     var dropdown = input.parentElement.querySelector('.ac-dropdown');
     if (dropdown) clearDropdown(dropdown);
   }
 
-  document.body.addEventListener('keydown', function(e) {
+  document.body.addEventListener('keydown', function (e) {
     var input = e.target;
     if (input.tagName !== 'INPUT') return;
     var dropdown = input.parentElement.querySelector('.ac-dropdown');
@@ -37,7 +42,7 @@
         items[0].scrollIntoView({ block: 'nearest' });
       }
     } else if (e.key === 'Enter') {
-      var active = dropdown.querySelector('.ac-active');
+      active = dropdown.querySelector('.ac-active');
       if (active) {
         e.preventDefault();
         selectItem(input, active.dataset.value);
@@ -47,7 +52,7 @@
     }
   });
 
-  document.body.addEventListener('click', function(e) {
+  document.body.addEventListener('click', function (e) {
     var item = e.target.closest('.ac-item');
     if (!item) return;
     var dropdown = item.closest('.ac-dropdown');
@@ -56,11 +61,13 @@
     if (input) selectItem(input, item.dataset.value);
   });
 
-  document.body.addEventListener('focusout', function(e) {
+  document.body.addEventListener('focusout', function (e) {
     var input = e.target;
     if (input.tagName !== 'INPUT') return;
     var dropdown = input.parentElement.querySelector('.ac-dropdown');
     if (!dropdown) return;
-    setTimeout(function() { clearDropdown(dropdown); }, 150);
+    setTimeout(function () {
+      clearDropdown(dropdown);
+    }, 150);
   });
 })();

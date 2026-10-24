@@ -1,4 +1,4 @@
-.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck lint-tilt start stop ci clean
+.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck lint-go lint-js format-go format-js lint-tilt start stop ci clean
 
 .DEFAULT_GOAL := help
 
@@ -6,7 +6,8 @@ help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-30s %s\n", $$1, $$2}'
 
 install-deps: ## Install development dependencies via Homebrew
-	brew install go k3d tilt
+	brew install go k3d tilt oven-sh/bun/bun
+	bun install --frozen-lockfile
 
 build-images: build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboardctl ## Build all container images
 
@@ -16,15 +17,25 @@ build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-asy
 generate: ## Regenerate code from database schema and OpenAPI specs
 	go generate ./...
 
-lint: ## Run linters
+lint: lint-go lint-js ## Lint source code
+
+lint-go: ## Lint Go source code
 	go tool golangci-lint run
 	go vet ./...
 	go fix -diff ./...
 	gofmt -s -d .
 
-format: ## Format source code
+format: format-go format-js ## Format source code
+
+format-go: ## Format Go source code
 	go fix ./...
 	gofmt -s -w .
+
+lint-js: ## Lint JavaScript source code
+	bun run lint
+
+format-js: ## Format JavaScript source code
+	bun run format
 
 test: ## Run tests
 	go test -race ./...

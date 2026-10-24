@@ -1,4 +1,4 @@
-(function() {
+(function () {
   var STORAGE_KEY = 'upload-queue';
   var form = document.getElementById('upload-form');
   var fileInput = document.getElementById('file-input');
@@ -10,22 +10,27 @@
   var uploading = false;
 
   function hashFile(file) {
-    return file.arrayBuffer().then(function(buf) {
-      return crypto.subtle.digest('SHA-256', buf);
-    }).then(function(hash) {
-      var arr = new Uint8Array(hash);
-      var hex = '';
-      for (var i = 0; i < arr.length; i++) {
-        hex += arr[i].toString(16).padStart(2, '0');
-      }
-      return hex;
-    });
+    return file
+      .arrayBuffer()
+      .then(function (buf) {
+        return crypto.subtle.digest('SHA-256', buf);
+      })
+      .then(function (hash) {
+        var arr = new Uint8Array(hash);
+        var hex = '';
+        for (var i = 0; i < arr.length; i++) {
+          hex += arr[i].toString(16).padStart(2, '0');
+        }
+        return hex;
+      });
   }
 
   function fileToDataURL(file) {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       var reader = new FileReader();
-      reader.onload = function() { resolve(reader.result); };
+      reader.onload = function () {
+        resolve(reader.result);
+      };
       reader.readAsDataURL(file);
     });
   }
@@ -42,34 +47,48 @@
 
   function saveQueue() {
     var items = [];
-    fileMap.forEach(function(entry, key) {
-      items.push({ key: key, name: entry.file.name, type: entry.file.type, dataURL: entry.dataURL });
+    fileMap.forEach(function (entry, key) {
+      items.push({
+        key: key,
+        name: entry.file.name,
+        type: entry.file.type,
+        dataURL: entry.dataURL,
+      });
     });
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch(e) {
+    } catch {
       // sessionStorage full or unavailable — silently ignore
     }
   }
 
   function clearQueue() {
-    try { sessionStorage.removeItem(STORAGE_KEY); } catch(e) {}
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // sessionStorage may be unavailable; clearing the queue is best-effort.
+    }
   }
 
   function addFile(file) {
     if (uploading) return;
 
-    var preparation = Promise.all([hashFile(file), fileToDataURL(file)]).then(function(results) {
-      var key = results[0];
-      var dataURL = results[1];
-      if (fileMap.has(key)) return;
-      renderPreview(file, key, dataURL);
-      saveQueue();
-    }).catch(function() {
-      showError('Failed to prepare ' + (file.name || 'pasted image') + ' for upload');
-    }).finally(function() {
-      pendingPreparations.delete(preparation);
-    });
+    var preparation = Promise.all([hashFile(file), fileToDataURL(file)])
+      .then(function (results) {
+        var key = results[0];
+        var dataURL = results[1];
+        if (fileMap.has(key)) return;
+        renderPreview(file, key, dataURL);
+        saveQueue();
+      })
+      .catch(function () {
+        showError(
+          'Failed to prepare ' + (file.name || 'pasted image') + ' for upload'
+        );
+      })
+      .finally(function () {
+        pendingPreparations.delete(preparation);
+      });
     pendingPreparations.add(preparation);
   }
 
@@ -102,7 +121,7 @@
     btn.type = 'button';
     btn.className = 'remove-btn';
     btn.textContent = '\u00d7';
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', function () {
       fileMap.delete(key);
       wrapper.remove();
       saveQueue();
@@ -116,18 +135,26 @@
   // Restore queued files from sessionStorage
   (function restoreQueue() {
     var raw;
-    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch(e) { return; }
+    try {
+      raw = sessionStorage.getItem(STORAGE_KEY);
+    } catch {
+      return;
+    }
     if (!raw) return;
     var items;
-    try { items = JSON.parse(raw); } catch(e) { return; }
-    items.forEach(function(item) {
+    try {
+      items = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    items.forEach(function (item) {
       if (fileMap.has(item.key)) return;
       var file = dataURLToFile(item.dataURL, item.name, item.type);
       renderPreview(file, item.key, item.dataURL);
     });
   })();
 
-  fileInput.addEventListener('change', function() {
+  fileInput.addEventListener('change', function () {
     for (var i = 0; i < fileInput.files.length; i++) {
       addFile(fileInput.files[i]);
     }
@@ -151,13 +178,14 @@
     }
     if (handled) {
       // Clear contenteditable div to prevent pasted image from rendering inline, then restore placeholder
-      setTimeout(function() { pasteZone.innerHTML = pasteZonePlaceholder; }, 0);
+      setTimeout(function () {
+        pasteZone.innerHTML = pasteZonePlaceholder;
+      }, 0);
     }
   }
 
   pasteZone.addEventListener('paste', handlePaste);
   document.addEventListener('paste', handlePaste);
-
 
   function renderSimilarPosts(infoDiv, statusEl, postID, similar) {
     statusEl.textContent = 'Similar posts found:';
@@ -167,7 +195,7 @@
 
     var grid = document.createElement('div');
     grid.className = 'similar-posts-grid';
-    similar.forEach(function(post) {
+    similar.forEach(function (post) {
       var a = document.createElement('a');
       a.href = '/posts/' + post.id;
       a.target = '_blank';
@@ -186,18 +214,20 @@
     deleteBtn.type = 'button';
     deleteBtn.className = 'btn btn-danger';
     deleteBtn.textContent = 'Delete this upload';
-    deleteBtn.addEventListener('click', function() {
+    deleteBtn.addEventListener('click', function () {
       deleteBtn.disabled = true;
-      fetch('/posts/' + postID, { method: 'DELETE' }).then(function(res) {
-        if (res.ok) {
-          statusEl.textContent = 'Deleted';
-          similarDiv.remove();
-        } else {
+      fetch('/posts/' + postID, { method: 'DELETE' })
+        .then(function (res) {
+          if (res.ok) {
+            statusEl.textContent = 'Deleted';
+            similarDiv.remove();
+          } else {
+            deleteBtn.disabled = false;
+          }
+        })
+        .catch(function () {
           deleteBtn.disabled = false;
-        }
-      }).catch(function() {
-        deleteBtn.disabled = false;
-      });
+        });
     });
     actions.appendChild(deleteBtn);
 
@@ -212,10 +242,16 @@
     // Remove previous status/similar content on re-upload
     var oldProgress = wrapper.querySelector('.progress-bar');
     if (oldProgress) oldProgress.remove();
-    wrapper.querySelectorAll('.upload-status').forEach(function(el) { el.remove(); });
+    wrapper.querySelectorAll('.upload-status').forEach(function (el) {
+      el.remove();
+    });
     var oldSimilar = wrapper.querySelector('.similar-posts');
     if (oldSimilar) oldSimilar.remove();
-    wrapper.classList.remove('upload-success', 'upload-error', 'upload-similar');
+    wrapper.classList.remove(
+      'upload-success',
+      'upload-error',
+      'upload-similar'
+    );
 
     // Remove the remove button during upload
     var removeBtn = wrapper.querySelector('.remove-btn');
@@ -235,24 +271,35 @@
     statusEl.textContent = 'Uploading\u2026';
     infoDiv.appendChild(statusEl);
 
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       var xhr = new XMLHttpRequest();
       var formData = new FormData();
-      formData.append('files', entry.file, entry.file.name || 'pasted-image.png');
+      formData.append(
+        'files',
+        entry.file,
+        entry.file.name || 'pasted-image.png'
+      );
 
-      xhr.upload.addEventListener('progress', function(e) {
+      xhr.upload.addEventListener('progress', function (e) {
         if (e.lengthComputable) {
           var pct = Math.round((e.loaded / e.total) * 100);
           progressFill.style.width = pct + '%';
         }
       });
 
-      xhr.addEventListener('load', function() {
+      xhr.addEventListener('load', function () {
         progressFill.style.width = '100%';
         var resp;
-        try { resp = JSON.parse(xhr.responseText); } catch(e) { resp = {}; }
+        try {
+          resp = JSON.parse(xhr.responseText);
+        } catch {
+          resp = {};
+        }
 
-        if (xhr.status === 201 || (xhr.status >= 200 && xhr.status < 300 && resp.id)) {
+        if (
+          xhr.status === 201 ||
+          (xhr.status >= 200 && xhr.status < 300 && resp.id)
+        ) {
           wrapper.classList.add('upload-success');
           var link = document.createElement('a');
           link.href = '/posts/' + resp.id;
@@ -270,7 +317,9 @@
         } else {
           wrapper.classList.add('upload-error');
           var message = resp.error || resp.message || 'Upload failed';
-          var duplicate = xhr.status === 409 && message.match(/^Duplicate of existing post ([0-9a-f-]{36})$/i);
+          var duplicate =
+            xhr.status === 409 &&
+            message.match(/^Duplicate of existing post ([0-9a-f-]{36})$/i);
           if (duplicate) {
             statusEl.textContent = 'Duplicate of existing post ';
             var duplicateLink = document.createElement('a');
@@ -286,7 +335,7 @@
         resolve();
       });
 
-      xhr.addEventListener('error', function() {
+      xhr.addEventListener('error', function () {
         progressFill.style.width = '100%';
         wrapper.classList.add('upload-error');
         statusEl.textContent = 'Upload failed';
@@ -299,9 +348,10 @@
     });
   }
 
-  form.addEventListener('submit', function(e) {
+  form.addEventListener('submit', function (e) {
     e.preventDefault();
-    if (uploading || (fileMap.size === 0 && pendingPreparations.size === 0)) return;
+    if (uploading || (fileMap.size === 0 && pendingPreparations.size === 0))
+      return;
 
     uploading = true;
     fileInput.disabled = true;
@@ -309,19 +359,25 @@
     pasteZone.contentEditable = 'false';
     pasteZone.classList.add('disabled');
 
-    Promise.all(Array.from(pendingPreparations)).then(function() {
-      var entries = [];
-      fileMap.forEach(function(entry) { entries.push(entry); });
+    Promise.all(Array.from(pendingPreparations))
+      .then(function () {
+        var entries = [];
+        fileMap.forEach(function (entry) {
+          entries.push(entry);
+        });
 
-      // Upload files serially
-      var chain = Promise.resolve();
-      entries.forEach(function(entry) {
-        chain = chain.then(function() { return uploadFile(entry); });
+        // Upload files serially
+        var chain = Promise.resolve();
+        entries.forEach(function (entry) {
+          chain = chain.then(function () {
+            return uploadFile(entry);
+          });
+        });
+        return chain;
+      })
+      .then(function () {
+        fileMap.clear();
+        clearQueue();
       });
-      return chain;
-    }).then(function() {
-      fileMap.clear();
-      clearQueue();
-    });
   });
 })();
