@@ -1,4 +1,4 @@
-.PHONY: help install-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck lint-go lint-js format-go format-js lint-tilt start stop ci clean
+.PHONY: help install-deps install-javascript-deps build-images build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboard-web build-image-hyperboardctl generate lint format test coverage govulncheck lint-go lint-javascript format-go format-javascript lint-tilt start stop ci clean
 
 .DEFAULT_GOAL := help
 
@@ -9,6 +9,9 @@ help: ## Show available targets
 
 install-deps: ## Install development dependencies via Homebrew
 	brew install go k3d tilt oven-sh/bun/bun
+	$(MAKE) install-javascript-deps
+
+install-javascript-deps: ## Install locked JavaScript dependencies
 	bun install --frozen-lockfile
 
 build-images: build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-async build-image-hyperboardctl ## Build all container images
@@ -19,7 +22,7 @@ build-image-hyperboard-web build-image-hyperboard-api build-image-hyperboard-asy
 generate: ## Regenerate code from database schema and OpenAPI specs
 	go generate ./...
 
-lint: lint-go lint-js ## Lint source code
+lint: lint-go lint-javascript ## Lint source code
 
 lint-go: ## Lint Go source code
 	go tool golangci-lint run
@@ -27,16 +30,16 @@ lint-go: ## Lint Go source code
 	go fix -diff $(GO_PACKAGES)
 	find . -type d -name node_modules -prune -o -type f -name '*.go' -exec gofmt -s -d {} +
 
-format: format-go format-js ## Format source code
+format: format-go format-javascript ## Format source code
 
 format-go: ## Format Go source code
 	go fix $(GO_PACKAGES)
 	find . -type d -name node_modules -prune -o -type f -name '*.go' -exec gofmt -s -w {} +
 
-lint-js: ## Lint JavaScript source code
+lint-javascript: install-javascript-deps ## Lint JavaScript source code
 	bun run lint
 
-format-js: ## Format JavaScript source code
+format-javascript: install-javascript-deps ## Format JavaScript source code
 	bun run format
 
 test: ## Run tests
