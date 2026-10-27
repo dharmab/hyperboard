@@ -12,12 +12,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	leaderElectionBackendPostgres   = "postgres"
+	leaderElectionBackendKubernetes = "kubernetes"
+)
+
 type config struct {
-	LogLevel       string
-	LeaderElection leaderelection.Config
-	SQLStore       sqlStoreConfig
-	ObjectStore    objectStoreConfig
-	Controller     controllerConfig
+	LeaderElectionBackend    string
+	Kubeconfig               string
+	LogLevel                 string
+	LeaderElection           leaderelection.Config
+	KubernetesLeaderElection leaderelection.KubernetesConfig
+	SQLStore                 sqlStoreConfig
+	ObjectStore              objectStoreConfig
+	Controller               controllerConfig
 }
 
 type sqlStoreConfig struct {
@@ -46,7 +54,7 @@ func bindConfig(cmd *cobra.Command, values *viper.Viper) error {
 	flags := cmd.Flags()
 
 	flags.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
-	flags.String("leader-election", string(leaderelection.Postgres), "Leader election backend (kubernetes or postgres)")
+	flags.String("leader-election", leaderElectionBackendPostgres, "Leader election backend (kubernetes or postgres)")
 	flags.String("leader-election-identity", "", "Unique identity for this controller instance (defaults to hostname)")
 	flags.String("leader-election-lock-name", "hyperboard-async", "Name of the leader election lock")
 	flags.String("leader-election-namespace", "default", "Kubernetes namespace containing the leader election Lease")
@@ -83,16 +91,13 @@ func bindConfig(cmd *cobra.Command, values *viper.Viper) error {
 
 func loadConfig(values *viper.Viper) (*config, error) {
 	cfg := &config{
-		LogLevel: values.GetString("log-level"),
+		LogLevel:              values.GetString("log-level"),
+		LeaderElectionBackend: values.GetString("leader-election"),
+		Kubeconfig:            values.GetString("kubeconfig"),
 		LeaderElection: leaderelection.Config{
-			Backend:       leaderelection.Backend(values.GetString("leader-election")),
-			Identity:      values.GetString("leader-election-identity"),
-			LockName:      values.GetString("leader-election-lock-name"),
-			Namespace:     values.GetString("leader-election-namespace"),
-			Kubeconfig:    values.GetString("kubeconfig"),
-			LeaseDuration: values.GetDuration("leader-election-lease-duration"),
-			RenewDeadline: values.GetDuration("leader-election-renew-deadline"),
-			RetryPeriod:   values.GetDuration("leader-election-retry-period"),
+			Identity:    values.GetString("leader-election-identity"),
+			LockName:    values.GetString("leader-election-lock-name"),
+			RetryPeriod: values.GetDuration("leader-election-retry-period"),
 		},
 		SQLStore: sqlStoreConfig{
 			Host:     values.GetString("postgresql-host"),
@@ -115,6 +120,13 @@ func loadConfig(values *viper.Viper) (*config, error) {
 		},
 	}
 
+	cfg.KubernetesLeaderElection = leaderelection.KubernetesConfig{
+		Config:        cfg.LeaderElection,
+		Namespace:     values.GetString("leader-election-namespace"),
+		LeaseDuration: values.GetDuration("leader-election-lease-duration"),
+		RenewDeadline: values.GetDuration("leader-election-renew-deadline"),
+	}
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -122,6 +134,15 @@ func loadConfig(values *viper.Viper) (*config, error) {
 }
 
 func (cfg *config) validate() error {
+	switch cfg.LeaderElectionBackend {
+	case leaderElectionBackendPostgres:
+	case leaderElectionBackendKubernetes:
+		if err := cfg.KubernetesLeaderElection.Validate(); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("leader election backend must be %q or %q", leaderElectionBackendKubernetes, leaderElectionBackendPostgres)
+	}
 	if err := cfg.LeaderElection.Validate(); err != nil {
 		return err
 	}

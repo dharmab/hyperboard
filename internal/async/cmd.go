@@ -120,6 +120,18 @@ func run(ctx context.Context, cfg *config) error {
 		return group.Wait()
 	}
 
-	log.Info().Str("backend", string(cfg.LeaderElection.Backend)).Msg("Starting async controller")
-	return leaderelection.Run(shutdownCtx, pool, cfg.LeaderElection, leaderTask)
+	log.Info().Str("backend", cfg.LeaderElectionBackend).Msg("Starting async controller")
+	var leader leaderelection.Leader
+	switch cfg.LeaderElectionBackend {
+	case leaderElectionBackendKubernetes:
+		leader, err = leaderelection.NewKubernetes(cfg.Kubeconfig, cfg.KubernetesLeaderElection)
+	case leaderElectionBackendPostgres:
+		leader, err = leaderelection.NewPostgres(pool, cfg.LeaderElection)
+	default:
+		return fmt.Errorf("unsupported leader election backend %q", cfg.LeaderElectionBackend)
+	}
+	if err != nil {
+		return err
+	}
+	return leader.Lead(shutdownCtx, leaderTask)
 }
