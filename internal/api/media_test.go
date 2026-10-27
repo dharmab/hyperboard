@@ -333,6 +333,32 @@ func TestMP4WithAudioReplacedByImage(t *testing.T) {
 	assert.Error(t, err, "superseded MP4 key %q still exists", oldKey)
 }
 
+func TestReuploadSoftDeletedPost(t *testing.T) {
+	t.Parallel()
+	sqlStore, pool := newTestStoreWithPool(t)
+	server := NewServer(sqlStore, memory.New())
+	handler := newTestHandlerForServer(t, server)
+	image := encodeTestPNG(t, color.RGBA{R: 180, G: 30, B: 30, A: 255})
+
+	first := uploadTestMedia(t, handler, image, "image/png")
+	firstID := uuid.UUID(first.Post.ID)
+	deleted := performMediaRequest(handler, http.MethodDelete, "/api/v1/posts/"+firstID.String(), nil, "")
+	require.Equal(t, http.StatusNoContent, deleted.Code, "body = %q", deleted.Body.String())
+
+	second := uploadTestMedia(t, handler, image, "image/png")
+	require.NotEqual(t, first.Post.ID, second.Post.ID)
+	assertPostPersistenceAndRoute(t, sqlStore, handler, second.Post)
+
+	// The old row must still be queued for cleanup when the re-upload succeeds.
+	var pendingDeletion bool
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT deleted_at IS NOT NULL FROM posts WHERE id = $1", firstID.String()).Scan(&pendingDeletion))
+	assert.True(t, pendingDeletion)
+	assertRoutedMediaResponse(t, handler, "/api/v1/posts/"+uuid.UUID(second.Post.ID).String()+"/content", "image/webp", "")
+
+	duplicate := performMediaRequest(handler, http.MethodPost, "/api/v1/upload", image, "image/png")
+	require.Equal(t, http.StatusConflict, duplicate.Code, "body = %q", duplicate.Body.String())
+}
+
 func TestUploadReturnsSimilarPosts(t *testing.T) {
 	t.Parallel()
 	sqlStore := newTestStore(t)
