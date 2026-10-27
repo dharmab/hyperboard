@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -51,11 +52,11 @@ func NewKubernetes(kubeconfig string, cfg KubernetesConfig) (Leader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	common, err := prepareConfig(cfg.Config)
+	sharedConfig, err := prepareConfig(cfg.Config)
 	if err != nil {
 		return nil, err
 	}
-	cfg.Config = common
+	cfg.Config = sharedConfig
 	restConfig, err := kubernetesConfig(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -82,20 +83,38 @@ func (l *kubernetesLeader) Lead(ctx context.Context, task Task) error {
 		return fmt.Errorf("create Kubernetes Lease lock: %w", err)
 	}
 
-	electionCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	taskErr := make(chan error, 1)
+	// Keep renewing during graceful task shutdown; release only after the task exits.
+	electionCtx, stopElection := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopElection()
+	taskCtx, cancelTask := context.WithCancel(ctx)
+	defer cancelTask()
+	var taskStartupGate sync.Once
+	var taskWG sync.WaitGroup
+	taskResult := make(chan error, 1)
+	stopTaskAndWait := func() {
+		// Close the startup gate, or wait for task registration if startup won.
+		taskStartupGate.Do(func() {})
+		cancelTask()
+		taskWG.Wait()
+	}
+	lock = &taskShutdownLock{Interface: lock, stopTaskAndWait: stopTaskAndWait}
 	elector, err := k8sleaderelection.NewLeaderElector(k8sleaderelection.LeaderElectionConfig{
 		Lock:            lock,
 		LeaseDuration:   cfg.LeaseDuration,
 		RenewDeadline:   cfg.RenewDeadline,
 		RetryPeriod:     cfg.RetryPeriod,
-		ReleaseOnCancel: false,
+		ReleaseOnCancel: true,
 		Name:            cfg.LockName,
 		Callbacks: k8sleaderelection.LeaderCallbacks{
 			OnStartedLeading: func(leaderCtx context.Context) {
-				log.Info().Str("identity", cfg.Identity).Msg("Acquired Kubernetes leadership")
-				taskErr <- task(leaderCtx)
+				taskStartupGate.Do(func() {
+					taskWG.Go(func() {
+						unlinkLeadershipCancellation := context.AfterFunc(leaderCtx, cancelTask)
+						defer unlinkLeadershipCancellation()
+						log.Info().Str("identity", cfg.Identity).Msg("Acquired Kubernetes leadership")
+						taskResult <- task(taskCtx)
+					})
+				})
 			},
 			OnStoppedLeading: func() {
 				log.Warn().Str("identity", cfg.Identity).Msg("Lost Kubernetes leadership")
@@ -117,22 +136,40 @@ func (l *kubernetesLeader) Lead(ctx context.Context, task Task) error {
 		close(electionDone)
 	}()
 
+	var result error
 	select {
-	case err := <-taskErr:
-		if err != nil {
-			return err
+	case err := <-taskResult:
+		if ctx.Err() == nil {
+			result = err
+			if result == nil {
+				result = errors.New("leader task stopped unexpectedly")
+			}
 		}
-		return errors.New("leader task stopped unexpectedly")
 	case <-electionDone:
-		if ctx.Err() != nil {
-			return nil
+		if ctx.Err() == nil {
+			result = errLeadershipLost
 		}
-		return errLeadershipLost
 	case <-ctx.Done():
-		cancel()
-		<-electionDone
-		return nil
 	}
+
+	stopTaskAndWait()
+	stopElection()
+	<-electionDone
+	return result
+}
+
+// taskShutdownLock lets client-go release the Lease only after work has stopped,
+// including when renewal fails before the election context is canceled.
+type taskShutdownLock struct {
+	resourcelock.Interface
+	stopTaskAndWait func()
+}
+
+func (l *taskShutdownLock) Update(ctx context.Context, record resourcelock.LeaderElectionRecord) error {
+	if record.HolderIdentity == "" {
+		l.stopTaskAndWait()
+	}
+	return l.Interface.Update(ctx, record)
 }
 
 func kubernetesConfig(kubeconfig string) (*rest.Config, error) {
