@@ -22,7 +22,6 @@ jobs:
       - run: gofmt -s -w .
       - run: git diff --exit-code
 
-
   test:
     runs-on: ubuntu-latest
     steps:

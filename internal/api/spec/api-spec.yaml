@@ -693,7 +693,7 @@ components:
         color:
           type: string
           description: Hex color.
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
           default: "#888888"
           example: "#ff0000"
           x-go-type-skip-optional-pointer: true

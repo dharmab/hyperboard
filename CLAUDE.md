@@ -65,6 +65,7 @@ make stop
 ```
 
 Default ports on the host (configurable in `Tiltfile`):
+
 - Web: 8080
 - API: 8081
 - PostgreSQL: 5432

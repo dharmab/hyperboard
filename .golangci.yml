@@ -69,7 +69,6 @@ linters:
       - legacy
       - std-error-handling
     rules:
-
       # Integration tests use testcontainers and cannot run in parallel.
       - linters:
           - paralleltest
@@ -116,7 +115,6 @@ linters:
           - gosec
         path: "internal/web/session\\.go"
         text: "G124"
-
 
       # G705 (XSS via taint): the rendered markdown content is sanitized by
       # bluemonday before being written to the response.
