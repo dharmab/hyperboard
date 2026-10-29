@@ -39,7 +39,9 @@ a:hover {
   text-decoration: underline;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   color: var(--base06);
   margin-bottom: 0.5rem;
 }
@@ -316,7 +318,6 @@ button:hover,
   border-radius: 6px;
 }
 
-
 .post-tags {
   margin-bottom: 1rem;
 }
@@ -365,7 +366,9 @@ button:hover,
   line-height: 1.7;
 }
 
-.note-content h1, .note-content h2, .note-content h3 {
+.note-content h1,
+.note-content h2,
+.note-content h3 {
   margin-top: 1rem;
   margin-bottom: 0.5rem;
 }
@@ -454,22 +457,60 @@ button:hover,
 }
 
 /* Utility */
-.mt-1 { margin-top: 0.5rem; }
-.mt-2 { margin-top: 1rem; }
-.mt-3 { margin-top: 1.5rem; }
-.flex { display: flex; }
-.gap-1 { gap: 0.5rem; }
-.gap-2 { gap: 1rem; }
-.items-center { align-items: center; }
+.mt-1 {
+  margin-top: 0.5rem;
+}
+.mt-2 {
+  margin-top: 1rem;
+}
+.mt-3 {
+  margin-top: 1.5rem;
+}
+.flex {
+  display: flex;
+}
+.gap-1 {
+  gap: 0.5rem;
+}
+.gap-2 {
+  gap: 1rem;
+}
+.items-center {
+  align-items: center;
+}
 
 /* Autocomplete */
-.ac-wrapper { position: relative; width: fit-content; }
-.ac-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
-  background: var(--base01); border: 1px solid var(--base02); border-top: none;
-  border-radius: 0 0 4px 4px; max-height: 240px; overflow-y: auto; }
-.ac-item { padding: 0.4rem 0.75rem; cursor: pointer; color: var(--base05); }
-.ac-item.ac-active, .ac-item:hover { background: var(--base02); }
-.ac-count { color: var(--base03); font-size: 0.85em; margin-left: 0.25rem; }
+.ac-wrapper {
+  position: relative;
+  width: fit-content;
+}
+.ac-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--base01);
+  border: 1px solid var(--base02);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ac-item {
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  color: var(--base05);
+}
+.ac-item.ac-active,
+.ac-item:hover {
+  background: var(--base02);
+}
+.ac-count {
+  color: var(--base03);
+  font-size: 0.85em;
+  margin-left: 0.25rem;
+}
 
 /* Mobile responsive */
 @media (max-width: 480px) {

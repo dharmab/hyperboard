@@ -1,3 +1,9 @@
 [fmt]
 
-ignorePatterns = ["**/node_modules/**", "**/vendor/**", "**/vendored/**", "**/*.min.js"]
+ignorePatterns = [
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/vendored/**",
+  "**/*.min.js",
+  "internal/web/templates/**",
+]
