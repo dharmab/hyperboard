@@ -1,31 +1,31 @@
-import js from '@eslint/js';
-import globals from 'globals';
+import js from "@eslint/js";
+import globals from "globals";
 
 export default [
   {
     ignores: [
-      '**/node_modules/**',
-      '**/vendor/**',
-      '**/vendored/**',
-      '**/*.min.js',
+      "**/node_modules/**",
+      "**/vendor/**",
+      "**/vendored/**",
+      "**/*.min.js",
     ],
   },
   js.configs.recommended,
   {
-    files: ['internal/web/static/**/*.js'],
+    files: ["internal/web/static/**/*.js"],
     languageOptions: {
-      sourceType: 'script',
+      sourceType: "script",
       globals: {
         ...globals.browser,
-        htmx: 'readonly',
+        htmx: "readonly",
       },
     },
   },
   {
-    files: ['internal/web/static/upload.js'],
+    files: ["internal/web/static/upload.js"],
     languageOptions: {
       globals: {
-        showError: 'readonly',
+        showError: "readonly",
       },
     },
   },
