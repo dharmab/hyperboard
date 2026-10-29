@@ -8,10 +8,10 @@ Tag filters are configured via the `--tag-filters` flag or the `HYPERBOARD_WEB_T
 
 Each filter object has:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `label` | string | Button label text (or a material icon reference) |
-| `tags` | string[] | One or more tag search terms to cycle through |
+| Field   | Type     | Description                                      |
+| ------- | -------- | ------------------------------------------------ |
+| `label` | string   | Button label text (or a material icon reference) |
+| `tags`  | string[] | One or more tag search terms to cycle through    |
 
 Example:
 
@@ -46,13 +46,16 @@ Instead of text labels, you can use [Material Symbols](https://fonts.google.com/
 For example, to use the `star` icon for favorites:
 
 ```json
-{"label": "material-icons-star", "tags": ["favorite"]}
+{ "label": "material-icons-star", "tags": ["favorite"] }
 ```
 
 To use the `landscape` icon for outdoor shots:
 
 ```json
-{"label": "material-icons-landscape", "tags": ["landscape", "nature", "cityscape"]}
+{
+  "label": "material-icons-landscape",
+  "tags": ["landscape", "nature", "cityscape"]
+}
 ```
 
 Browse available icons at https://fonts.google.com/icons. Use the icon name exactly as shown (lowercase, underscores for spaces).

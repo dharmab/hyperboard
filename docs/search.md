@@ -16,12 +16,12 @@ There is no comma-escaping syntax. Tag names and aliases therefore cannot contai
 
 ### Tag Filters
 
-| Syntax | Effect |
-|--------|--------|
-| `zion national park` | Include posts tagged `zion national park`, directly or through a cascade |
-| `-utah` | Exclude posts tagged `utah`, directly or through a cascade |
-| `national park, utah` | Require both `national park` AND `utah` |
-| `national park, -utah` | Require `national park` and reject `utah` |
+| Syntax                 | Effect                                                                   |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `zion national park`   | Include posts tagged `zion national park`, directly or through a cascade |
+| `-utah`                | Exclude posts tagged `utah`, directly or through a cascade               |
+| `national park, utah`  | Require both `national park` AND `utah`                                  |
+| `national park, -utah` | Require `national park` and reject `utah`                                |
 
 Tag aliases are resolved for both inclusion and exclusion. For example, if `zion` is an alias of `zion national park`, the two names produce the same filter.
 
@@ -29,64 +29,64 @@ Tag cascades are one-directional and one level deep. If A cascades to B, a post 
 
 ### Content Type Filters
 
-| Syntax | Effect |
-|--------|--------|
-| `type:image` | Require an image MIME type (`image/*`) |
-| `type:video` | Require a video MIME type (`video/*`) |
-| `type:audio` | Require the post's audio flag |
-| `-type:image` | Reject image MIME types |
-| `-type:video` | Reject video MIME types |
-| `-type:audio` | Require the post not to have audio |
+| Syntax        | Effect                                 |
+| ------------- | -------------------------------------- |
+| `type:image`  | Require an image MIME type (`image/*`) |
+| `type:video`  | Require a video MIME type (`video/*`)  |
+| `type:audio`  | Require the post's audio flag          |
+| `-type:image` | Reject image MIME types                |
+| `-type:video` | Reject video MIME types                |
+| `-type:audio` | Require the post not to have audio     |
 
 Type filters combine with all other filters using AND. `type:audio` is independent of MIME type, so media such as an animated image with audio can match `type:image,type:audio`. Mutually exclusive filters, such as `type:image,type:video` or `type:image,-type:image`, return no posts.
 
 ### Tag Presence Filter
 
-| Syntax | Effect |
-|--------|--------|
-| `tagged:true` | Require at least one directly assigned tag |
-| `tagged:false` | Require no directly assigned tags |
+| Syntax         | Effect                                     |
+| -------------- | ------------------------------------------ |
+| `tagged:true`  | Require at least one directly assigned tag |
+| `tagged:false` | Require no directly assigned tags          |
 
 Cascade-derived tags do not count as directly assigned tags for this filter. This makes `tagged:false` useful for finding posts that still need explicit tagging.
 
 ### Date Range Filters
 
-| Syntax | Effect |
-|--------|--------|
-| `created_after:2025-01-01T00:00:00Z` | Require a creation time strictly after the timestamp |
+| Syntax                                | Effect                                                |
+| ------------------------------------- | ----------------------------------------------------- |
+| `created_after:2025-01-01T00:00:00Z`  | Require a creation time strictly after the timestamp  |
 | `created_before:2025-06-01T00:00:00Z` | Require a creation time strictly before the timestamp |
 
 Timestamps must use RFC 3339 format; fractional seconds are accepted. Both bounds are exclusive, so a post created exactly at either timestamp does not match. Both filters can be combined to form an open date range.
 
 ### Sort Options
 
-| Syntax | Effect |
-|--------|--------|
-| `sort:created` | Sort by creation time (the API default) |
-| `sort:updated` | Sort by last update time |
-| `sort:file-size` | Sort by content file size |
-| `sort:random` | Use a deterministic shuffle that changes every six hours |
+| Syntax           | Effect                                                   |
+| ---------------- | -------------------------------------------------------- |
+| `sort:created`   | Sort by creation time (the API default)                  |
+| `sort:updated`   | Sort by last update time                                 |
+| `sort:file-size` | Sort by content file size                                |
+| `sort:random`    | Use a deterministic shuffle that changes every six hours |
 
 Random order is stable within a rotating six-hour window. `order:asc` and `order:desc` do not affect random sorting. If pagination continues after the random window changes, it restarts in the new ordering and may repeat posts.
 
 ### Sort Direction
 
-| Syntax | Effect |
-|--------|--------|
+| Syntax       | Effect                                        |
+| ------------ | --------------------------------------------- |
 | `order:desc` | Descending (default): newest or largest first |
-| `order:asc` | Ascending: oldest or smallest first |
+| `order:asc`  | Ascending: oldest or smallest first           |
 
 ### Examples
 
-| Query | Result |
-|-------|--------|
-| `national park, utah, -zion national park` | Require `national park` and `utah`, excluding `zion national park` |
-| `sort:random, type:video` | Videos in the current six-hour random order |
-| `tagged:false, type:image` | Untagged images |
+| Query                                                        | Result                                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `national park, utah, -zion national park`                   | Require `national park` and `utah`, excluding `zion national park`       |
+| `sort:random, type:video`                                    | Videos in the current six-hour random order                              |
+| `tagged:false, type:image`                                   | Untagged images                                                          |
 | `created_after:2025-01-01T00:00:00Z, yosemite national park` | Posts tagged `yosemite national park` created strictly after Jan 1, 2025 |
-| `sort:created, order:asc` | All posts, oldest first |
-| `sort:file-size, order:desc, -type:video` | Non-video posts, largest first |
-| `type:video, -type:audio` | Videos without audio |
+| `sort:created, order:asc`                                    | All posts, oldest first                                                  |
+| `sort:file-size, order:desc, -type:video`                    | Non-video posts, largest first                                           |
+| `type:video, -type:audio`                                    | Videos without audio                                                     |
 
 ## Tags
 

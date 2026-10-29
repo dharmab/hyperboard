@@ -1,52 +1,52 @@
 function toggleRandom() {
-  var input = document.getElementById('posts-search');
+  var input = document.getElementById("posts-search");
   var terms = input.value
-    .split(',')
+    .split(",")
     .map(function (s) {
       return s.trim();
     })
     .filter(function (s) {
-      return s !== '' && !s.startsWith('sort:');
+      return s !== "" && !s.startsWith("sort:");
     });
   if (!hasRandomTerm(input.value)) {
-    terms.push('sort:random');
+    terms.push("sort:random");
   }
-  input.value = terms.join(', ');
-  htmx.trigger(document.querySelector('.posts-controls'), 'submit');
+  input.value = terms.join(", ");
+  htmx.trigger(document.querySelector(".posts-controls"), "submit");
 }
 
 function hasRandomTerm(value) {
   return (
     value
-      .split(',')
+      .split(",")
       .map(function (s) {
         return s.trim();
       })
-      .indexOf('sort:random') >= 0
+      .indexOf("sort:random") >= 0
   );
 }
 
 function updateRandomButton() {
-  var input = document.getElementById('posts-search');
-  var btn = document.getElementById('btn-random');
+  var input = document.getElementById("posts-search");
+  var btn = document.getElementById("btn-random");
   if (hasRandomTerm(input.value)) {
-    btn.classList.add('btn-primary');
+    btn.classList.add("btn-primary");
   } else {
-    btn.classList.remove('btn-primary');
+    btn.classList.remove("btn-primary");
   }
 }
 updateRandomButton();
 
 function cycleTagFilter(btn) {
   var tags = JSON.parse(btn.dataset.tags);
-  var input = document.getElementById('posts-search');
+  var input = document.getElementById("posts-search");
   var terms = input.value
-    .split(',')
+    .split(",")
     .map(function (s) {
       return s.trim();
     })
     .filter(function (s) {
-      return s !== '';
+      return s !== "";
     });
 
   var activeIndex = -1;
@@ -65,17 +65,17 @@ function cycleTagFilter(btn) {
     terms.push(tags[activeIndex + 1]);
   }
 
-  input.value = terms.join(', ');
-  htmx.trigger(document.querySelector('.posts-controls'), 'submit');
+  input.value = terms.join(", ");
+  htmx.trigger(document.querySelector(".posts-controls"), "submit");
   updateTagFilterButtons();
 }
 
 function updateTagFilterButtons() {
-  var input = document.getElementById('posts-search');
-  var terms = input.value.split(',').map(function (s) {
+  var input = document.getElementById("posts-search");
+  var terms = input.value.split(",").map(function (s) {
     return s.trim();
   });
-  var btns = document.querySelectorAll('.tag-filter-btn');
+  var btns = document.querySelectorAll(".tag-filter-btn");
   for (var i = 0; i < btns.length; i++) {
     var btnTags = JSON.parse(btns[i].dataset.tags);
     var active = false;
@@ -86,47 +86,47 @@ function updateTagFilterButtons() {
       }
     }
     if (active) {
-      btns[i].classList.add('btn-primary');
+      btns[i].classList.add("btn-primary");
     } else {
-      btns[i].classList.remove('btn-primary');
+      btns[i].classList.remove("btn-primary");
     }
   }
 }
 updateTagFilterButtons();
 
-document.getElementById('btn-random').addEventListener('click', toggleRandom);
+document.getElementById("btn-random").addEventListener("click", toggleRandom);
 
-document.querySelectorAll('.tag-filter-btn').forEach(function (btn) {
-  btn.addEventListener('click', function () {
+document.querySelectorAll(".tag-filter-btn").forEach(function (btn) {
+  btn.addEventListener("click", function () {
     cycleTagFilter(this);
   });
 });
 
 // Update random/filter buttons on input
-document.getElementById('posts-search').addEventListener('input', function () {
+document.getElementById("posts-search").addEventListener("input", function () {
   updateRandomButton();
   updateTagFilterButtons();
 });
 
 // Extract last comma-separated term for autocomplete query
 document
-  .getElementById('posts-search')
-  .addEventListener('htmx:config:request', function (e) {
+  .getElementById("posts-search")
+  .addEventListener("htmx:config:request", function (e) {
     var value = this.value;
-    var lastComma = value.lastIndexOf(',');
+    var lastComma = value.lastIndexOf(",");
     var lastTerm = (
       lastComma >= 0 ? value.substring(lastComma + 1) : value
     ).trim();
-    e.detail.ctx.request.body.set('q', lastTerm);
+    e.detail.ctx.request.body.set("q", lastTerm);
   });
 
 // Handle autocomplete selection: replace last term
-document.addEventListener('ac-select', function (e) {
-  var search = document.getElementById('posts-search');
+document.addEventListener("ac-select", function (e) {
+  var search = document.getElementById("posts-search");
   if (e.target !== search) return;
   var v = e.detail.originalValue;
-  var lastComma = v.lastIndexOf(',');
+  var lastComma = v.lastIndexOf(",");
   search.value =
-    (lastComma >= 0 ? v.substring(0, lastComma + 1) + ' ' : '') +
+    (lastComma >= 0 ? v.substring(0, lastComma + 1) + " " : "") +
     e.detail.value;
 });

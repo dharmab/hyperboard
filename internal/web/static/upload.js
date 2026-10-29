@@ -1,9 +1,9 @@
 (function () {
-  var STORAGE_KEY = 'upload-queue';
-  var form = document.getElementById('upload-form');
-  var fileInput = document.getElementById('file-input');
-  var previewZone = document.getElementById('preview-zone');
-  var pasteZone = document.getElementById('paste-zone');
+  var STORAGE_KEY = "upload-queue";
+  var form = document.getElementById("upload-form");
+  var fileInput = document.getElementById("file-input");
+  var previewZone = document.getElementById("preview-zone");
+  var pasteZone = document.getElementById("paste-zone");
 
   var fileMap = new Map();
   var pendingPreparations = new Set();
@@ -13,13 +13,13 @@
     return file
       .arrayBuffer()
       .then(function (buf) {
-        return crypto.subtle.digest('SHA-256', buf);
+        return crypto.subtle.digest("SHA-256", buf);
       })
       .then(function (hash) {
         var arr = new Uint8Array(hash);
-        var hex = '';
+        var hex = "";
         for (var i = 0; i < arr.length; i++) {
-          hex += arr[i].toString(16).padStart(2, '0');
+          hex += arr[i].toString(16).padStart(2, "0");
         }
         return hex;
       });
@@ -36,7 +36,7 @@
   }
 
   function dataURLToFile(dataURL, name, type) {
-    var parts = dataURL.split(',');
+    var parts = dataURL.split(",");
     var binary = atob(parts[1]);
     var arr = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) {
@@ -83,7 +83,7 @@
       })
       .catch(function () {
         showError(
-          'Failed to prepare ' + (file.name || 'pasted image') + ' for upload'
+          "Failed to prepare " + (file.name || "pasted image") + " for upload",
         );
       })
       .finally(function () {
@@ -93,35 +93,35 @@
   }
 
   function renderPreview(file, key, dataURL) {
-    var wrapper = document.createElement('div');
-    wrapper.className = 'file-preview';
+    var wrapper = document.createElement("div");
+    wrapper.className = "file-preview";
 
-    var thumbDiv = document.createElement('div');
-    thumbDiv.className = 'file-preview-thumb';
-    if (file.type.startsWith('image/')) {
-      var img = document.createElement('img');
+    var thumbDiv = document.createElement("div");
+    thumbDiv.className = "file-preview-thumb";
+    if (file.type.startsWith("image/")) {
+      var img = document.createElement("img");
       img.src = URL.createObjectURL(file);
       thumbDiv.appendChild(img);
     } else {
-      var nameEl = document.createElement('div');
-      nameEl.className = 'file-name';
+      var nameEl = document.createElement("div");
+      nameEl.className = "file-name";
       nameEl.textContent = file.name;
       thumbDiv.appendChild(nameEl);
     }
     wrapper.appendChild(thumbDiv);
 
-    var infoDiv = document.createElement('div');
-    infoDiv.className = 'file-preview-info';
-    var fnameEl = document.createElement('div');
-    fnameEl.textContent = file.name || 'pasted-image.png';
+    var infoDiv = document.createElement("div");
+    infoDiv.className = "file-preview-info";
+    var fnameEl = document.createElement("div");
+    fnameEl.textContent = file.name || "pasted-image.png";
     infoDiv.appendChild(fnameEl);
     wrapper.appendChild(infoDiv);
 
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'remove-btn';
-    btn.textContent = '\u00d7';
-    btn.addEventListener('click', function () {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "remove-btn";
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", function () {
       fileMap.delete(key);
       wrapper.remove();
       saveQueue();
@@ -154,11 +154,11 @@
     });
   })();
 
-  fileInput.addEventListener('change', function () {
+  fileInput.addEventListener("change", function () {
     for (var i = 0; i < fileInput.files.length; i++) {
       addFile(fileInput.files[i]);
     }
-    fileInput.value = '';
+    fileInput.value = "";
   });
 
   var pasteZonePlaceholder = pasteZone.innerHTML;
@@ -169,7 +169,7 @@
     if (!items) return;
     var handled = false;
     for (var i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith('image/')) {
+      if (items[i].type.startsWith("image/")) {
         e.preventDefault();
         var file = items[i].getAsFile();
         if (file) addFile(file);
@@ -184,42 +184,42 @@
     }
   }
 
-  pasteZone.addEventListener('paste', handlePaste);
-  document.addEventListener('paste', handlePaste);
+  pasteZone.addEventListener("paste", handlePaste);
+  document.addEventListener("paste", handlePaste);
 
   function renderSimilarPosts(infoDiv, statusEl, postID, similar) {
-    statusEl.textContent = 'Similar posts found:';
+    statusEl.textContent = "Similar posts found:";
 
-    var similarDiv = document.createElement('div');
-    similarDiv.className = 'similar-posts';
+    var similarDiv = document.createElement("div");
+    similarDiv.className = "similar-posts";
 
-    var grid = document.createElement('div');
-    grid.className = 'similar-posts-grid';
+    var grid = document.createElement("div");
+    grid.className = "similar-posts-grid";
     similar.forEach(function (post) {
-      var a = document.createElement('a');
-      a.href = '/posts/' + post.id;
-      a.target = '_blank';
-      var thumb = document.createElement('img');
-      thumb.className = 'similar-thumb';
-      thumb.src = '/posts/' + encodeURIComponent(post.id) + '/thumbnail';
-      thumb.alt = 'Similar post';
+      var a = document.createElement("a");
+      a.href = "/posts/" + post.id;
+      a.target = "_blank";
+      var thumb = document.createElement("img");
+      thumb.className = "similar-thumb";
+      thumb.src = "/posts/" + encodeURIComponent(post.id) + "/thumbnail";
+      thumb.alt = "Similar post";
       a.appendChild(thumb);
       grid.appendChild(a);
     });
     similarDiv.appendChild(grid);
 
-    var actions = document.createElement('div');
-    actions.className = 'similar-actions';
-    var deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'btn btn-danger';
-    deleteBtn.textContent = 'Delete this upload';
-    deleteBtn.addEventListener('click', function () {
+    var actions = document.createElement("div");
+    actions.className = "similar-actions";
+    var deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn btn-danger";
+    deleteBtn.textContent = "Delete this upload";
+    deleteBtn.addEventListener("click", function () {
       deleteBtn.disabled = true;
-      fetch('/posts/' + postID, { method: 'DELETE' })
+      fetch("/posts/" + postID, { method: "DELETE" })
         .then(function (res) {
           if (res.ok) {
-            statusEl.textContent = 'Deleted';
+            statusEl.textContent = "Deleted";
             similarDiv.remove();
           } else {
             deleteBtn.disabled = false;
@@ -237,58 +237,58 @@
 
   function uploadFile(entry) {
     var wrapper = entry.element;
-    var infoDiv = wrapper.querySelector('.file-preview-info');
+    var infoDiv = wrapper.querySelector(".file-preview-info");
 
     // Remove previous status/similar content on re-upload
-    var oldProgress = wrapper.querySelector('.progress-bar');
+    var oldProgress = wrapper.querySelector(".progress-bar");
     if (oldProgress) oldProgress.remove();
-    wrapper.querySelectorAll('.upload-status').forEach(function (el) {
+    wrapper.querySelectorAll(".upload-status").forEach(function (el) {
       el.remove();
     });
-    var oldSimilar = wrapper.querySelector('.similar-posts');
+    var oldSimilar = wrapper.querySelector(".similar-posts");
     if (oldSimilar) oldSimilar.remove();
     wrapper.classList.remove(
-      'upload-success',
-      'upload-error',
-      'upload-similar'
+      "upload-success",
+      "upload-error",
+      "upload-similar",
     );
 
     // Remove the remove button during upload
-    var removeBtn = wrapper.querySelector('.remove-btn');
+    var removeBtn = wrapper.querySelector(".remove-btn");
     if (removeBtn) removeBtn.remove();
 
     // Add progress bar
-    var progressBar = document.createElement('div');
-    progressBar.className = 'progress-bar';
-    var progressFill = document.createElement('div');
-    progressFill.className = 'progress-fill';
+    var progressBar = document.createElement("div");
+    progressBar.className = "progress-bar";
+    var progressFill = document.createElement("div");
+    progressFill.className = "progress-fill";
     progressBar.appendChild(progressFill);
     infoDiv.appendChild(progressBar);
 
     // Add status text
-    var statusEl = document.createElement('div');
-    statusEl.className = 'upload-status';
-    statusEl.textContent = 'Uploading\u2026';
+    var statusEl = document.createElement("div");
+    statusEl.className = "upload-status";
+    statusEl.textContent = "Uploading\u2026";
     infoDiv.appendChild(statusEl);
 
     return new Promise(function (resolve) {
       var xhr = new XMLHttpRequest();
       var formData = new FormData();
       formData.append(
-        'files',
+        "files",
         entry.file,
-        entry.file.name || 'pasted-image.png'
+        entry.file.name || "pasted-image.png",
       );
 
-      xhr.upload.addEventListener('progress', function (e) {
+      xhr.upload.addEventListener("progress", function (e) {
         if (e.lengthComputable) {
           var pct = Math.round((e.loaded / e.total) * 100);
-          progressFill.style.width = pct + '%';
+          progressFill.style.width = pct + "%";
         }
       });
 
-      xhr.addEventListener('load', function () {
-        progressFill.style.width = '100%';
+      xhr.addEventListener("load", function () {
+        progressFill.style.width = "100%";
         var resp;
         try {
           resp = JSON.parse(xhr.responseText);
@@ -300,30 +300,30 @@
           xhr.status === 201 ||
           (xhr.status >= 200 && xhr.status < 300 && resp.id)
         ) {
-          wrapper.classList.add('upload-success');
-          var link = document.createElement('a');
-          link.href = '/posts/' + resp.id;
-          link.textContent = 'View post';
-          statusEl.textContent = '';
+          wrapper.classList.add("upload-success");
+          var link = document.createElement("a");
+          link.href = "/posts/" + resp.id;
+          link.textContent = "View post";
+          statusEl.textContent = "";
           statusEl.appendChild(link);
 
           if (resp.similar && resp.similar.length > 0) {
-            wrapper.classList.add('upload-similar');
-            var similarStatus = document.createElement('div');
-            similarStatus.className = 'upload-status';
+            wrapper.classList.add("upload-similar");
+            var similarStatus = document.createElement("div");
+            similarStatus.className = "upload-status";
             infoDiv.appendChild(similarStatus);
             renderSimilarPosts(infoDiv, similarStatus, resp.id, resp.similar);
           }
         } else {
-          wrapper.classList.add('upload-error');
-          var message = resp.error || resp.message || 'Upload failed';
+          wrapper.classList.add("upload-error");
+          var message = resp.error || resp.message || "Upload failed";
           var duplicate =
             xhr.status === 409 &&
             message.match(/^Duplicate of existing post ([0-9a-f-]{36})$/i);
           if (duplicate) {
-            statusEl.textContent = 'Duplicate of existing post ';
-            var duplicateLink = document.createElement('a');
-            duplicateLink.href = '/posts/' + encodeURIComponent(duplicate[1]);
+            statusEl.textContent = "Duplicate of existing post ";
+            var duplicateLink = document.createElement("a");
+            duplicateLink.href = "/posts/" + encodeURIComponent(duplicate[1]);
             duplicateLink.textContent = duplicate[1];
             statusEl.appendChild(duplicateLink);
           } else {
@@ -335,20 +335,20 @@
         resolve();
       });
 
-      xhr.addEventListener('error', function () {
-        progressFill.style.width = '100%';
-        wrapper.classList.add('upload-error');
-        statusEl.textContent = 'Upload failed';
+      xhr.addEventListener("error", function () {
+        progressFill.style.width = "100%";
+        wrapper.classList.add("upload-error");
+        statusEl.textContent = "Upload failed";
         resolve();
       });
 
-      xhr.open('POST', '/upload');
-      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.open("POST", "/upload");
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
       xhr.send(formData);
     });
   }
 
-  form.addEventListener('submit', function (e) {
+  form.addEventListener("submit", function (e) {
     e.preventDefault();
     if (uploading || (fileMap.size === 0 && pendingPreparations.size === 0))
       return;
@@ -356,8 +356,8 @@
     uploading = true;
     fileInput.disabled = true;
     form.querySelector('button[type="submit"]').disabled = true;
-    pasteZone.contentEditable = 'false';
-    pasteZone.classList.add('disabled');
+    pasteZone.contentEditable = "false";
+    pasteZone.classList.add("disabled");
 
     Promise.all(Array.from(pendingPreparations))
       .then(function () {

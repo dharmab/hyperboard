@@ -4,8 +4,8 @@
   "packageManager": "bun@1.4.4",
   "scripts": {
     "lint": "bun --bun eslint . --max-warnings 0 && bun run format:check",
-    "format": "bun fmt '**/*.{js,mjs,cjs}'",
-    "format:check": "bun fmt --check '**/*.{js,mjs,cjs}'"
+    "format": "bun fmt",
+    "format:check": "bun fmt --check"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
