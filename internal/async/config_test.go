@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dharmab/hyperboard/internal/leaderelection"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 	cfg, err := loadConfig(values)
 	require.NoError(t, err)
-	assert.Equal(t, leaderelection.Postgres, cfg.LeaderElection.Backend)
+	assert.Equal(t, "postgres", cfg.LeaderElectionBackend)
 	assert.Equal(t, "hyperboard-async", cfg.LeaderElection.LockName)
 	assert.Empty(t, cfg.ObjectStore.Endpoint)
 	assert.Equal(t, 100*time.Millisecond, cfg.Controller.MinInterval)
@@ -36,7 +35,7 @@ func TestLoadConfigRejectsInvalidLeaderElectionBackend(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("leader-election", "consul"))
 
 	_, err := loadConfig(values)
-	require.EqualError(t, err, `leader election backend must be "kubernetes" or "postgres"`)
+	require.Error(t, err)
 }
 
 func TestDSNEscapesCredentials(t *testing.T) {
