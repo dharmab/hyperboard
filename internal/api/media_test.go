@@ -229,6 +229,53 @@ func TestMediaHeadAndRanges(t *testing.T) {
 	assert.Zero(t, mediaStore.rangeCalls)
 }
 
+func TestMediaOpenRangeIsCapped(t *testing.T) {
+	t.Parallel()
+
+	sqlStore := newTestStore(t)
+	memoryStore := memory.New()
+	server := NewServer(sqlStore, memoryStore)
+	server.maxOpenRangeBytes = 4
+	handler := newTestHandlerForServer(t, server)
+	created := uploadTestMedia(t, handler, encodeTestPNG(t, color.RGBA{R: 20, G: 80, B: 160, A: 255}), "image/png")
+	postID := uuid.UUID(created.Post.ID)
+
+	stored, err := memoryStore.Download(t.Context(), storageKeyForContent(postID, created.Post.MimeType))
+	require.NoError(t, err)
+	content, err := io.ReadAll(stored.Body)
+	require.NoError(t, err)
+	require.NoError(t, stored.Body.Close())
+	require.Greater(t, len(content), 10)
+
+	get := func(path, rangeValue string) *httptest.ResponseRecorder {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+		request.SetBasicAuth("any-user", testPassword)
+		request.Header.Set("Range", rangeValue)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		require.Equal(t, http.StatusPartialContent, response.Code, "body = %q", response.Body.String())
+		return response
+	}
+	contentPath := "/api/v1/posts/" + postID.String() + "/content"
+
+	open := get(contentPath, "bytes=2-")
+	assert.Equal(t, content[2:6], open.Body.Bytes())
+	assert.Equal(t, "4", open.Header().Get("Content-Length"))
+	assert.Equal(t, fmt.Sprintf("bytes 2-5/%d", len(content)), open.Header().Get("Content-Range"))
+
+	tail := get(contentPath, fmt.Sprintf("bytes=%d-", len(content)-2))
+	assert.Equal(t, content[len(content)-2:], tail.Body.Bytes())
+
+	closed := get(contentPath, "bytes=0-9")
+	assert.Equal(t, content[:10], closed.Body.Bytes())
+
+	suffix := get(contentPath, "bytes=-10")
+	assert.Equal(t, content[len(content)-10:], suffix.Body.Bytes())
+
+	download := get(contentPath+"/download", "bytes=2-")
+	assert.Equal(t, content[2:], download.Body.Bytes())
+}
+
 func TestMediaProcessingErrorStatus(t *testing.T) {
 	t.Parallel()
 

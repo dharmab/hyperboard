@@ -16,6 +16,14 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// defaultMaxOpenRangeBytes is the most bytes returned for an open-ended range
+// request such as "bytes=0-". Video players send open-ended ranges and stop
+// reading when their buffer is full, which holds the connection open. Browsers
+// limit HTTP/1.1 connections per host across all tabs, so a few stalled videos
+// can block every other request to the app. Short responses free the connection
+// quickly, and players request the next range as needed.
+const defaultMaxOpenRangeBytes int64 = 8 << 20
+
 // HeadPostContent returns a post content file's headers without downloading its body.
 func (s *Server) HeadPostContent(w http.ResponseWriter, r *http.Request, id Id) {
 	post, postID, ok := s.getPostByID(w, r, id)
@@ -92,6 +100,13 @@ func (s *Server) streamMedia(w http.ResponseWriter, r *http.Request, postID uuid
 			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", metadata.ContentLength))
 			respondWithError(w, http.StatusRequestedRangeNotSatisfiable, "Invalid or unsatisfiable byte range")
 			return
+		}
+		// Downloads keep the full range so resuming download managers get the whole file.
+		isDownload := filename != ""
+		isOpenEnded := strings.HasSuffix(rangeHeader, "-")
+		exceedsCap := end-start+1 > s.maxOpenRangeBytes
+		if !isDownload && isOpenEnded && exceedsCap {
+			end = start + s.maxOpenRangeBytes - 1
 		}
 
 		obj, err := s.mediaStore.DownloadRange(r.Context(), key, start, end)

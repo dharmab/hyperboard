@@ -9,6 +9,8 @@ import (
 type Server struct {
 	sqlStore   store.SQLStore
 	mediaStore storage.MediaStore
+	// maxOpenRangeBytes caps the length of responses to open-ended range requests.
+	maxOpenRangeBytes int64
 }
 
 var _ ServerInterface = &Server{}
@@ -16,7 +18,8 @@ var _ ServerInterface = &Server{}
 // NewServer creates a new Server with the given SQL and media stores.
 func NewServer(sqlStore store.SQLStore, mediaStore storage.MediaStore) *Server {
 	return &Server{
-		sqlStore:   sqlStore,
-		mediaStore: mediaStore,
+		sqlStore:          sqlStore,
+		mediaStore:        mediaStore,
+		maxOpenRangeBytes: defaultMaxOpenRangeBytes,
 	}
 }
